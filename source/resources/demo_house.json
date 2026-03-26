@@ -9,33 +9,57 @@
       "conductance": "W/K",
       "heat_loss": "W",
       "heat_loss_per_unit_area": "W/m²",
-      "total_heat_loss": "W"
+      "radiator_surface_area": "m²",
+      "radiator_output": "W",
+      "heating_balance": "W",
+      "temperature": "°C",
+      "total_heat_loss": "W",
+      "total_radiator_output": "W",
+      "total_balance": "W"
     }
   },
   "zones": [
     {
       "id": "living_room",
-      "level": 0
+      "level": 0,
+      "radiators": [
+        { "radiator_id": "type_22", "surface_area": 1.5 }
+      ]
     },
     {
       "id": "kitchen",
-      "level": 0
+      "level": 0,
+      "radiators": [
+        { "radiator_id": "type_22", "surface_area": 1.2 }
+      ]
     },
     {
       "id": "hall_ground",
-      "level": 0
+      "level": 0,
+      "radiators": [
+        { "radiator_id": "type_1", "surface_area": 0.4 }
+      ]
     },
     {
       "id": "bedroom_1",
-      "level": 1
+      "level": 1,
+      "radiators": [
+        { "radiator_id": "type_11", "surface_area": 1.0 }
+      ]
     },
     {
       "id": "bathroom",
-      "level": 1
+      "level": 1,
+      "radiators": [
+        { "radiator_id": "type_11", "surface_area": 0.6 }
+      ]
     },
     {
       "id": "hall_first",
-      "level": 1
+      "level": 1,
+      "radiators": [
+        { "radiator_id": "type_1", "surface_area": 0.4 }
+      ]
     },
     {
       "id": "loft",

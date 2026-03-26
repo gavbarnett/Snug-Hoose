@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "units": {
+      "heat_transfer_coefficient": "W/m²K",
+      "surface_area": "m²",
+      "temperature": "°C",
+      "wattage": "W"
+    },
+    "note": "Radiator wattage calculation: Q = heat_transfer_coefficient * surface_area * (flow_temperature - indoor_temperature). Surface area is the total radiator surface area (panels + convectors)."
+  },
+  "radiators": [
+    {
+      "id": "type_1",
+      "name": "Type 1 (Single panel)",
+      "heat_transfer_coefficient": 5.0,
+      "description": "Basic single panel radiator without convectors. Suitable for low heat output requirements."
+    },
+    {
+      "id": "type_11",
+      "name": "Type 11 (Single panel, single convector)",
+      "heat_transfer_coefficient": 6.5,
+      "description": "Single panel with single convector fins for improved heat transfer."
+    },
+    {
+      "id": "type_22",
+      "name": "Type 22 (Double panel, double convector)",
+      "heat_transfer_coefficient": 8.0,
+      "description": "Double panel with double convector fins for high heat output. Common in modern installations."
+    },
+    {
+      "id": "type_33",
+      "name": "Type 33 (Triple panel, triple convector)",
+      "heat_transfer_coefficient": 10.0,
+      "description": "Triple panel with triple convector fins for maximum heat output in cold climates."
+    }
+  ]
+}

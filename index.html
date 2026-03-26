@@ -20,8 +20,12 @@
       External temperature (°C)
       <input id="externalTemp" type="number" value="3" step="0.5" />
     </label>
+    <label>
+      Radiator flow temperature (°C)
+      <input id="flowTemp" type="number" value="55" step="1" />
+    </label>
     <p style="margin:.25rem 0 1rem 0">Provide JSON in the embedded scripts or serve the repo so the app fetches the files.</p>
-    <button id="run">Calculate U-values & Room Wattage</button>
+    <button id="run">Calculate U-values, Radiator Output & Heating Balance</button>
     <a id="download" download="demo_house.solved.json" style="margin-left:.5rem; pointer-events:none; opacity:.5">Download solved JSON</a>
   </div>
 

@@ -5,6 +5,7 @@ const runBtn = document.getElementById('run');
 const dlEl = document.getElementById('download');
 const indoorInput = document.getElementById('indoorTemp');
 const externalInput = document.getElementById('externalTemp');
+const flowTempInput = document.getElementById('flowTemp');
 
 async function tryFetchJson(url) {
   try {
@@ -19,7 +20,8 @@ async function tryFetchJson(url) {
 async function loadInputs() {
   const ins = await tryFetchJson('./source/resources/insulation.json') || JSON.parse(document.getElementById('insulation-json').textContent);
   const demo = await tryFetchJson('./source/resources/demo_house.json') || JSON.parse(document.getElementById('demo-json').textContent);
-  return [ins, demo];
+  const rads = await tryFetchJson('./source/resources/radiators.json') || { radiators: [] };
+  return [ins, demo, rads];
 }
 
 function findMaterial(materials, id) {
@@ -133,9 +135,23 @@ function computeElementU(elem, materials) {
 }
 
 /* Room wattage calculator adapted from TS -> JS */
-function computeRoomHeatRequirements(demo, opts) {
+function findRadiator(radiators, id) {
+  if (!id || !Array.isArray(radiators)) return null;
+  return radiators.find(r => r.id === id) || null;
+}
+
+function calculateRadiatorOutput(radiator, surfaceArea, indoorTemp, flowTemp) {
+  if (!radiator || typeof radiator.heat_transfer_coefficient !== 'number') return 0;
+  if (typeof surfaceArea !== 'number' || surfaceArea <= 0) return 0;
+  const h = radiator.heat_transfer_coefficient;
+  const dT = Math.max(0, flowTemp - indoorTemp);
+  return h * surfaceArea * dT;
+}
+
+function computeRoomHeatRequirements(demo, radiators, opts) {
   const indoorTemp = (opts && typeof opts.indoorTemp === 'number') ? opts.indoorTemp : 21;
   const externalTemp = (opts && typeof opts.externalTemp === 'number') ? opts.externalTemp : 3;
+  const flowTemp = (opts && typeof opts.flowTemp === 'number') ? opts.flowTemp : 55;
   const dT = Math.max(0, indoorTemp - externalTemp);
 
   const zones = (demo.zones || []).slice();
@@ -183,18 +199,41 @@ function computeRoomHeatRequirements(demo, opts) {
 
   const results = [];
   let totalHeat = 0;
+  let totalRadiatorOutput = 0;
   for (const [zoneId, acc] of roomAcc.entries()) {
     const heatLossW = acc.conductance * dT;
     const area = acc.area || null;
     const perM2 = area ? heatLossW / area : null;
     totalHeat += heatLossW;
+
+    // Calculate radiator output for this zone
+    const zone = zoneMap.get(zoneId);
+    let radiatorOutput = 0;
+    let totalRadSurfaceArea = 0;
+    if (zone && Array.isArray(zone.radiators)) {
+      for (const radSpec of zone.radiators) {
+        const rad = findRadiator(radiators, radSpec.radiator_id);
+        if (rad) {
+          const output = calculateRadiatorOutput(rad, radSpec.surface_area, indoorTemp, flowTemp);
+          radiatorOutput += output;
+          totalRadSurfaceArea += radSpec.surface_area;
+        }
+      }
+    }
+    totalRadiatorOutput += radiatorOutput;
+    const heatingBalance = radiatorOutput - heatLossW;
+
     results.push({
       zoneId,
-      zoneName: zoneMap.get(zoneId) && zoneMap.get(zoneId).name,
+      zoneName: zone && zone.name,
       floorArea: area,
       total_conductance: Number(acc.conductance.toFixed(3)),
       heat_loss: Number(heatLossW.toFixed(1)),
       heat_loss_per_unit_area: perM2 ? Number(perM2.toFixed(1)) : null,
+      radiator_surface_area: Number(totalRadSurfaceArea.toFixed(3)),
+      radiator_output: Number(radiatorOutput.toFixed(1)),
+      heating_balance: Number(heatingBalance.toFixed(1)),
+      balance_status: heatingBalance >= 0 ? 'sufficient' : 'insufficient',
       contributing_elements: acc.contributions.map(c => ({ elementId: c.id, conductance: Number(c.c.toFixed(3)) }))
     });
   }
@@ -202,26 +241,52 @@ function computeRoomHeatRequirements(demo, opts) {
   for (const z of zones) {
     if (z.type === 'boundary') continue;
     if (!roomAcc.has(z.id)) {
+      let radiatorOutput = 0;
+      let totalRadSurfaceArea = 0;
+      if (Array.isArray(z.radiators)) {
+        for (const radSpec of z.radiators) {
+          const rad = findRadiator(radiators, radSpec.radiator_id);
+          if (rad) {
+            const output = calculateRadiatorOutput(rad, radSpec.surface_area, indoorTemp, flowTemp);
+            radiatorOutput += output;
+            totalRadSurfaceArea += radSpec.surface_area;
+          }
+        }
+      }
+
       results.push({
         zoneId: z.id,
         zoneName: z.name,
         floorArea: null,
-        total_conductance_W_per_K: 0,
-        heat_loss_W: 0,
-        heat_loss_W_per_m2: null,
+        total_conductance: 0,
+        heat_loss: 0,
+        heat_loss_per_unit_area: null,
+        radiator_surface_area: Number(totalRadSurfaceArea.toFixed(3)),
+        radiator_output: Number(radiatorOutput.toFixed(1)),
+        heating_balance: Number(radiatorOutput.toFixed(1)),
+        balance_status: radiatorOutput >= 0 ? 'sufficient' : 'insufficient',
         contributing_elements: []
       });
     }
   }
 
-  return { rooms: results, total_heat_loss: Number(totalHeat.toFixed(1)), indoorTemp, externalTemp };
+  return { 
+    rooms: results, 
+    total_heat_loss: Number(totalHeat.toFixed(1)), 
+    total_radiator_output: Number(totalRadiatorOutput.toFixed(1)),
+    total_balance: Number((totalRadiatorOutput - totalHeat).toFixed(1)),
+    indoorTemp, 
+    externalTemp,
+    flowTemp
+  };
 }
 
 runBtn.addEventListener('click', async () => {
   outEl.textContent = 'Loading inputs...';
   try {
-    const [insRaw, demoRaw] = await loadInputs();
+    const [insRaw, demoRaw, radiatorsRaw] = await loadInputs();
     const materials = insRaw.materials || insRaw;
+    const radiators = radiatorsRaw.radiators || [];
     const elements = demoRaw.elements || demoRaw.rooms || [];
     if (!Array.isArray(elements)) throw new Error('No elements array found in demo json');
 
@@ -231,14 +296,18 @@ runBtn.addEventListener('click', async () => {
 
     const indoorTemp = parseFloat(indoorInput.value) || 21;
     const externalTemp = parseFloat(externalInput.value) || 3;
+    const flowTemp = parseFloat(flowTempInput.value) || 55;
 
-    const heatResults = computeRoomHeatRequirements(demoRaw, { indoorTemp, externalTemp });
+    const heatResults = computeRoomHeatRequirements(demoRaw, radiators, { indoorTemp, externalTemp, flowTemp });
 
     // annotate demo JSON
     demoRaw.meta = demoRaw.meta || {};
     demoRaw.meta.indoorTemp = indoorTemp;
     demoRaw.meta.externalTemp = externalTemp;
+    demoRaw.meta.flowTemp = flowTemp;
     demoRaw.meta.total_heat_loss = heatResults.total_heat_loss;
+    demoRaw.meta.total_radiator_output = heatResults.total_radiator_output;
+    demoRaw.meta.total_balance = heatResults.total_balance;
 
     // merge room heat results into zones
     for (const zone of demoRaw.zones) {
@@ -247,6 +316,10 @@ runBtn.addEventListener('click', async () => {
         zone.total_conductance = room.total_conductance;
         zone.heat_loss = room.heat_loss;
         zone.heat_loss_per_unit_area = room.heat_loss_per_unit_area;
+        zone.radiator_surface_area = room.radiator_surface_area;
+        zone.radiator_output = room.radiator_output;
+        zone.heating_balance = room.heating_balance;
+        zone.balance_status = room.balance_status;
         zone.contributing_elements = room.contributing_elements;
       }
     }
