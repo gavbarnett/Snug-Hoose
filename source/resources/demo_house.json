@@ -5,7 +5,11 @@
       "area": "m2",
       "thickness": "m",
       "thermal_conductivity": "W/mK",
-      "u_value": "W/m²K"
+      "u_value": "W/m²K",
+      "conductance": "W/K",
+      "heat_loss": "W",
+      "heat_loss_per_unit_area": "W/m²",
+      "total_heat_loss": "W"
     }
   },
   "zones": [

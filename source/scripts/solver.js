@@ -1,7 +1,10 @@
-// Client-side solver (ES module). Runs in browser; reads embedded JSON or fetches files when served.
+// Client-side solver (ES module). Calculates U-values then room wattage; produces downloadable JSON with annotations.
+
 const outEl = document.getElementById('out');
 const runBtn = document.getElementById('run');
 const dlEl = document.getElementById('download');
+const indoorInput = document.getElementById('indoorTemp');
+const externalInput = document.getElementById('externalTemp');
 
 async function tryFetchJson(url) {
   try {
@@ -21,7 +24,21 @@ async function loadInputs() {
 
 function findMaterial(materials, id) {
   if (!id) return null;
-  return materials.find(m => m.id === id || m.name === id || m.key === id) || null;
+  const req = String(id).trim();
+  const norm = req.toLowerCase();
+  let mat = materials.find(m => m.id === req || m.name === req || m.key === req);
+  if (mat) return mat;
+  mat = materials.find(m => (m.id && m.id.toLowerCase() === norm) || (m.name && m.name.toLowerCase() === norm));
+  if (mat) return mat;
+  const variants = [norm, norm.replace(/[\s\-]+/g,'_'), norm.replace(/[_\s]+/g,' '), norm.replace(/_?board$/,''), norm + '_board'];
+  for (const v of variants) {
+    mat = materials.find(m => (m.id && m.id.toLowerCase() === v) || (m.name && m.name.toLowerCase() === v));
+    if (mat) return mat;
+  }
+  mat = materials.find(m => (m.id && m.id.toLowerCase().includes(norm)) || (m.name && m.name.toLowerCase().includes(norm)));
+  if (mat) return mat;
+  console.warn(`Material not found for id="${id}". Available ids:`, materials.map(m => m.id || m.name));
+  return null;
 }
 
 function openingUfromMaterial(mat) {
@@ -115,6 +132,91 @@ function computeElementU(elem, materials) {
   return elem;
 }
 
+/* Room wattage calculator adapted from TS -> JS */
+function computeRoomHeatRequirements(demo, opts) {
+  const indoorTemp = (opts && typeof opts.indoorTemp === 'number') ? opts.indoorTemp : 21;
+  const externalTemp = (opts && typeof opts.externalTemp === 'number') ? opts.externalTemp : 3;
+  const dT = Math.max(0, indoorTemp - externalTemp);
+
+  const zones = (demo.zones || []).slice();
+  const elements = (demo.elements || []).slice();
+
+  const boundaryIds = new Set(zones.filter(z => z.type === 'boundary').map(z => z.id));
+  if (boundaryIds.size === 0) { ['outside','ground','loft'].forEach(b => boundaryIds.add(b)); }
+
+  const zoneMap = new Map();
+  for (const z of zones) zoneMap.set(z.id, z);
+
+  const roomAcc = new Map();
+
+  for (const el of elements) {
+    const nodes = el.nodes || [];
+    let elConductance = (typeof el.thermal_conductance === 'number') ? el.thermal_conductance : NaN;
+    if (!isFinite(elConductance) && typeof el.u_overall === 'number' && typeof el.area === 'number') {
+      elConductance = el.u_overall * el.area;
+    }
+    if (!isFinite(elConductance) || elConductance <= 0) continue;
+
+    const nonBoundaryNodes = nodes.filter(n => !boundaryIds.has(n));
+    const boundaryNodes = nodes.filter(n => boundaryIds.has(n));
+
+    if (boundaryNodes.length >= 1 && nonBoundaryNodes.length === 1) {
+      const zoneId = nonBoundaryNodes[0];
+      const acc = roomAcc.get(zoneId) || { conductance: 0, area: null, contributions: [] };
+      acc.conductance += elConductance;
+      if (typeof el.area === 'number') acc.area = (acc.area || 0) + el.area;
+      acc.contributions.push({ id: el.id, c: elConductance });
+      roomAcc.set(zoneId, acc);
+    } else if (boundaryNodes.length >= 1 && nonBoundaryNodes.length > 1) {
+      const parts = nonBoundaryNodes.length;
+      nonBoundaryNodes.forEach(nz => {
+        const acc = roomAcc.get(nz) || { conductance: 0, area: null, contributions: [] };
+        acc.conductance += elConductance / parts;
+        if (typeof el.area === 'number') acc.area = (acc.area || 0) + el.area / parts;
+        acc.contributions.push({ id: el.id, c: elConductance / parts });
+        roomAcc.set(nz, acc);
+      });
+    } else {
+      continue;
+    }
+  }
+
+  const results = [];
+  let totalHeat = 0;
+  for (const [zoneId, acc] of roomAcc.entries()) {
+    const heatLossW = acc.conductance * dT;
+    const area = acc.area || null;
+    const perM2 = area ? heatLossW / area : null;
+    totalHeat += heatLossW;
+    results.push({
+      zoneId,
+      zoneName: zoneMap.get(zoneId) && zoneMap.get(zoneId).name,
+      floorArea: area,
+      total_conductance: Number(acc.conductance.toFixed(3)),
+      heat_loss: Number(heatLossW.toFixed(1)),
+      heat_loss_per_unit_area: perM2 ? Number(perM2.toFixed(1)) : null,
+      contributing_elements: acc.contributions.map(c => ({ elementId: c.id, conductance: Number(c.c.toFixed(3)) }))
+    });
+  }
+
+  for (const z of zones) {
+    if (z.type === 'boundary') continue;
+    if (!roomAcc.has(z.id)) {
+      results.push({
+        zoneId: z.id,
+        zoneName: z.name,
+        floorArea: null,
+        total_conductance_W_per_K: 0,
+        heat_loss_W: 0,
+        heat_loss_W_per_m2: null,
+        contributing_elements: []
+      });
+    }
+  }
+
+  return { rooms: results, total_heat_loss: Number(totalHeat.toFixed(1)), indoorTemp, externalTemp };
+}
+
 runBtn.addEventListener('click', async () => {
   outEl.textContent = 'Loading inputs...';
   try {
@@ -122,9 +224,33 @@ runBtn.addEventListener('click', async () => {
     const materials = insRaw.materials || insRaw;
     const elements = demoRaw.elements || demoRaw.rooms || [];
     if (!Array.isArray(elements)) throw new Error('No elements array found in demo json');
+
     for (const el of elements) {
       try { computeElementU(el, materials); } catch (err) { el._calc_error = String(err); }
     }
+
+    const indoorTemp = parseFloat(indoorInput.value) || 21;
+    const externalTemp = parseFloat(externalInput.value) || 3;
+
+    const heatResults = computeRoomHeatRequirements(demoRaw, { indoorTemp, externalTemp });
+
+    // annotate demo JSON
+    demoRaw.meta = demoRaw.meta || {};
+    demoRaw.meta.indoorTemp = indoorTemp;
+    demoRaw.meta.externalTemp = externalTemp;
+    demoRaw.meta.total_heat_loss = heatResults.total_heat_loss;
+
+    // merge room heat results into zones
+    for (const zone of demoRaw.zones) {
+      const room = heatResults.rooms.find(r => r.zoneId === zone.id);
+      if (room) {
+        zone.total_conductance = room.total_conductance;
+        zone.heat_loss = room.heat_loss;
+        zone.heat_loss_per_unit_area = room.heat_loss_per_unit_area;
+        zone.contributing_elements = room.contributing_elements;
+      }
+    }
+
     const solved = JSON.stringify(demoRaw, null, 2);
     outEl.textContent = solved;
 
@@ -133,7 +259,6 @@ runBtn.addEventListener('click', async () => {
     dlEl.href = url;
     dlEl.style.pointerEvents = 'auto';
     dlEl.style.opacity = '1';
-    // revoke after click
     dlEl.onclick = () => setTimeout(() => URL.revokeObjectURL(url), 1500);
   } catch (err) {
     outEl.textContent = 'Solver error: ' + String(err);
