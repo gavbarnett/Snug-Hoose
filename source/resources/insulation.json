@@ -1,7 +1,6 @@
 {
   "units": {
     "thermal_conductivity": "W/mK",
-    "thickness": "mm",
     "u_value": "W/m²K",
     "r_value": "m²K/W"
   },
