@@ -1,0 +1,529 @@
+{
+  "meta": {
+    "name": "Demo House - Snug Hoose (Composite Walls + Subfloor, Consistent Stack Order)",
+    "units": {
+      "area": "m2",
+      "thickness": "m",
+      "thermal_conductivity": "W/mK",
+      "u_value": "W/m²K"
+    }
+  },
+  "zones": [
+    {
+      "id": "living_room",
+      "level": 0
+    },
+    {
+      "id": "kitchen",
+      "level": 0
+    },
+    {
+      "id": "hall_ground",
+      "level": 0
+    },
+    {
+      "id": "bedroom_1",
+      "level": 1
+    },
+    {
+      "id": "bathroom",
+      "level": 1
+    },
+    {
+      "id": "hall_first",
+      "level": 1
+    },
+    {
+      "id": "loft",
+      "level": 2
+    },
+    {
+      "id": "outside",
+      "type": "boundary"
+    },
+    {
+      "id": "ground",
+      "type": "boundary"
+    }
+  ],
+  "elements": [
+    {
+      "id": "lr_ext_south",
+      "type": "wall",
+      "nodes": [
+        "living_room",
+        "outside"
+      ],
+      "orientation": "south",
+      "area": 10,
+      "build_up": [
+        {
+          "material_id": "plasterboard",
+          "thickness": 0.0125
+        },
+        {
+          "type": "composite",
+          "thickness": 0.09,
+          "paths": [
+            {
+              "material_id": "stud_wood",
+              "fraction": 0.15
+            },
+            {
+              "material_id": "pir",
+              "fraction": 0.85
+            }
+          ]
+        },
+        {
+          "material_id": "pir",
+          "thickness": 0.05
+        },
+        {
+          "material_id": "blockwork",
+          "thickness": 0.1
+        }
+      ],
+      "windows": [
+        {
+          "id": "lr_front_windows",
+          "glazing_id": "window_double_modern",
+          "area": 2.4
+        }
+      ]
+    },
+    {
+      "id": "lr_ext_east",
+      "type": "wall",
+      "nodes": [
+        "living_room",
+        "outside"
+      ],
+      "orientation": "east",
+      "area": 8,
+      "build_up": [
+        {
+          "material_id": "plasterboard",
+          "thickness": 0.0125
+        },
+        {
+          "type": "composite",
+          "thickness": 0.09,
+          "paths": [
+            {
+              "material_id": "stud_wood",
+              "fraction": 0.15
+            },
+            {
+              "material_id": "pir",
+              "fraction": 0.85
+            }
+          ]
+        },
+        {
+          "material_id": "pir",
+          "thickness": 0.05
+        },
+        {
+          "material_id": "blockwork",
+          "thickness": 0.1
+        }
+      ]
+    },
+    {
+      "id": "k_ext_north",
+      "type": "wall",
+      "nodes": [
+        "kitchen",
+        "outside"
+      ],
+      "orientation": "north",
+      "area": 6,
+      "build_up": [
+        {
+          "material_id": "plasterboard",
+          "thickness": 0.0125
+        },
+        {
+          "type": "composite",
+          "thickness": 0.09,
+          "paths": [
+            {
+              "material_id": "stud_wood",
+              "fraction": 0.15
+            },
+            {
+              "material_id": "pir",
+              "fraction": 0.85
+            }
+          ]
+        },
+        {
+          "material_id": "pir",
+          "thickness": 0.05
+        },
+        {
+          "material_id": "plywood",
+          "thickness": 0.018
+        },
+        {
+          "material_id": "wood_fibre",
+          "thickness": 0.05
+        },
+        {
+          "material_id": "blockwork",
+          "thickness": 0.1
+        }
+      ],
+      "windows": [
+        {
+          "id": "kitchen_window",
+          "glazing_id": "window_double_old",
+          "area": 1.5
+        }
+      ],
+      "doors": [
+        {
+          "id": "kitch_to_back",
+          "type": "external_door",
+          "area": 0.9,
+          "material_id": "plywood"
+        }
+      ]
+    },
+    {
+      "id": "b1_ext_east",
+      "type": "wall",
+      "nodes": [
+        "bedroom_1",
+        "outside"
+      ],
+      "orientation": "east",
+      "area": 8,
+      "build_up": [
+        {
+          "material_id": "plasterboard",
+          "thickness": 0.0125
+        },
+        {
+          "type": "composite",
+          "thickness": 0.09,
+          "paths": [
+            {
+              "material_id": "stud_wood",
+              "fraction": 0.15
+            },
+            {
+              "material_id": "pir",
+              "fraction": 0.85
+            }
+          ]
+        },
+        {
+          "material_id": "pir",
+          "thickness": 0.05
+        },
+        {
+          "material_id": "blockwork",
+          "thickness": 0.1
+        }
+      ],
+      "windows": [
+        {
+          "id": "b1_window",
+          "glazing_id": "window_double_modern",
+          "area": 1.2
+        }
+      ]
+    },
+    {
+      "id": "bath_ext_north",
+      "type": "wall",
+      "nodes": [
+        "bathroom",
+        "outside"
+      ],
+      "orientation": "north",
+      "area": 3,
+      "build_up": [
+        {
+          "material_id": "plasterboard",
+          "thickness": 0.0125
+        },
+        {
+          "type": "composite",
+          "thickness": 0.09,
+          "paths": [
+            {
+              "material_id": "stud_wood",
+              "fraction": 0.15
+            },
+            {
+              "material_id": "pir",
+              "fraction": 0.85
+            }
+          ]
+        },
+        {
+          "material_id": "pir",
+          "thickness": 0.05
+        },
+        {
+          "material_id": "blockwork",
+          "thickness": 0.1
+        }
+      ],
+      "windows": [
+        {
+          "id": "bath_window",
+          "glazing_id": "window_single",
+          "area": 0.4
+        }
+      ]
+    },
+    {
+      "id": "subfloor_lr",
+      "type": "floor",
+      "nodes": [
+        "living_room",
+        "ground"
+      ],
+      "area": 20,
+      "build_up": [
+        {
+          "material_id": "plywood",
+          "thickness": 0.018
+        },
+        {
+          "type": "composite",
+          "thickness": 0.15,
+          "paths": [
+            {
+              "material_id": "joist_wood",
+              "fraction": 0.15
+            },
+            {
+              "material_id": "rockwool",
+              "fraction": 0.85
+            }
+          ]
+        },
+        {
+          "material_id": "xps",
+          "thickness": 0.1
+        }
+      ]
+    },
+    {
+      "id": "subfloor_k",
+      "type": "floor",
+      "nodes": [
+        "kitchen",
+        "ground"
+      ],
+      "area": 12,
+      "build_up": [
+        {
+          "material_id": "plywood",
+          "thickness": 0.018
+        },
+        {
+          "type": "composite",
+          "thickness": 0.15,
+          "paths": [
+            {
+              "material_id": "joist_wood",
+              "fraction": 0.15
+            },
+            {
+              "material_id": "rockwool",
+              "fraction": 0.85
+            }
+          ]
+        },
+        {
+          "material_id": "xps",
+          "thickness": 0.1
+        }
+      ]
+    },
+    {
+      "id": "subfloor_hall",
+      "type": "floor",
+      "nodes": [
+        "hall_ground",
+        "ground"
+      ],
+      "area": 8,
+      "build_up": [
+        {
+          "material_id": "plywood",
+          "thickness": 0.018
+        },
+        {
+          "type": "composite",
+          "thickness": 0.15,
+          "paths": [
+            {
+              "material_id": "joist_wood",
+              "fraction": 0.15
+            },
+            {
+              "material_id": "rockwool",
+              "fraction": 0.85
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lr_to_b1",
+      "type": "floor_ceiling",
+      "nodes": [
+        "living_room",
+        "bedroom_1"
+      ],
+      "area": 12,
+      "build_up": [
+        {
+          "material_id": "plasterboard",
+          "thickness": 0.0125
+        },
+        {
+          "material_id": "glass_wool",
+          "thickness": 0.15
+        },
+        {
+          "material_id": "plywood",
+          "thickness": 0.02
+        }
+      ]
+    },
+    {
+      "id": "lr_to_hallf",
+      "type": "floor_ceiling",
+      "nodes": [
+        "living_room",
+        "hall_first"
+      ],
+      "area": 8,
+      "build_up": [
+        {
+          "material_id": "plasterboard",
+          "thickness": 0.0125
+        },
+        {
+          "material_id": "glass_wool",
+          "thickness": 0.15
+        },
+        {
+          "material_id": "plywood",
+          "thickness": 0.02
+        }
+      ]
+    },
+    {
+      "id": "k_to_bath",
+      "type": "floor_ceiling",
+      "nodes": [
+        "kitchen",
+        "bathroom"
+      ],
+      "area": 6,
+      "build_up": [
+        {
+          "material_id": "plasterboard",
+          "thickness": 0.0125
+        },
+        {
+          "material_id": "glass_wool",
+          "thickness": 0.15
+        },
+        {
+          "material_id": "plywood",
+          "thickness": 0.02
+        }
+      ]
+    },
+    {
+      "id": "loft_roof",
+      "type": "roof",
+      "nodes": [
+        "loft",
+        "outside"
+      ],
+      "area": 30,
+      "build_up": [
+        {
+          "material_id": "roof_tile",
+          "thickness": 0.02
+        },
+        {
+          "material_id": "felt",
+          "thickness": 0.005
+        },
+        {
+          "material_id": "glass_wool",
+          "thickness": 0.2
+        }
+      ]
+    },
+    {
+      "id": "b1_to_loft",
+      "type": "ceiling",
+      "nodes": [
+        "bedroom_1",
+        "loft"
+      ],
+      "area": 12,
+      "build_up": [
+        {
+          "material_id": "plasterboard",
+          "thickness": 0.0125
+        },
+        {
+          "material_id": "glass_wool",
+          "thickness": 0.2
+        }
+      ]
+    },
+    {
+      "id": "bath_to_loft",
+      "type": "ceiling",
+      "nodes": [
+        "bathroom",
+        "loft"
+      ],
+      "area": 6,
+      "build_up": [
+        {
+          "material_id": "plasterboard",
+          "thickness": 0.0125
+        },
+        {
+          "material_id": "glass_wool",
+          "thickness": 0.2
+        }
+      ]
+    },
+    {
+      "id": "hallf_to_loft",
+      "type": "ceiling",
+      "nodes": [
+        "hall_first",
+        "loft"
+      ],
+      "area": 8,
+      "build_up": [
+        {
+          "material_id": "plasterboard",
+          "thickness": 0.0125
+        },
+        {
+          "material_id": "glass_wool",
+          "thickness": 0.2
+        }
+      ]
+    }
+  ]
+}
