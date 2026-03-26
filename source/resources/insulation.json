@@ -1,0 +1,112 @@
+{
+  "units": {
+    "thermal_conductivity": "W/mK",
+    "thickness": "mm",
+    "u_value": "W/m²K",
+    "r_value": "m²K/W"
+  },
+  "calculation_note": "U-value for a single homogeneous insulation layer = thermal_conductivity (W/mK) / thickness (m). Example: 100mm PIR (0.022 W/mK) => U = 0.022 / 0.1 = 0.22 W/m²K",
+  "materials": [
+    {
+      "id": "pir_board",
+      "name": "PIR (Polyisocyanurate) board",
+      "thermal_conductivity": 0.022,
+      "density": 30,
+      "notes": "High performance rigid foam board commonly used in roofs and walls."
+    },
+    {
+      "id": "rockwool",
+      "name": "Rock wool (Mineral wool)",
+      "thermal_conductivity": 0.038,
+      "density": 45,
+      "notes": "Non-combustible, good acoustic performance, used in pitched roofs, walls and floors."
+    },
+    {
+      "id": "glass_wool",
+      "name": "Glass wool",
+      "thermal_conductivity": 0.035,
+      "density": 12,
+      "notes": "Common batt insulation for cavities and lofts."
+    },
+    {
+      "id": "wood_fibre",
+      "name": "Wood fibre",
+      "thermal_conductivity": 0.040,
+      "density": 120,
+      "notes": "Breathable, natural fibre used in breathable build-ups and timber-frame insulation."
+    },
+    {
+      "id": "eps",
+      "name": "EPS (Expanded Polystyrene)",
+      "thermal_conductivity": 0.036,
+      "density": 20,
+      "notes": "Rigid foam used externally and under screeds; good compressive properties."
+    },
+    {
+      "id": "xps",
+      "name": "XPS (Extruded Polystyrene)",
+      "thermal_conductivity": 0.029,
+      "density": 32,
+      "notes": "Moisture resistant rigid foam for below-ground and insulated floors."
+    },
+    {
+      "id": "cellulose",
+      "name": "Cellulose (recycled paper)",
+      "thermal_conductivity": 0.039,
+      "density": 60,
+      "notes": "Blown or loose-fill insulation with good environmental credentials."
+    },
+    {
+      "id": "stud_wood",
+      "name": "Stud (softwood timber)",
+      "thermal_conductivity": 0.13,
+      "density": 500,
+      "notes": "Typical timber stud used in framed walls; higher conductivity than insulation so affects cavity U-values where timber paths exist."
+    },
+    {
+      "id": "blockwork",
+      "name": "External blockwork (dense concrete block)",
+      "thermal_conductivity": 0.70,
+      "density": 1800,
+      "notes": "Typical dense concrete block used in external walls; relatively high thermal conductivity compared with insulation materials."
+    },
+    {
+      "id": "plasterboard",
+      "name": "Plasterboard (gypsum)",
+      "thermal_conductivity": 0.21,
+      "density": 800,
+      "notes": "Common internal lining board; thin layers contribute modestly to thermal resistance."
+    },
+    {
+      "id": "plywood",
+      "name": "Plywood",
+      "thermal_conductivity": 0.13,
+      "density": 600,
+      "notes": "Wood panel material used for sheathing and finishes; thermal conductivity similar to other timber products."
+    },
+    {
+      "id": "window_single",
+      "name": "Window - Single glazing",
+      "u_value": 5.7,
+      "notes": "Traditional single-glazed window; very high heat loss compared with modern glazing."
+    },
+    {
+      "id": "window_double_old",
+      "name": "Window - Double glazing (<1995)",
+      "u_value": 3.0,
+      "notes": "Older double glazing with narrow air gap and simple sealed units; higher U-value than modern sealed units with low-e coatings."
+    },
+    {
+      "id": "window_double_modern",
+      "name": "Window - Double glazing (>1995)",
+      "u_value": 1.6,
+      "notes": "Modern double glazing with low-e coating and argon fill; typical for retrofit and new builds."
+    },
+    {
+      "id": "window_triple",
+      "name": "Window - Triple glazing",
+      "u_value": 0.8,
+      "notes": "Triple glazed units with multiple low-e coatings and inert gas fills; best thermal performance for windows."
+    }
+  ]
+}
