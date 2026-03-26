@@ -7,7 +7,7 @@
   "calculation_note": "U-value for a single homogeneous insulation layer = thermal_conductivity (W/mK) / thickness (m). Example: 100mm PIR (0.022 W/mK) => U = 0.022 / 0.1 = 0.22 W/m²K",
   "materials": [
     {
-      "id": "pir_board",
+      "id": "pir",
       "name": "PIR (Polyisocyanurate) board",
       "thermal_conductivity": 0.022,
       "density": 30,
@@ -63,6 +63,13 @@
       "notes": "Typical timber stud used in framed walls; higher conductivity than insulation so affects cavity U-values where timber paths exist."
     },
     {
+      "id": "joist_wood",
+      "name": "Joist (softwood timber)",
+      "thermal_conductivity": 0.13,
+      "density": 450,
+      "notes": "Typical softwood floor/roof joist. Higher conductivity than insulation; represents linear/area thermal bridge — use actual joist depth for R calculations."
+    },
+    {
       "id": "blockwork",
       "name": "External blockwork (dense concrete block)",
       "thermal_conductivity": 0.70,
@@ -82,6 +89,20 @@
       "thermal_conductivity": 0.13,
       "density": 600,
       "notes": "Wood panel material used for sheathing and finishes; thermal conductivity similar to other timber products."
+    },
+    {
+      "id": "roof_tile",
+      "name": "Roof tile (clay/ceramic)",
+      "thermal_conductivity": 0.90,
+      "density": 2000,
+      "notes": "Clay or concrete roof tile — heavy, relatively high conductivity; modelled as an external, discontinuous layer."
+    },
+    {
+      "id": "felt",
+      "name": "Roofing felt / bituminous membrane",
+      "thermal_conductivity": 0.19,
+      "density": 1000,
+      "notes": "Underlay membrane beneath tiles or slates; thin layer with modest conductivity."
     },
     {
       "id": "window_single",
