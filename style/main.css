@@ -254,7 +254,7 @@ a#download:hover {
   background: var(--btn-hover);
 }
 
-select, input[type="number"] {
+select, input[type="number"], input[type="text"] {
   background: var(--input-bg);
   border: 1px solid var(--input-border);
   color: var(--text-light);
@@ -263,9 +263,13 @@ select, input[type="number"] {
   font-size: 0.9em;
 }
 
-select:focus, input[type="number"]:focus {
+select:focus, input[type="number"]:focus, input[type="text"]:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+input[type="text"]::placeholder {
+  color: var(--text-muted);
 }
 
 .area-display {

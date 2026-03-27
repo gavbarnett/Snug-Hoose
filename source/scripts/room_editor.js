@@ -406,8 +406,6 @@ export function initRoomEditor(opts) {
     const y = typeof element.y === 'number' ? element.y : null;
     const area = (x !== null && y !== null) ? x * y : null;
     const labels = getDimensionLabelsForType(elementType);
-    const xText = x !== null ? `${x} m` : 'Unknown';
-    const yText = y !== null ? `${y} m` : 'Unknown';
 
     const otherNodes = (Array.isArray(element.nodes) ? element.nodes : [])
       .filter(node => String(node || '').trim() !== zoneKey);
@@ -423,13 +421,89 @@ export function initRoomEditor(opts) {
 
     const meta = document.createElement('div');
     meta.className = 'wall-meta';
-    meta.innerHTML = `
-      <p><strong>Name:</strong> ${elementName}</p>
-      <p><strong>${labels.xLabel}:</strong> ${xText}</p>
-      <p><strong>${labels.yLabel}:</strong> ${yText}</p>
-      <p><strong>Area:</strong> ${area !== null ? `${area} m²` : 'Unknown'}</p>
-      <p><strong>Other connected rooms/nodes:</strong> ${otherNodes.length ? otherNodes.join(', ') : 'None'}</p>
-    `;
+    const nameRow = document.createElement('div');
+    nameRow.style.display = 'flex';
+    nameRow.style.alignItems = 'center';
+    nameRow.style.gap = '0.5rem';
+    const nameLabel = document.createElement('strong');
+    nameLabel.textContent = 'Name:';
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.value = element.name || '';
+    nameInput.placeholder = element.id || 'Element name';
+    nameInput.dataset.focusKey = `${cardKey}:name`;
+    nameInput.addEventListener('input', () => {
+      const newName = nameInput.value.trim();
+      if (newName) {
+        element.name = newName;
+      } else {
+        delete element.name;
+      }
+      queueFocusRestore();
+      onDataChanged();
+    });
+    nameRow.appendChild(nameLabel);
+    nameRow.appendChild(nameInput);
+
+    const dimRow = document.createElement('div');
+    dimRow.style.display = 'flex';
+    dimRow.style.alignItems = 'center';
+    dimRow.style.gap = '0.5rem';
+    dimRow.style.flexWrap = 'wrap';
+
+    const xLabel = document.createElement('strong');
+    xLabel.textContent = `${labels.xLabel}:`;
+    const xInput = document.createElement('input');
+    xInput.type = 'number';
+    xInput.step = '0.01';
+    xInput.min = '0';
+    xInput.value = x !== null ? x : '';
+    xInput.placeholder = labels.xLabel;
+    xInput.dataset.focusKey = `${cardKey}:x`;
+
+    const yLabel = document.createElement('strong');
+    yLabel.textContent = `${labels.yLabel}:`;
+    const yInput = document.createElement('input');
+    yInput.type = 'number';
+    yInput.step = '0.01';
+    yInput.min = '0';
+    yInput.value = y !== null ? y : '';
+    yInput.placeholder = labels.yLabel;
+    yInput.dataset.focusKey = `${cardKey}:y`;
+
+    const updateDimensions = () => {
+      const xv = parseFloat(xInput.value);
+      const yv = parseFloat(yInput.value);
+      if (isFinite(xv) && xv > 0) {
+        element.x = Number(xv.toFixed(3));
+      }
+      if (isFinite(yv) && yv > 0) {
+        element.y = Number(yv.toFixed(3));
+      }
+      if (isFinite(xv) && xv > 0 && isFinite(yv) && yv > 0) {
+        element.area = Number((xv * yv).toFixed(3));
+      }
+      queueFocusRestore();
+      onDataChanged();
+    };
+
+    xInput.addEventListener('input', updateDimensions);
+    yInput.addEventListener('input', updateDimensions);
+
+    dimRow.appendChild(xLabel);
+    dimRow.appendChild(xInput);
+    dimRow.appendChild(yLabel);
+    dimRow.appendChild(yInput);
+
+    const areaRow = document.createElement('p');
+    areaRow.innerHTML = `<strong>Area:</strong> ${area !== null ? `${area} m²` : 'Unknown'}`;
+    const nodeRow = document.createElement('p');
+    nodeRow.innerHTML = `<strong>Other connected rooms/nodes:</strong> ${otherNodes.length ? otherNodes.join(', ') : 'None'}`;
+
+    meta.appendChild(nameRow);
+    meta.appendChild(dimRow);
+    meta.appendChild(areaRow);
+    meta.appendChild(nodeRow);
     details.appendChild(meta);
 
     details.appendChild(createBuildUpSection(element, cardKey, expandState));
