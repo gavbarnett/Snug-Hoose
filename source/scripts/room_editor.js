@@ -346,15 +346,18 @@ export function initRoomEditor(opts) {
     nameInput.value = zone.name || '';
     nameInput.placeholder = zone.id;
     nameInput.dataset.focusKey = `zone:${zoneKey}:meta:name`;
-    nameInput.addEventListener('input', () => {
+    nameInput.addEventListener('change', () => {
       const nextName = nameInput.value.trim();
       if (nextName) {
         zone.name = nextName;
       } else {
         delete zone.name;
       }
-      queueFocusRestore();
       onDataChanged();
+    });
+    nameInput.addEventListener('input', () => {
+      // Just capture focus while typing, don't re-render on each keystroke
+      queueFocusRestore();
     });
 
     nameRow.appendChild(nameLabel);
