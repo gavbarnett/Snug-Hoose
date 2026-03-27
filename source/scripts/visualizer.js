@@ -19,7 +19,7 @@ function getRadiatorInfo(zone, radiators) {
     const name = rad ? rad.name : spec.radiator_id;
     return `${name} (${spec.surface_area}m²)`;
   });
-  return rads.join(', ');
+  return rads.join('\n');
 }
 
 export function renderThermalViz(demo, radiators) {
@@ -64,7 +64,7 @@ export function renderThermalViz(demo, radiators) {
     const row = tbody.insertRow();
     
     const levelCell = row.insertCell();
-    levelCell.textContent = `Level ${level}`;
+    levelCell.textContent = `${level}`;
     levelCell.classList.add('level-cell');
     
     for (const zone of levels[level]) {

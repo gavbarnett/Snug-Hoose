@@ -308,7 +308,7 @@ select:focus, input[type="number"]:focus {
 .thermal-table th, .thermal-table td { 
   border: 1px solid var(--border);
   padding: 1rem;
-  text-align: left;
+  text-align: center;
 }
 
 .thermal-table th { 
@@ -361,6 +361,7 @@ select:focus, input[type="number"]:focus {
   font-size: 0.85em; 
   margin: 0.3rem 0;
   opacity: 0.95;
+  white-space: pre-line;;
 }
 
 /* Thermal color gradients */
