@@ -80,7 +80,7 @@ export function renderThermalViz(demo, radiators) {
       
       const zoneName = document.createElement('div');
       zoneName.className = 'zone-name';
-      zoneName.textContent = zone.id || 'Unknown';
+      zoneName.textContent = zone.name || zone.id || 'Unknown';
       zoneDiv.appendChild(zoneName);
       
       const balanceDiv = document.createElement('div');

@@ -20,7 +20,8 @@
   },
   "zones": [
     {
-      "id": "living_room",
+      "id": "id_7a538d23f564",
+      "name": "Living Room",
       "level": 0,
       "radiators": [
         {
@@ -32,7 +33,8 @@
       ]
     },
     {
-      "id": "kitchen",
+      "id": "id_878112d2b104",
+      "name": "Kitchen",
       "level": 0,
       "radiators": [
         {
@@ -44,7 +46,8 @@
       ]
     },
     {
-      "id": "hall_ground",
+      "id": "id_cf4d374ca5ba",
+      "name": "Hall Ground",
       "level": 0,
       "radiators": [
         {
@@ -56,7 +59,8 @@
       ]
     },
     {
-      "id": "bedroom_1",
+      "id": "id_dff6504b35ba",
+      "name": "Bedroom 1",
       "level": 1,
       "radiators": [
         {
@@ -68,7 +72,8 @@
       ]
     },
     {
-      "id": "bathroom",
+      "id": "id_8d48a0ccfcb9",
+      "name": "Bathroom",
       "level": 1,
       "radiators": [
         {
@@ -80,7 +85,8 @@
       ]
     },
     {
-      "id": "hall_first",
+      "id": "id_d4a5f6543bd7",
+      "name": "Hall First",
       "level": 1,
       "radiators": [
         {
@@ -90,25 +96,29 @@
       ]
     },
     {
-      "id": "loft",
+      "id": "id_a4d77187437b",
+      "name": "Loft",
       "level": 2
     },
     {
-      "id": "outside",
+      "id": "id_33568f084a87",
+      "name": "Outside",
       "type": "boundary"
     },
     {
-      "id": "ground",
+      "id": "id_3c6adfd96341",
+      "name": "Ground",
       "type": "boundary"
     }
   ],
   "elements": [
     {
-      "id": "lr_ext_south",
+      "id": "id_89fafb60d81e",
+      "name": "Living Room - South Wall",
       "type": "wall",
       "nodes": [
-        "living_room",
-        "outside"
+        "id_7a538d23f564",
+        "id_33568f084a87"
       ],
       "orientation": "south",
       "x": 4.17,
@@ -143,18 +153,20 @@
       ],
       "windows": [
         {
-          "id": "lr_front_windows",
+          "id": "id_w1a2b3c4d5e6f",
+          "name": "Front Windows",
           "glazing_id": "window_double_modern",
           "area": 2.4
         }
       ]
     },
     {
-      "id": "lr_ext_east",
+      "id": "id_308875947554",
+      "name": "Living Room - East Wall",
       "type": "wall",
       "nodes": [
-        "living_room",
-        "outside"
+        "id_7a538d23f564",
+        "id_33568f084a87"
       ],
       "orientation": "east",
       "x": 3.33,
@@ -189,11 +201,12 @@
       ]
     },
     {
-      "id": "k_ext_north",
+      "id": "id_b0b164cd27fe",
+      "name": "Kitchen - North Wall",
       "type": "wall",
       "nodes": [
-        "kitchen",
-        "outside"
+        "id_878112d2b104",
+        "id_33568f084a87"
       ],
       "orientation": "north",
       "x": 2.5,
@@ -236,14 +249,16 @@
       ],
       "windows": [
         {
-          "id": "kitchen_window",
+          "id": "id_w2f3g4h5i6j7",
+          "name": "Kitchen Window",
           "glazing_id": "window_double_old",
           "area": 1.5
         }
       ],
       "doors": [
         {
-          "id": "kitch_to_back",
+          "id": "id_d1e2f3g4h5i6",
+          "name": "Back Door",
           "type": "external_door",
           "area": 0.9,
           "material_id": "plywood"
@@ -251,11 +266,12 @@
       ]
     },
     {
-      "id": "b1_ext_east",
+      "id": "id_90614b6ee21d",
+      "name": "Bedroom 1 - East Wall",
       "type": "wall",
       "nodes": [
-        "bedroom_1",
-        "outside"
+        "id_dff6504b35ba",
+        "id_33568f084a87"
       ],
       "orientation": "east",
       "x": 3.33,
@@ -290,18 +306,20 @@
       ],
       "windows": [
         {
-          "id": "b1_window",
+          "id": "id_w3g4h5i6j7k8",
+          "name": "Bedroom Window",
           "glazing_id": "window_double_modern",
           "area": 1.2
         }
       ]
     },
     {
-      "id": "bath_ext_north",
+      "id": "id_3323689eaecf",
+      "name": "Bathroom - North Wall",
       "type": "wall",
       "nodes": [
-        "bathroom",
-        "outside"
+        "id_8d48a0ccfcb9",
+        "id_33568f084a87"
       ],
       "orientation": "north",
       "x": 1.25,
@@ -336,18 +354,20 @@
       ],
       "windows": [
         {
-          "id": "bath_window",
+          "id": "id_w4h5i6j7k8l9",
+          "name": "Bathroom Window",
           "glazing_id": "window_single",
           "area": 0.4
         }
       ]
     },
     {
-      "id": "subfloor_lr",
+      "id": "id_699f3690c8bd",
+      "name": "Living Room - Subfloor",
       "type": "floor",
       "nodes": [
-        "living_room",
-        "ground"
+        "id_7a538d23f564",
+        "id_3c6adfd96341"
       ],
       "x": 5,
       "y": 4,
@@ -377,11 +397,12 @@
       ]
     },
     {
-      "id": "subfloor_k",
+      "id": "id_47259e58141a",
+      "name": "Kitchen - Subfloor",
       "type": "floor",
       "nodes": [
-        "kitchen",
-        "ground"
+        "id_878112d2b104",
+        "id_3c6adfd96341"
       ],
       "x": 4,
       "y": 3,
@@ -411,11 +432,12 @@
       ]
     },
     {
-      "id": "subfloor_hall",
+      "id": "id_b7aa1930fde9",
+      "name": "Hall - Subfloor",
       "type": "floor",
       "nodes": [
-        "hall_ground",
-        "ground"
+        "id_cf4d374ca5ba",
+        "id_3c6adfd96341"
       ],
       "x": 4,
       "y": 2,
@@ -441,11 +463,12 @@
       ]
     },
     {
-      "id": "lr_to_b1",
+      "id": "id_2bdbeb0c6499",
+      "name": "Living Room - Bedroom 1 Floor",
       "type": "floor_ceiling",
       "nodes": [
-        "living_room",
-        "bedroom_1"
+        "id_7a538d23f564",
+        "id_dff6504b35ba"
       ],
       "x": 4,
       "y": 3,
@@ -465,11 +488,12 @@
       ]
     },
     {
-      "id": "lr_to_hallf",
+      "id": "id_98ccc1248bbc",
+      "name": "Living Room - Hall Floor",
       "type": "floor_ceiling",
       "nodes": [
-        "living_room",
-        "hall_first"
+        "id_7a538d23f564",
+        "id_d4a5f6543bd7"
       ],
       "x": 4,
       "y": 2,
@@ -489,11 +513,12 @@
       ]
     },
     {
-      "id": "k_to_bath",
+      "id": "id_471c53bf52b2",
+      "name": "Kitchen - Bathroom Floor",
       "type": "floor_ceiling",
       "nodes": [
-        "kitchen",
-        "bathroom"
+        "id_878112d2b104",
+        "id_8d48a0ccfcb9"
       ],
       "x": 3,
       "y": 2,
@@ -513,11 +538,12 @@
       ]
     },
     {
-      "id": "loft_roof",
+      "id": "id_32031a7f4a0b",
+      "name": "Loft - Roof",
       "type": "roof",
       "nodes": [
-        "loft",
-        "outside"
+        "id_a4d77187437b",
+        "id_33568f084a87"
       ],
       "x": 6,
       "y": 5,
@@ -537,11 +563,12 @@
       ]
     },
     {
-      "id": "b1_to_loft",
+      "id": "id_d3d9fda7d2a4",
+      "name": "Bedroom 1 - Loft Ceiling",
       "type": "ceiling",
       "nodes": [
-        "bedroom_1",
-        "loft"
+        "id_dff6504b35ba",
+        "id_a4d77187437b"
       ],
       "x": 4,
       "y": 3,
@@ -557,11 +584,12 @@
       ]
     },
     {
-      "id": "bath_to_loft",
+      "id": "id_7fa15e2e7b71",
+      "name": "Bathroom - Loft Ceiling",
       "type": "ceiling",
       "nodes": [
-        "bathroom",
-        "loft"
+        "id_8d48a0ccfcb9",
+        "id_a4d77187437b"
       ],
       "x": 3,
       "y": 2,
@@ -577,11 +605,12 @@
       ]
     },
     {
-      "id": "hallf_to_loft",
+      "id": "id_ae4d6ef01598",
+      "name": "Hall - Loft Ceiling",
       "type": "ceiling",
       "nodes": [
-        "hall_first",
-        "loft"
+        "id_d4a5f6543bd7",
+        "id_a4d77187437b"
       ],
       "x": 4,
       "y": 2,

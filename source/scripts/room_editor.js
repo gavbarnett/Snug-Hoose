@@ -18,6 +18,7 @@ export function initRoomEditor(opts) {
   const roomSelector = document.getElementById('roomSelector');
   const roomEditor = document.getElementById('roomEditor');
   const selectedRoomName = document.getElementById('selectedRoomName');
+  const roomMetaList = document.getElementById('roomMetaList');
   const radiatorsList = document.getElementById('radiatorsList');
   const fabricList = document.getElementById('fabricList');
   const addRadiatorBtn = document.getElementById('addRadiatorBtn');
@@ -88,7 +89,7 @@ export function initRoomEditor(opts) {
 
   if (addRoomBtn) {
     addRoomBtn.addEventListener('click', () => {
-      if (typeof onAddRoom === 'function') onAddRoom();
+      createRoom();
     });
   }
 
@@ -113,13 +114,7 @@ export function initRoomEditor(opts) {
 
   function selectZone(zoneId) {
     selectedZoneId = zoneId;
-
-    document.querySelectorAll('.thermal-zone-cell').forEach(cell => {
-      cell.classList.remove('selected');
-    });
-
-    const selectedCell = document.querySelector(`.thermal-zone-cell[data-zone-id="${zoneId}"]`);
-    if (selectedCell) selectedCell.classList.add('selected');
+    syncSelectedZoneVisualState();
 
     if (selectedRoomName) selectedRoomName.textContent = `Selected Room: ${zoneId}`;
     if (roomSelector) roomSelector.style.display = 'none';
@@ -132,11 +127,18 @@ export function initRoomEditor(opts) {
   function populateRoomEditor(zoneId) {
     const demo = getDemo();
     const radiatorsData = getRadiatorsData();
-    if (!demo || !Array.isArray(demo.zones) || !radiatorsList || !fabricList) return;
+    if (!demo || !Array.isArray(demo.zones) || !radiatorsList || !fabricList || !roomMetaList) return;
 
     const zoneKey = String(zoneId || '').trim();
     const zone = demo.zones.find(z => String(z.id || '').trim() === zoneKey);
     if (!zone) return;
+
+    if (selectedRoomName) {
+      selectedRoomName.textContent = `Selected Room: ${zone.name || zone.id}`;
+    }
+
+    roomMetaList.innerHTML = '';
+    populateRoomMetadata(zone, zoneKey);
 
     radiatorsList.innerHTML = '';
 
@@ -305,6 +307,128 @@ export function initRoomEditor(opts) {
     const expandState = captureExpandState(fabricList);
     populateFabricSection(demo, zoneKey, fabricList, expandState);
     restoreFocusState();
+  }
+
+  function syncSelectedZoneVisualState() {
+    document.querySelectorAll('.thermal-zone-cell').forEach(cell => {
+      cell.classList.remove('selected');
+    });
+
+    if (!selectedZoneId) return;
+    const selectedCell = document.querySelector(`.thermal-zone-cell[data-zone-id="${selectedZoneId}"]`);
+    if (selectedCell) selectedCell.classList.add('selected');
+  }
+
+  function populateRoomMetadata(zone, zoneKey) {
+    const idRow = document.createElement('div');
+    idRow.style.display = 'flex';
+    idRow.style.alignItems = 'center';
+    idRow.style.gap = '0.5rem';
+    idRow.style.flexWrap = 'wrap';
+    const idLabel = document.createElement('strong');
+    idLabel.textContent = 'ID:';
+    const idText = document.createElement('span');
+    idText.textContent = zone.id;
+    idRow.appendChild(idLabel);
+    idRow.appendChild(idText);
+
+    const nameRow = document.createElement('div');
+    nameRow.style.display = 'flex';
+    nameRow.style.alignItems = 'center';
+    nameRow.style.gap = '0.5rem';
+    nameRow.style.flexWrap = 'wrap';
+
+    const nameLabel = document.createElement('strong');
+    nameLabel.textContent = 'Name:';
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.value = zone.name || '';
+    nameInput.placeholder = zone.id;
+    nameInput.dataset.focusKey = `zone:${zoneKey}:meta:name`;
+    nameInput.addEventListener('input', () => {
+      const nextName = nameInput.value.trim();
+      if (nextName) {
+        zone.name = nextName;
+      } else {
+        delete zone.name;
+      }
+      queueFocusRestore();
+      onDataChanged();
+    });
+
+    nameRow.appendChild(nameLabel);
+    nameRow.appendChild(nameInput);
+
+    const levelRow = document.createElement('div');
+    levelRow.style.display = 'flex';
+    levelRow.style.alignItems = 'center';
+    levelRow.style.gap = '0.5rem';
+    levelRow.style.flexWrap = 'wrap';
+
+    const levelLabel = document.createElement('strong');
+    levelLabel.textContent = 'Floor:';
+
+    const levelInput = document.createElement('input');
+    levelInput.type = 'number';
+    levelInput.value = zone.level ?? 0;
+    levelInput.placeholder = '0';
+    levelInput.step = '1';
+    levelInput.min = '-10';
+    levelInput.max = '50';
+    levelInput.dataset.focusKey = `zone:${zoneKey}:meta:level`;
+    levelInput.addEventListener('input', () => {
+      const nextLevel = parseInt(levelInput.value, 10);
+      if (!isNaN(nextLevel)) {
+        zone.level = nextLevel;
+      }
+      queueFocusRestore();
+      onDataChanged();
+    });
+
+    levelRow.appendChild(levelLabel);
+    levelRow.appendChild(levelInput);
+
+    roomMetaList.appendChild(idRow);
+    roomMetaList.appendChild(nameRow);
+    roomMetaList.appendChild(levelRow);
+  }
+
+  function createRoom() {
+    const demo = getDemo();
+    if (!demo || !Array.isArray(demo.zones)) {
+      if (typeof onAddRoom === 'function') onAddRoom();
+      return;
+    }
+
+    const baseLevel = selectedZoneId
+      ? (demo.zones.find(zone => zone.id === selectedZoneId)?.level ?? 0)
+      : 0;
+    const id = generateUniqueRoomId(demo);
+    const newZone = {
+      id,
+      name: `New Room ${demo.zones.filter(zone => zone.type !== 'boundary').length + 1}`,
+      level: baseLevel,
+      radiators: []
+    };
+
+    demo.zones.push(newZone);
+    selectedZoneId = newZone.id;
+    if (roomSelector) roomSelector.style.display = 'none';
+    if (roomEditor) roomEditor.style.display = 'block';
+    onDataChanged();
+    refreshFabricTargetOptions();
+    populateRoomEditor(newZone.id);
+  }
+
+  function generateUniqueRoomId(demo) {
+    const existingIds = new Set((demo.zones || []).map(zone => zone.id));
+    let candidate;
+    do {
+      // Generate random hash: id_XXXXXXXXXX (12 hex chars after id_)
+      candidate = 'id_' + Math.random().toString(16).substring(2, 14);
+    } while (existingIds.has(candidate));
+    return candidate;
   }
 
   function captureCurrentFocusState() {
@@ -523,8 +647,18 @@ export function initRoomEditor(opts) {
     areaRow.innerHTML = `<strong>Area:</strong> ${area !== null ? `${area} m²` : 'Unknown'}`;
     const rRow = document.createElement('p');
     rRow.innerHTML = `<strong>Total R:</strong> ${totalRDisplay || 'Unknown'}`;
+    
     const nodeRow = document.createElement('p');
-    nodeRow.innerHTML = `<strong>Other connected rooms/nodes:</strong> ${otherNodes.length ? otherNodes.join(', ') : 'None'}`;
+    const demo = getDemo();
+    const nodeNames = otherNodes.length 
+      ? otherNodes.map(nodeId => {
+          const zone = demo && Array.isArray(demo.zones) 
+            ? demo.zones.find(z => z.id === nodeId)
+            : null;
+          return zone ? zone.name || zone.id : nodeId;
+        }).join(', ')
+      : 'None';
+    nodeRow.innerHTML = `<strong>Other connected rooms/nodes:</strong> ${nodeNames}`;
 
     meta.appendChild(nameRow);
     meta.appendChild(dimRow);
@@ -929,7 +1063,8 @@ export function initRoomEditor(opts) {
       if (!Array.isArray(element.windows)) element.windows = [];
       const firstOption = options[0] ? options[0].id : 'window_double_modern';
       element.windows.push({
-        id: `window_${element.windows.length + 1}`,
+        id: generateUniqueId(),
+        name: `Window ${element.windows.length + 1}`,
         glazing_id: firstOption,
         width: 1000,
         height: 1200,
@@ -984,7 +1119,8 @@ export function initRoomEditor(opts) {
       if (!Array.isArray(element.doors)) element.doors = [];
       const firstOption = options[0] ? options[0].id : 'door_wood_solid';
       element.doors.push({
-        id: `door_${element.doors.length + 1}`,
+        id: generateUniqueId(),
+        name: `Door ${element.doors.length + 1}`,
         type: 'external_door',
         material_id: firstOption,
         width: 900,
@@ -1340,16 +1476,19 @@ export function initRoomEditor(opts) {
     const demo = getDemo();
     if (!demo || !Array.isArray(demo.elements) || !Array.isArray(demo.zones)) return;
     const normalizedType = String(type || 'wall').trim().toLowerCase();
-    const id = generateUniqueFabricId(demo, `${zoneId}_${normalizedType}`);
+    const id = generateUniqueFabricId(demo);
     const { x, y } = getDefaultDimensionsForType(normalizedType);
     const otherNode = getDefaultOtherNodeForType(normalizedType);
+    const zone = demo.zones.find(z => z.id === zoneId);
+    const zoneName = zone ? (zone.name || zone.id) : zoneId;
+    const typeLabel = normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1);
     const newElement = {
       id,
       type: normalizedType,
       nodes: [zoneId, otherNode],
       x: Number(x.toFixed(3)),
       y: Number(y.toFixed(3)),
-      name: `${zoneId} ${normalizedType}`,
+      name: `${zoneName} - ${typeLabel}`,
       build_up: getDefaultBuildUpForType(normalizedType)
     };
 
@@ -1359,15 +1498,19 @@ export function initRoomEditor(opts) {
     refreshSelectedZone();
   }
 
-  function generateUniqueFabricId(demo, baseId) {
+  function generateUniqueFabricId(demo) {
     const existingIds = new Set((demo.elements || []).map(element => element.id));
-    let candidate = `${baseId}_1`;
-    let index = 1;
-    while (existingIds.has(candidate)) {
-      index += 1;
-      candidate = `${baseId}_${index}`;
-    }
+    let candidate;
+    do {
+      // Generate random hash: id_XXXXXXXXXX (12 hex chars after id_)
+      candidate = 'id_' + Math.random().toString(16).substring(2, 14);
+    } while (existingIds.has(candidate));
     return candidate;
+  }
+
+  function generateUniqueId() {
+    // Generate random hash: id_XXXXXXXXXX (12 hex chars after id_)
+    return 'id_' + Math.random().toString(16).substring(2, 14);
   }
 
   function getDefaultDimensionsForType(type) {
@@ -1428,6 +1571,7 @@ export function initRoomEditor(opts) {
 
   function refreshSelectedZone() {
     if (selectedZoneId) {
+      syncSelectedZoneVisualState();
       populateRoomEditor(selectedZoneId);
     }
   }
