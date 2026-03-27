@@ -21,6 +21,9 @@ export function initRoomEditor(opts) {
   const radiatorsList = document.getElementById('radiatorsList');
   const fabricList = document.getElementById('fabricList');
   const addRadiatorBtn = document.getElementById('addRadiatorBtn');
+  const fabricTypeSelect = document.getElementById('fabricTypeSelect');
+  const fabricTargetSelect = document.getElementById('fabricTargetSelect');
+  const addFabricBtn = document.getElementById('addFabricBtn');
   const addRoomBtn = document.getElementById('addRoomBtn');
 
   let selectedZoneId = null;
@@ -89,6 +92,25 @@ export function initRoomEditor(opts) {
     });
   }
 
+  if (fabricTypeSelect) {
+    fabricTypeSelect.addEventListener('change', () => {
+      refreshFabricTargetOptions();
+    });
+  }
+
+  if (addFabricBtn) {
+    addFabricBtn.addEventListener('click', () => {
+      if (!selectedZoneId) return;
+      const fabricType = fabricTypeSelect ? fabricTypeSelect.value : 'wall';
+      const fabricTarget = fabricTargetSelect ? fabricTargetSelect.value : '__new__';
+      if (fabricTarget === '__new__') {
+        createNewFabric(selectedZoneId, fabricType);
+      } else {
+        attachExistingFabric(selectedZoneId, fabricTarget);
+      }
+    });
+  }
+
   function selectZone(zoneId) {
     selectedZoneId = zoneId;
 
@@ -103,6 +125,7 @@ export function initRoomEditor(opts) {
     if (roomSelector) roomSelector.style.display = 'none';
     if (roomEditor) roomEditor.style.display = 'block';
 
+    refreshFabricTargetOptions();
     populateRoomEditor(zoneId);
   }
 
@@ -1265,6 +1288,142 @@ export function initRoomEditor(opts) {
     zone.radiators.splice(radiatorIndex, 1);
     populateRoomEditor(zoneId);
     onDataChanged();
+  }
+
+  function refreshFabricTargetOptions() {
+    const demo = getDemo();
+    if (!demo || !Array.isArray(demo.elements) || !fabricTargetSelect) return;
+
+    const zoneId = selectedZoneId;
+    const selectedType = fabricTypeSelect ? fabricTypeSelect.value : 'wall';
+    fabricTargetSelect.innerHTML = '';
+
+    const addNewOption = document.createElement('option');
+    addNewOption.value = '__new__';
+    addNewOption.textContent = `Add New ${selectedType}`;
+    fabricTargetSelect.appendChild(addNewOption);
+
+    if (!zoneId) return;
+
+    const candidates = demo.elements.filter(element => {
+      const typeMatches = String(element.type || '').toLowerCase() === String(selectedType || '').toLowerCase();
+      const alreadyAttached = Array.isArray(element.nodes) && element.nodes.includes(zoneId);
+      return typeMatches && !alreadyAttached;
+    });
+
+    candidates.forEach(element => {
+      const option = document.createElement('option');
+      option.value = element.id;
+      option.textContent = `${element.name || element.id} (${element.id})`;
+      fabricTargetSelect.appendChild(option);
+    });
+  }
+
+  function attachExistingFabric(zoneId, elementId) {
+    const demo = getDemo();
+    if (!demo || !Array.isArray(demo.elements)) return;
+
+    const element = demo.elements.find(item => item.id === elementId);
+    if (!element) {
+      alert('No matching fabric element found.');
+      return;
+    }
+
+    if (!Array.isArray(element.nodes)) element.nodes = [];
+    if (!element.nodes.includes(zoneId)) element.nodes.push(zoneId);
+    onDataChanged();
+    refreshFabricTargetOptions();
+    refreshSelectedZone();
+  }
+
+  function createNewFabric(zoneId, type) {
+    const demo = getDemo();
+    if (!demo || !Array.isArray(demo.elements) || !Array.isArray(demo.zones)) return;
+    const normalizedType = String(type || 'wall').trim().toLowerCase();
+    const id = generateUniqueFabricId(demo, `${zoneId}_${normalizedType}`);
+    const { x, y } = getDefaultDimensionsForType(normalizedType);
+    const otherNode = getDefaultOtherNodeForType(normalizedType);
+    const newElement = {
+      id,
+      type: normalizedType,
+      nodes: [zoneId, otherNode],
+      x: Number(x.toFixed(3)),
+      y: Number(y.toFixed(3)),
+      name: `${zoneId} ${normalizedType}`,
+      build_up: getDefaultBuildUpForType(normalizedType)
+    };
+
+    demo.elements.push(newElement);
+    onDataChanged();
+    refreshFabricTargetOptions();
+    refreshSelectedZone();
+  }
+
+  function generateUniqueFabricId(demo, baseId) {
+    const existingIds = new Set((demo.elements || []).map(element => element.id));
+    let candidate = `${baseId}_1`;
+    let index = 1;
+    while (existingIds.has(candidate)) {
+      index += 1;
+      candidate = `${baseId}_${index}`;
+    }
+    return candidate;
+  }
+
+  function getDefaultDimensionsForType(type) {
+    if (type === 'wall') return { x: 3, y: 2.4 };
+    if (type === 'floor') return { x: 4, y: 3 };
+    if (type === 'roof') return { x: 5, y: 4 };
+    if (type === 'ceiling' || type === 'floor_ceiling') return { x: 4, y: 3 };
+    return { x: 3, y: 2.4 };
+  }
+
+  function getDefaultOtherNodeForType(type) {
+    if (type === 'wall' || type === 'roof') return 'outside';
+    if (type === 'floor') return 'ground';
+    if (type === 'ceiling') return 'loft';
+    if (type === 'floor_ceiling') return 'loft';
+    return 'outside';
+  }
+
+  function getDefaultBuildUpForType(type) {
+    if (type === 'wall') {
+      return [
+        { material_id: 'plasterboard', thickness: 0.0125 },
+        {
+          type: 'composite',
+          thickness: 0.09,
+          paths: [
+            { material_id: 'stud_wood', fraction: 0.063 },
+            { material_id: 'pir', fraction: 0.937 }
+          ]
+        },
+        { material_id: 'blockwork', thickness: 0.1 }
+      ];
+    }
+
+    if (type === 'floor') {
+      return [
+        { material_id: 'plywood', thickness: 0.018 },
+        {
+          type: 'composite',
+          thickness: 0.15,
+          paths: [
+            { material_id: 'joist_wood', fraction: 0.095 },
+            { material_id: 'rockwool', fraction: 0.905 }
+          ]
+        }
+      ];
+    }
+
+    if (type === 'roof' || type === 'ceiling' || type === 'floor_ceiling') {
+      return [
+        { material_id: 'plasterboard', thickness: 0.0125 },
+        { material_id: 'glass_wool', thickness: 0.2 }
+      ];
+    }
+
+    return [{ material_id: 'plasterboard', thickness: 0.0125 }];
   }
 
   function refreshSelectedZone() {
