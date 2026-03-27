@@ -5,11 +5,16 @@ import { computeRoomHeatRequirements } from './heat_calculator.js';
 import { renderThermalViz } from './visualizer.js';
 
 const outEl = document.getElementById('out');
-const runBtn = document.getElementById('run');
 const dlEl = document.getElementById('download');
 const indoorInput = document.getElementById('indoorTemp');
 const externalInput = document.getElementById('externalTemp');
 const flowTempInput = document.getElementById('flowTemp');
+const fileUpload = document.getElementById('fileUpload');
+const uploadBtn = document.getElementById('uploadBtn');
+
+let currentMaterials = null;
+let currentRadiators = null;
+let currentDemo = null;
 
 async function tryFetchJson(url) {
   try {
@@ -21,19 +26,17 @@ async function tryFetchJson(url) {
   }
 }
 
-async function loadInputs() {
-  const ins = await tryFetchJson('./source/resources/insulation.json') || JSON.parse(document.getElementById('insulation-json').textContent);
-  const demo = await tryFetchJson('./source/resources/demo_house.json') || JSON.parse(document.getElementById('demo-json').textContent);
+async function loadDefaultInputs() {
+  const ins = await tryFetchJson('./source/resources/insulation.json') || JSON.parse(document.getElementById('insulation-json')?.textContent || '{}');
+  const demo = await tryFetchJson('./source/resources/demo_house.json') || JSON.parse(document.getElementById('demo-json')?.textContent || '{}');
   const rads = await tryFetchJson('./source/resources/radiators.json') || { radiators: [] };
   return [ins, demo, rads];
 }
 
-runBtn.addEventListener('click', async () => {
-  outEl.textContent = 'Loading inputs...';
+async function solveAndRender(demoRaw) {
   try {
-    const [insRaw, demoRaw, radiatorsRaw] = await loadInputs();
-    const materials = insRaw.materials || insRaw;
-    const radiators = radiatorsRaw.radiators || [];
+    const materials = currentMaterials.materials || currentMaterials;
+    const radiators = currentRadiators.radiators || [];
     const elements = demoRaw.elements || demoRaw.rooms || [];
     if (!Array.isArray(elements)) throw new Error('No elements array found in demo json');
 
@@ -91,4 +94,47 @@ runBtn.addEventListener('click', async () => {
     outEl.textContent = 'Solver error: ' + String(err);
     console.error(err);
   }
+}
+
+function triggerSolve() {
+  if (currentDemo) {
+    solveAndRender(JSON.parse(JSON.stringify(currentDemo)));
+  }
+}
+
+// Upload button opens file picker
+uploadBtn.addEventListener('click', () => {
+  fileUpload.click();
+});
+
+// File upload handler
+fileUpload.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  
+  try {
+    const text = await file.text();
+    const uploadedDemo = JSON.parse(text);
+    currentDemo = uploadedDemo;
+    outEl.textContent = 'Processing uploaded file...';
+    triggerSolve();
+  } catch (err) {
+    outEl.textContent = 'Error parsing JSON file: ' + String(err);
+    console.error(err);
+  }
+});
+
+// Temperature inputs trigger recalculation
+indoorInput.addEventListener('change', triggerSolve);
+externalInput.addEventListener('change', triggerSolve);
+flowTempInput.addEventListener('change', triggerSolve);
+
+// Load and initialize on page load
+window.addEventListener('load', async () => {
+  outEl.textContent = 'Initializing...';
+  const [ins, demo, rads] = await loadDefaultInputs();
+  currentMaterials = ins;
+  currentRadiators = rads;
+  currentDemo = demo;
+  triggerSolve();
 });

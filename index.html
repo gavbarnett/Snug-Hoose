@@ -22,10 +22,14 @@
         Radiator flow temperature (°C)
         <input id="flowTemp" type="number" value="55" step="1" />
       </label>
-      <button id="run">Calculate U-values, Radiator Output & Heating Balance</button>
+      <label style="position: relative; overflow: hidden;">
+        Import house JSON
+        <input id="fileUpload" type="file" accept=".json" style="position: absolute; opacity: 0; width: 0; height: 0;" />
+        <button id="uploadBtn" style="margin-top: 0.5rem;">Choose File</button>
+      </label>
       <a id="download" download="demo_house.solved.json" style="margin-left: 0;">Download solved JSON</a>
     </div>
-    <p class="info-text">Provide JSON in the embedded scripts or serve the repo so the app fetches the files.</p>
+    <p class="info-text">Temperature inputs update immediately. Upload a JSON file or use the default demo house (auto-loaded).</p>
   </div>
 
   <div class="thermal-viz">
