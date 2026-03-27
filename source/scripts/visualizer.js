@@ -94,7 +94,16 @@ export function renderThermalViz(demo, radiators) {
     }
   }
   
-  // Clear and add table
+  // Clear and add metadata + table
   container.innerHTML = '';
+  
+  // Add house metadata if available
+  if (demo.meta && demo.meta.name) {
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'house-metadata';
+    metaDiv.textContent = demo.meta.name;
+    container.appendChild(metaDiv);
+  }
+  
   container.appendChild(table);
 }

@@ -137,6 +137,17 @@ a#download:hover {
   margin-bottom: 3rem;
 }
 
+.house-metadata {
+  background: rgba(0, 212, 255, 0.05);
+  border-left: 3px solid var(--accent);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  border-radius: 4px;
+  color: var(--text-light);
+  font-size: 1em;
+  font-weight: 500;
+}
+
 .thermal-table { 
   width: 100%; 
   border-collapse: collapse; 
