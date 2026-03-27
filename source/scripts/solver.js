@@ -106,8 +106,9 @@ async function solveAndRender(demoRaw) {
     if (!Array.isArray(elements)) throw new Error('No elements array found in demo json');
 
     // Calculate U-values for all elements
+    const buildupTemplates = (demoRaw.meta && demoRaw.meta.build_up_templates) || {};
     for (const el of elements) {
-      try { computeElementU(el, materials); } catch (err) { el._calc_error = String(err); }
+      try { computeElementU(el, materials, buildupTemplates); } catch (err) { el._calc_error = String(err); }
     }
 
     // Get input values and calculate room heat requirements

@@ -71,8 +71,18 @@ function getElementArea(elem) {
   return 0;
 }
 
-export function computeElementU(elem, materials) {
-  const build_up = elem.build_up || [];
+export function computeElementU(elem, materials, buildupTemplates) {
+  let build_up = elem.build_up || [];
+
+  // Resolve template reference if present
+  if (elem.build_up_template_id && buildupTemplates) {
+    const template = buildupTemplates[elem.build_up_template_id];
+    if (!template || !template.build_up) {
+      throw new Error(`Build-up template not found: ${elem.build_up_template_id}`);
+    }
+    build_up = template.build_up;
+  }
+
   let Rsum = 0;
   for (const layer of build_up) Rsum += layerR(layer, materials);
   const U_fabric = Rsum > 0 ? 1 / Rsum : 0;

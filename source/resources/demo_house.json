@@ -17,6 +17,132 @@
       "total_heat_loss": "W",
       "total_radiator_output": "W",
       "total_balance": "W"
+    },
+    "build_up_templates": {
+      "buo_01": {
+        "name": "Internal Wall - Cavity (Plasterboard-Blockwork)",
+        "usage_count": 9,
+        "build_up": [
+          {
+            "material_id": "plasterboard",
+            "thickness": 0.0125
+          },
+          {
+            "material_id": "blockwork",
+            "thickness": 0.1
+          },
+          {
+            "material_id": "plasterboard",
+            "thickness": 0.0125
+          }
+        ]
+      },
+      "buo_02": {
+        "name": "External Wall - Insulated (Stud + PIR)",
+        "usage_count": 6,
+        "build_up": [
+          {
+            "material_id": "plasterboard",
+            "thickness": 0.0125
+          },
+          {
+            "type": "composite",
+            "thickness": 0.09,
+            "paths": [
+              {
+                "material_id": "stud_wood",
+                "fraction": 0.15
+              },
+              {
+                "material_id": "pir",
+                "fraction": 0.85
+              }
+            ]
+          },
+          {
+            "material_id": "pir",
+            "thickness": 0.05
+          },
+          {
+            "material_id": "blockwork",
+            "thickness": 0.1
+          }
+        ]
+      },
+      "buo_03": {
+        "name": "Loft External Wall - Uninsulated",
+        "usage_count": 4,
+        "build_up": [
+          {
+            "material_id": "plasterboard",
+            "thickness": 0.0125
+          },
+          {
+            "material_id": "blockwork",
+            "thickness": 0.1
+          }
+        ]
+      },
+      "buo_04": {
+        "name": "Ground Floor - Insulated (Joist Cavity + XPS)",
+        "usage_count": 3,
+        "build_up": [
+          {
+            "material_id": "plywood",
+            "thickness": 0.018
+          },
+          {
+            "type": "composite",
+            "thickness": 0.15,
+            "paths": [
+              {
+                "material_id": "joist_wood",
+                "fraction": 0.15
+              },
+              {
+                "material_id": "rockwool",
+                "fraction": 0.85
+              }
+            ]
+          },
+          {
+            "material_id": "xps",
+            "thickness": 0.1
+          }
+        ]
+      },
+      "buo_05": {
+        "name": "Inter-floor Ceiling - Acoustic",
+        "usage_count": 3,
+        "build_up": [
+          {
+            "material_id": "plasterboard",
+            "thickness": 0.0125
+          },
+          {
+            "material_id": "glass_wool",
+            "thickness": 0.15
+          },
+          {
+            "material_id": "plywood",
+            "thickness": 0.02
+          }
+        ]
+      },
+      "buo_06": {
+        "name": "Loft Floor - Min Insulation",
+        "usage_count": 3,
+        "build_up": [
+          {
+            "material_id": "plasterboard",
+            "thickness": 0.0125
+          },
+          {
+            "material_id": "rockwool",
+            "thickness": 0.0001
+          }
+        ]
+      }
     }
   },
   "zones": [
@@ -143,34 +269,6 @@
       "orientation": "south",
       "x": 5,
       "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "type": "composite",
-          "thickness": 0.09,
-          "paths": [
-            {
-              "material_id": "stud_wood",
-              "fraction": 0.15
-            },
-            {
-              "material_id": "pir",
-              "fraction": 0.85
-            }
-          ]
-        },
-        {
-          "material_id": "pir",
-          "thickness": 0.05
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        }
-      ],
       "windows": [
         {
           "id": "win_liv",
@@ -178,7 +276,8 @@
           "glazing_id": "window_double_modern",
           "area": 2
         }
-      ]
+      ],
+      "build_up_template_id": "buo_02"
     },
     {
       "id": "el_liv_wall_1",
@@ -191,20 +290,7 @@
       "orientation": "north",
       "x": 4,
       "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
+      "build_up_template_id": "buo_01"
     },
     {
       "id": "el_liv_wall_2",
@@ -217,20 +303,7 @@
       "orientation": "east",
       "x": 4,
       "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
+      "build_up_template_id": "buo_01"
     },
     {
       "id": "el_liv_wall_3",
@@ -243,20 +316,7 @@
       "orientation": "west",
       "x": 4,
       "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
+      "build_up_template_id": "buo_01"
     },
     {
       "id": "el_kit_wall_ext",
@@ -269,34 +329,6 @@
       "orientation": "north",
       "x": 4,
       "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "type": "composite",
-          "thickness": 0.09,
-          "paths": [
-            {
-              "material_id": "stud_wood",
-              "fraction": 0.15
-            },
-            {
-              "material_id": "pir",
-              "fraction": 0.85
-            }
-          ]
-        },
-        {
-          "material_id": "pir",
-          "thickness": 0.05
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        }
-      ],
       "windows": [
         {
           "id": "win_kit",
@@ -304,7 +336,8 @@
           "glazing_id": "window_double_old",
           "area": 1.2
         }
-      ]
+      ],
+      "build_up_template_id": "buo_02"
     },
     {
       "id": "el_kit_wall_1",
@@ -317,20 +350,7 @@
       "orientation": "south",
       "x": 4,
       "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
+      "build_up_template_id": "buo_01"
     },
     {
       "id": "el_kit_wall_2",
@@ -343,20 +363,7 @@
       "orientation": "west",
       "x": 3,
       "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
+      "build_up_template_id": "buo_01"
     },
     {
       "id": "el_kit_wall_3",
@@ -369,20 +376,7 @@
       "orientation": "east",
       "x": 3,
       "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
+      "build_up_template_id": "buo_01"
     },
     {
       "id": "el_hg_wall_ext",
@@ -395,34 +389,6 @@
       "orientation": "west",
       "x": 2,
       "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "type": "composite",
-          "thickness": 0.09,
-          "paths": [
-            {
-              "material_id": "stud_wood",
-              "fraction": 0.15
-            },
-            {
-              "material_id": "pir",
-              "fraction": 0.85
-            }
-          ]
-        },
-        {
-          "material_id": "pir",
-          "thickness": 0.05
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        }
-      ],
       "windows": [
         {
           "id": "win_hg",
@@ -430,7 +396,8 @@
           "glazing_id": "window_double_modern",
           "area": 0.5
         }
-      ]
+      ],
+      "build_up_template_id": "buo_02"
     },
     {
       "id": "el_hg_wall_1",
@@ -443,20 +410,7 @@
       "orientation": "east",
       "x": 2,
       "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
+      "build_up_template_id": "buo_01"
     },
     {
       "id": "el_hg_wall_2",
@@ -469,20 +423,7 @@
       "orientation": "north",
       "x": 4,
       "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
+      "build_up_template_id": "buo_01"
     },
     {
       "id": "el_hg_wall_3",
@@ -495,20 +436,7 @@
       "orientation": "south",
       "x": 4,
       "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
+      "build_up_template_id": "buo_01"
     },
     {
       "id": "el_bed_wall_ext",
@@ -521,34 +449,6 @@
       "orientation": "east",
       "x": 4,
       "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "type": "composite",
-          "thickness": 0.09,
-          "paths": [
-            {
-              "material_id": "stud_wood",
-              "fraction": 0.15
-            },
-            {
-              "material_id": "pir",
-              "fraction": 0.85
-            }
-          ]
-        },
-        {
-          "material_id": "pir",
-          "thickness": 0.05
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        }
-      ],
       "windows": [
         {
           "id": "win_bed",
@@ -556,7 +456,8 @@
           "glazing_id": "window_double_modern",
           "area": 1.4
         }
-      ]
+      ],
+      "build_up_template_id": "buo_02"
     },
     {
       "id": "el_bath_wall_ext",
@@ -569,34 +470,6 @@
       "orientation": "north",
       "x": 3,
       "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "type": "composite",
-          "thickness": 0.09,
-          "paths": [
-            {
-              "material_id": "stud_wood",
-              "fraction": 0.15
-            },
-            {
-              "material_id": "pir",
-              "fraction": 0.85
-            }
-          ]
-        },
-        {
-          "material_id": "pir",
-          "thickness": 0.05
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        }
-      ],
       "windows": [
         {
           "id": "win_bath",
@@ -604,7 +477,8 @@
           "glazing_id": "window_single",
           "area": 0.6
         }
-      ]
+      ],
+      "build_up_template_id": "buo_02"
     },
     {
       "id": "el_hf_wall_ext",
@@ -617,34 +491,6 @@
       "orientation": "west",
       "x": 2,
       "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "type": "composite",
-          "thickness": 0.09,
-          "paths": [
-            {
-              "material_id": "stud_wood",
-              "fraction": 0.15
-            },
-            {
-              "material_id": "pir",
-              "fraction": 0.85
-            }
-          ]
-        },
-        {
-          "material_id": "pir",
-          "thickness": 0.05
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        }
-      ],
       "windows": [
         {
           "id": "win_hf",
@@ -652,7 +498,8 @@
           "glazing_id": "window_double_modern",
           "area": 0.5
         }
-      ]
+      ],
+      "build_up_template_id": "buo_02"
     },
     {
       "id": "el_loft_wall_ext",
@@ -665,16 +512,6 @@
       "orientation": "south",
       "x": 6,
       "y": 2,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        }
-      ],
       "windows": [
         {
           "id": "win_loft",
@@ -682,7 +519,8 @@
           "glazing_id": "window_double_modern",
           "area": 1
         }
-      ]
+      ],
+      "build_up_template_id": "buo_03"
     },
     {
       "id": "el_loft_wall_1",
@@ -695,16 +533,7 @@
       "orientation": "north",
       "x": 6,
       "y": 2,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        }
-      ]
+      "build_up_template_id": "buo_03"
     },
     {
       "id": "el_loft_wall_2",
@@ -717,16 +546,7 @@
       "orientation": "east",
       "x": 5,
       "y": 2,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        }
-      ]
+      "build_up_template_id": "buo_03"
     },
     {
       "id": "el_loft_wall_3",
@@ -739,16 +559,7 @@
       "orientation": "west",
       "x": 5,
       "y": 2,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        }
-      ]
+      "build_up_template_id": "buo_03"
     },
     {
       "id": "el_liv_floor",
@@ -760,30 +571,7 @@
       ],
       "x": 5,
       "y": 4,
-      "build_up": [
-        {
-          "material_id": "plywood",
-          "thickness": 0.018
-        },
-        {
-          "type": "composite",
-          "thickness": 0.15,
-          "paths": [
-            {
-              "material_id": "joist_wood",
-              "fraction": 0.15
-            },
-            {
-              "material_id": "rockwool",
-              "fraction": 0.85
-            }
-          ]
-        },
-        {
-          "material_id": "xps",
-          "thickness": 0.1
-        }
-      ]
+      "build_up_template_id": "buo_04"
     },
     {
       "id": "el_kit_floor",
@@ -795,30 +583,7 @@
       ],
       "x": 4,
       "y": 3,
-      "build_up": [
-        {
-          "material_id": "plywood",
-          "thickness": 0.018
-        },
-        {
-          "type": "composite",
-          "thickness": 0.15,
-          "paths": [
-            {
-              "material_id": "joist_wood",
-              "fraction": 0.15
-            },
-            {
-              "material_id": "rockwool",
-              "fraction": 0.85
-            }
-          ]
-        },
-        {
-          "material_id": "xps",
-          "thickness": 0.1
-        }
-      ]
+      "build_up_template_id": "buo_04"
     },
     {
       "id": "el_hg_floor",
@@ -830,30 +595,7 @@
       ],
       "x": 4,
       "y": 2,
-      "build_up": [
-        {
-          "material_id": "plywood",
-          "thickness": 0.018
-        },
-        {
-          "type": "composite",
-          "thickness": 0.15,
-          "paths": [
-            {
-              "material_id": "joist_wood",
-              "fraction": 0.15
-            },
-            {
-              "material_id": "rockwool",
-              "fraction": 0.85
-            }
-          ]
-        },
-        {
-          "material_id": "xps",
-          "thickness": 0.1
-        }
-      ]
+      "build_up_template_id": "buo_04"
     },
     {
       "id": "el_liv_bed_fc",
@@ -865,20 +607,7 @@
       ],
       "x": 4,
       "y": 3,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "glass_wool",
-          "thickness": 0.15
-        },
-        {
-          "material_id": "plywood",
-          "thickness": 0.02
-        }
-      ]
+      "build_up_template_id": "buo_05"
     },
     {
       "id": "el_kit_bath_fc",
@@ -890,20 +619,7 @@
       ],
       "x": 3,
       "y": 2,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "glass_wool",
-          "thickness": 0.15
-        },
-        {
-          "material_id": "plywood",
-          "thickness": 0.02
-        }
-      ]
+      "build_up_template_id": "buo_05"
     },
     {
       "id": "el_hg_hf_fc",
@@ -915,20 +631,7 @@
       ],
       "x": 4,
       "y": 2,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "glass_wool",
-          "thickness": 0.15
-        },
-        {
-          "material_id": "plywood",
-          "thickness": 0.02
-        }
-      ]
+      "build_up_template_id": "buo_05"
     },
     {
       "id": "el_bed_ceiling",
@@ -940,16 +643,7 @@
       ],
       "x": 4,
       "y": 3,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "rockwool",
-          "thickness": 0.0001
-        }
-      ]
+      "build_up_template_id": "buo_06"
     },
     {
       "id": "el_bath_ceiling",
@@ -961,16 +655,7 @@
       ],
       "x": 3,
       "y": 2,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "rockwool",
-          "thickness": 0.0001
-        }
-      ]
+      "build_up_template_id": "buo_06"
     },
     {
       "id": "el_hf_ceiling",
@@ -982,16 +667,7 @@
       ],
       "x": 4,
       "y": 2,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "rockwool",
-          "thickness": 0.0001
-        }
-      ]
+      "build_up_template_id": "buo_06"
     },
     {
       "id": "el_loft_ceiling",

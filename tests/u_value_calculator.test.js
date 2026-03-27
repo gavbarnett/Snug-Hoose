@@ -72,6 +72,24 @@ describe('computeElementU', () => {
     expect(elem.area).toBe(5);
   });
 
+  it('resolves build-up templates', () => {
+    const templates = {
+      'tpl_external': {
+        name: 'External wall',
+        build_up: [{ material_id: 'rockwool', thickness: 0.1 }],
+      },
+    };
+    const elem = {
+      x: 3, y: 2,
+      build_up_template_id: 'tpl_external',
+    };
+    computeElementU(elem, materials, templates);
+    // area = 3×2 = 6 m², rockwool U=0.4 → conductance = 2.4 W/K
+    expect(elem.u_fabric).toBeCloseTo(0.4, 3);
+    expect(elem.thermal_conductance).toBeCloseTo(2.4, 2);
+    expect(elem.area).toBe(6);
+  });
+
   it('incorporates window conductance into the overall U-value', () => {
     // wall 3×2.5 = 7.5 m², rockwool U_fabric=0.4
     // window area=1.5 m², double_glazing u_value=1.4

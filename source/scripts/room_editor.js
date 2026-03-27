@@ -10,8 +10,11 @@ export function initRoomEditor(opts) {
 
   const jsonTab = document.getElementById('jsonTab');
   const editorTab = document.getElementById('editorTab');
+  const templatesTab = document.getElementById('templatesTab');
   const jsonPanel = document.getElementById('jsonPanel');
   const roomEditorPanel = document.getElementById('roomEditorPanel');
+  const templatesPanel = document.getElementById('templatesPanel');
+  const templatesList = document.getElementById('templatesList');
   const contentLayout = document.querySelector('.content-layout');
   const thermalContainer = document.getElementById('thermal-container');
 
@@ -30,19 +33,33 @@ export function initRoomEditor(opts) {
   let selectedZoneId = null;
   let pendingFocusState = null;
 
-  if (jsonTab && editorTab && jsonPanel && roomEditorPanel) {
+  if (jsonTab && editorTab && templatesTab && jsonPanel && roomEditorPanel && templatesPanel) {
     jsonTab.addEventListener('click', () => {
       jsonTab.classList.add('active');
       editorTab.classList.remove('active');
+      templatesTab.classList.remove('active');
       jsonPanel.classList.add('active');
       roomEditorPanel.classList.remove('active');
+      templatesPanel.classList.remove('active');
     });
 
     editorTab.addEventListener('click', () => {
       editorTab.classList.add('active');
       jsonTab.classList.remove('active');
+      templatesTab.classList.remove('active');
       roomEditorPanel.classList.add('active');
       jsonPanel.classList.remove('active');
+      templatesPanel.classList.remove('active');
+    });
+
+    templatesTab.addEventListener('click', () => {
+      templatesTab.classList.add('active');
+      jsonTab.classList.remove('active');
+      editorTab.classList.remove('active');
+      templatesPanel.classList.add('active');
+      jsonPanel.classList.remove('active');
+      roomEditorPanel.classList.remove('active');
+      populateTemplatesPanel();
     });
   }
 
@@ -859,6 +876,21 @@ export function initRoomEditor(opts) {
     return { xLabel: 'X', yLabel: 'Y' };
   }
 
+  function updateTemplateUsageCounts(demo) {
+    if (!demo || !demo.meta || !demo.meta.build_up_templates) return;
+    const templates = demo.meta.build_up_templates;
+    Object.keys(templates).forEach(id => {
+      templates[id].usage_count = 0;
+    });
+    const elements = Array.isArray(demo.elements) ? demo.elements : [];
+    elements.forEach(el => {
+      const id = el && el.build_up_template_id;
+      if (id && templates[id]) {
+        templates[id].usage_count = (templates[id].usage_count || 0) + 1;
+      }
+    });
+  }
+
   function createBuildUpSection(element, parentKey, expandState) {
     const section = document.createElement('details');
     section.className = 'wall-subsection';
@@ -868,65 +900,322 @@ export function initRoomEditor(opts) {
     summary.textContent = 'Build-up';
     section.appendChild(summary);
 
+    const demo = getDemo();
+    const templates = (demo && demo.meta && demo.meta.build_up_templates) || {};
+    const hasTemplate = !!element.build_up_template_id;
+    const templateId = element.build_up_template_id;
+    const templateBuildup = (hasTemplate && templates[templateId] && templates[templateId].build_up) 
+      ? templates[templateId].build_up 
+      : null;
+    const isTemplateModifyMode = hasTemplate && element._templateEditMode === 'modify';
+
+    // Template selector row
+    const templateRow = document.createElement('div');
+    templateRow.style.display = 'flex';
+    templateRow.style.gap = '0.5rem';
+    templateRow.style.flexWrap = 'wrap';
+    templateRow.style.alignItems = 'center';
+    templateRow.style.marginBottom = '0.5rem';
+    templateRow.style.borderBottom = '1px solid #555';
+    templateRow.style.paddingBottom = '0.5rem';
+
+    const templateLabel = document.createElement('strong');
+    templateLabel.textContent = 'Template:';
+    templateRow.appendChild(templateLabel);
+
+    const templateSelect = document.createElement('select');
+    templateSelect.dataset.focusKey = `${parentKey}|template_select`;
+    
+    const noTemplateOption = document.createElement('option');
+    noTemplateOption.value = '';
+    noTemplateOption.textContent = '(None - use inline build-up)';
+    if (!hasTemplate) noTemplateOption.selected = true;
+    templateSelect.appendChild(noTemplateOption);
+
+    Object.entries(templates).sort((a, b) => a[0].localeCompare(b[0])).forEach(([tplId, tpl]) => {
+      const option = document.createElement('option');
+      option.value = tplId;
+      option.textContent = `${tpl.name || tplId} (${tpl.usage_count} uses)`;
+      if (templateId === tplId) option.selected = true;
+      templateSelect.appendChild(option);
+    });
+
+    templateSelect.addEventListener('change', () => {
+      const selected = templateSelect.value;
+      if (selected) {
+        element.build_up_template_id = selected;
+        delete element.build_up;
+        element._templateEditMode = 'view';
+      } else {
+        delete element.build_up_template_id;
+        delete element._templateEditMode;
+        // Initialize with empty array if switching to inline
+        if (!element.build_up) element.build_up = [];
+      }
+      updateTemplateUsageCounts(demo);
+      queueFocusRestore();
+      onDataChanged();
+      refreshSelectedZone();
+    });
+
+    templateRow.appendChild(templateSelect);
+
+    // Show current template info if using template
+    if (hasTemplate && templateBuildup) {
+      const infoSpan = document.createElement('span');
+      infoSpan.style.fontSize = '0.9em';
+      infoSpan.style.color = '#aaa';
+      infoSpan.textContent = isTemplateModifyMode
+        ? `(${templateBuildup.length} layers, editing template in place)`
+        : `(${templateBuildup.length} layers, read-only)`;
+      templateRow.appendChild(infoSpan);
+    }
+
+    section.appendChild(templateRow);
+
+    // Build-up content
     const list = document.createElement('div');
-    const buildUp = Array.isArray(element.build_up) ? element.build_up : [];
     const materialOptions = getBuildUpMaterialOptions();
     const materialLookup = getBuildUpMaterialLookup();
 
-    if (!Array.isArray(element.build_up)) element.build_up = [];
-
-    if (buildUp.length === 0) {
-      const empty = document.createElement('div');
-      empty.textContent = 'No build-up data';
-      list.appendChild(empty);
+    // If using template, show read-only layers or editable template mode
+    if (hasTemplate && templateBuildup) {
+      if (isTemplateModifyMode) {
+        templateBuildup.forEach((layer, i) => {
+          list.appendChild(createBuildUpLayerEditor({
+            layer,
+            layerIndex: i,
+            buildUp: templateBuildup,
+            parentKey: `${parentKey}|template:${templateId}`,
+            materialOptions,
+            materialLookup
+          }));
+        });
+      } else {
+        templateBuildup.forEach((layer, i) => {
+          list.appendChild(createBuildUpLayerDisplay({
+            layer,
+            layerIndex: i,
+            materialLookup,
+            readOnly: true
+          }));
+        });
+      }
     } else {
-      buildUp.forEach((layer, i) => {
-        list.appendChild(createBuildUpLayerEditor({
-          layer,
-          layerIndex: i,
-          buildUp,
-          parentKey,
-          materialOptions,
-          materialLookup
-        }));
-      });
+      // Show editable inline build-up
+      const buildUp = Array.isArray(element.build_up) ? element.build_up : [];
+      if (!Array.isArray(element.build_up)) element.build_up = [];
+
+      if (buildUp.length === 0) {
+        const empty = document.createElement('div');
+        empty.textContent = 'No build-up data';
+        list.appendChild(empty);
+      } else {
+        buildUp.forEach((layer, i) => {
+          list.appendChild(createBuildUpLayerEditor({
+            layer,
+            layerIndex: i,
+            buildUp,
+            parentKey,
+            materialOptions,
+            materialLookup
+          }));
+        });
+      }
     }
 
-    const addRow = document.createElement('div');
-    addRow.style.display = 'flex';
-    addRow.style.gap = '0.5rem';
-    addRow.style.flexWrap = 'wrap';
-
-    const addLayerBtn = document.createElement('button');
-    addLayerBtn.textContent = 'Add Layer';
-    addLayerBtn.addEventListener('click', () => {
-      const firstMaterial = materialOptions[0] ? materialOptions[0].id : 'plasterboard';
-      element.build_up.push({ material_id: firstMaterial, thickness: 0.0125 });
-      onDataChanged();
-      refreshSelectedZone();
-    });
-
-    const addCompositeBtn = document.createElement('button');
-    addCompositeBtn.textContent = 'Add Composite Layer';
-    addCompositeBtn.addEventListener('click', () => {
-      element.build_up.push({
-        type: 'composite',
-        thickness: 0.09,
-        paths: [
-          { material_id: 'stud_wood', fraction: 0.063 },
-          { material_id: 'pir', fraction: 0.937 }
-        ]
-      });
-      onDataChanged();
-      refreshSelectedZone();
-    });
-
-    addRow.appendChild(addLayerBtn);
-    addRow.appendChild(addCompositeBtn);
-
     section.appendChild(list);
-    section.appendChild(addRow);
+
+    // Action buttons
+    const actionRow = document.createElement('div');
+    actionRow.style.display = 'flex';
+    actionRow.style.gap = '0.5rem';
+    actionRow.style.flexWrap = 'wrap';
+    actionRow.style.borderTop = '1px solid #555';
+    actionRow.style.paddingTop = '0.5rem';
+    actionRow.style.marginTop = '0.5rem';
+
+    if (hasTemplate) {
+      const modifyBtn = document.createElement('button');
+      modifyBtn.textContent = isTemplateModifyMode ? 'Done' : 'Modify';
+      modifyBtn.title = isTemplateModifyMode
+        ? 'Stop editing this template'
+        : 'Edit this template in place (affects all elements using it)';
+      modifyBtn.addEventListener('click', () => {
+        element._templateEditMode = isTemplateModifyMode ? 'view' : 'modify';
+        queueFocusRestore();
+        refreshSelectedZone();
+      });
+
+      const cloneBtn = document.createElement('button');
+      cloneBtn.textContent = 'Clone';
+      cloneBtn.title = 'Create a copy of this template, rename it, and edit the copy';
+      cloneBtn.addEventListener('click', () => {
+        if (!templateBuildup) return;
+        if (!demo.meta) demo.meta = {};
+        if (!demo.meta.build_up_templates) demo.meta.build_up_templates = {};
+
+        const sourceName = (templates[templateId] && templates[templateId].name) || templateId;
+        const proposedName = `${sourceName} (Copy)`;
+        const enteredName = prompt('Name for cloned template:', proposedName);
+        if (!enteredName || !enteredName.trim()) return;
+
+        const newTemplateId = `buo_custom_${Date.now()}`;
+        demo.meta.build_up_templates[newTemplateId] = {
+          name: enteredName.trim(),
+          usage_count: 0,
+          build_up: JSON.parse(JSON.stringify(templateBuildup))
+        };
+
+        element.build_up_template_id = newTemplateId;
+        element._templateEditMode = 'modify';
+        delete element.build_up;
+
+        updateTemplateUsageCounts(demo);
+        queueFocusRestore();
+        onDataChanged();
+        refreshSelectedZone();
+      });
+
+      actionRow.appendChild(modifyBtn);
+      actionRow.appendChild(cloneBtn);
+
+      if (isTemplateModifyMode) {
+        const addLayerBtn = document.createElement('button');
+        addLayerBtn.textContent = 'Add Layer';
+        addLayerBtn.addEventListener('click', () => {
+          const firstMaterial = materialOptions[0] ? materialOptions[0].id : 'plasterboard';
+          templateBuildup.push({ material_id: firstMaterial, thickness: 0.0125 });
+          onDataChanged();
+          refreshSelectedZone();
+        });
+
+        const addCompositeBtn = document.createElement('button');
+        addCompositeBtn.textContent = 'Add Composite Layer';
+        addCompositeBtn.addEventListener('click', () => {
+          templateBuildup.push({
+            type: 'composite',
+            thickness: 0.09,
+            paths: [
+              { material_id: 'stud_wood', fraction: 0.063 },
+              { material_id: 'pir', fraction: 0.937 }
+            ]
+          });
+          onDataChanged();
+          refreshSelectedZone();
+        });
+
+        actionRow.appendChild(addLayerBtn);
+        actionRow.appendChild(addCompositeBtn);
+      }
+    } else {
+      // Show add layer / add composite buttons
+      const buildUp = Array.isArray(element.build_up) ? element.build_up : [];
+      
+      const addLayerBtn = document.createElement('button');
+      addLayerBtn.textContent = 'Add Layer';
+      addLayerBtn.addEventListener('click', () => {
+        const firstMaterial = materialOptions[0] ? materialOptions[0].id : 'plasterboard';
+        element.build_up.push({ material_id: firstMaterial, thickness: 0.0125 });
+        onDataChanged();
+        refreshSelectedZone();
+      });
+
+      const addCompositeBtn = document.createElement('button');
+      addCompositeBtn.textContent = 'Add Composite Layer';
+      addCompositeBtn.addEventListener('click', () => {
+        element.build_up.push({
+          type: 'composite',
+          thickness: 0.09,
+          paths: [
+            { material_id: 'stud_wood', fraction: 0.063 },
+            { material_id: 'pir', fraction: 0.937 }
+          ]
+        });
+        onDataChanged();
+        refreshSelectedZone();
+      });
+
+      const saveAsTemplateBtn = document.createElement('button');
+      saveAsTemplateBtn.textContent = 'Save as template';
+      saveAsTemplateBtn.title = 'Create a new build-up template from this configuration';
+      saveAsTemplateBtn.addEventListener('click', () => {
+        const name = prompt('Enter template name:', `${element.name || 'custom'} build-up`);
+        if (name && name.trim()) {
+          const newTemplateId = `buo_custom_${Date.now()}`;
+          if (!demo.meta) demo.meta = {};
+          if (!demo.meta.build_up_templates) demo.meta.build_up_templates = {};
+          demo.meta.build_up_templates[newTemplateId] = {
+            name: name.trim(),
+            usage_count: 0,
+            build_up: JSON.parse(JSON.stringify(buildUp))
+          };
+          // Switch to using the new template
+          element.build_up_template_id = newTemplateId;
+          element._templateEditMode = 'modify';
+          delete element.build_up;
+          updateTemplateUsageCounts(demo);
+          onDataChanged();
+          refreshSelectedZone();
+        }
+      });
+
+      actionRow.appendChild(addLayerBtn);
+      actionRow.appendChild(addCompositeBtn);
+      actionRow.appendChild(saveAsTemplateBtn);
+    }
+
+    section.appendChild(actionRow);
     return section;
+  }
+
+  function createBuildUpLayerDisplay(config) {
+    const layer = config.layer;
+    const layerIndex = config.layerIndex;
+    const materialLookup = config.materialLookup;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'radiator-item';
+    wrap.style.opacity = '0.8';
+
+    const form = document.createElement('div');
+    form.style.display = 'flex';
+    form.style.flexDirection = 'column';
+    form.style.gap = '0.5rem';
+
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.justifyContent = 'space-between';
+    header.style.alignItems = 'center';
+
+    const title = document.createElement('strong');
+    const rDisplay = formatLayerRDisplay(layer, materialLookup);
+    title.textContent = `Layer ${layerIndex + 1}${rDisplay ? ` [R: ${rDisplay}]` : ''}`;
+
+    header.appendChild(title);
+    form.appendChild(header);
+
+    if (layer.type === 'composite') {
+      const compInfo = document.createElement('div');
+      compInfo.style.fontSize = '0.9em';
+      compInfo.style.color = '#aaa';
+      const pathNames = (layer.paths || []).map(p => {
+        const mat = materialLookup[p.material_id];
+        return `${mat ? mat.name : p.material_id} (${(p.fraction * 100).toFixed(0)}%)`;
+      }).join(', ');
+      compInfo.textContent = `Composite ${layer.thickness}m: ${pathNames}`;
+      form.appendChild(compInfo);
+    } else {
+      const matInfo = document.createElement('div');
+      matInfo.style.fontSize = '0.9em';
+      matInfo.style.color = '#aaa';
+      const matName = materialLookup[layer.material_id] ? materialLookup[layer.material_id].name : layer.material_id;
+      matInfo.textContent = `${matName} ${layer.thickness}m`;
+      form.appendChild(matInfo);
+    }
+
+    wrap.appendChild(form);
+    return wrap;
   }
 
   function createBuildUpLayerEditor(config) {
@@ -1748,6 +2037,91 @@ export function initRoomEditor(opts) {
       syncSelectedZoneVisualState();
       populateRoomEditor(selectedZoneId);
     }
+  }
+
+  function populateTemplatesPanel() {
+    if (!templatesList) return;
+    templatesList.innerHTML = '';
+
+    const demo = getDemo();
+    const templates = (demo && demo.meta && demo.meta.build_up_templates) || {};
+    const templateIds = Object.keys(templates).sort();
+
+    if (templateIds.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.padding = '1rem';
+      empty.textContent = 'No build-up templates yet. Create one from the Fabric section when editing a room.';
+      templatesList.appendChild(empty);
+      return;
+    }
+
+    templateIds.forEach(tplId => {
+      const tpl = templates[tplId];
+      const card = document.createElement('details');
+      card.className = 'wall-subsection';
+      card.style.marginBottom = '0.5rem';
+
+      const summary = document.createElement('summary');
+      summary.textContent = `${tpl.name || tplId} (${tpl.usage_count || 0} uses)`;
+      card.appendChild(summary);
+
+      const content = document.createElement('div');
+      content.style.padding = '0.5rem';
+
+      // Show layers
+      const layersDiv = document.createElement('div');
+      layersDiv.style.marginBottom = '0.5rem';
+      const materialLookup = getBuildUpMaterialLookup();
+
+      if (Array.isArray(tpl.build_up) && tpl.build_up.length > 0) {
+        tpl.build_up.forEach((layer, i) => {
+          layersDiv.appendChild(createBuildUpLayerDisplay({
+            layer,
+            layerIndex: i,
+            materialLookup,
+            readOnly: true
+          }));
+        });
+      }
+      content.appendChild(layersDiv);
+
+      // Action buttons
+      const actionDiv = document.createElement('div');
+      actionDiv.style.display = 'flex';
+      actionDiv.style.gap = '0.5rem';
+      actionDiv.style.flexWrap = 'wrap';
+      actionDiv.style.borderTop = '1px solid #555';
+      actionDiv.style.paddingTop = '0.5rem';
+
+      const renameBtn = document.createElement('button');
+      renameBtn.textContent = 'Rename';
+      renameBtn.addEventListener('click', () => {
+        const newName = prompt('Enter new template name:', tpl.name);
+        if (newName && newName.trim()) {
+          tpl.name = newName.trim();
+          onDataChanged();
+          populateTemplatesPanel();
+        }
+      });
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.style.color = '#f44';
+      deleteBtn.addEventListener('click', () => {
+        if (confirm(`Delete template "${tpl.name || tplId}"? This won't affect elements already using it.`)) {
+          delete templates[tplId];
+          onDataChanged();
+          populateTemplatesPanel();
+        }
+      });
+
+      actionDiv.appendChild(renameBtn);
+      actionDiv.appendChild(deleteBtn);
+      content.appendChild(actionDiv);
+
+      card.appendChild(content);
+      templatesList.appendChild(card);
+    });
   }
 
   return {
