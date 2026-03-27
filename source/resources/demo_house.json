@@ -111,7 +111,8 @@
         "outside"
       ],
       "orientation": "south",
-      "area": 10,
+      "x": 4.17,
+      "y": 2.4,
       "build_up": [
         {
           "material_id": "plasterboard",
@@ -156,7 +157,8 @@
         "outside"
       ],
       "orientation": "east",
-      "area": 8,
+      "x": 3.33,
+      "y": 2.4,
       "build_up": [
         {
           "material_id": "plasterboard",
@@ -194,7 +196,8 @@
         "outside"
       ],
       "orientation": "north",
-      "area": 6,
+      "x": 2.5,
+      "y": 2.4,
       "build_up": [
         {
           "material_id": "plasterboard",
@@ -255,7 +258,8 @@
         "outside"
       ],
       "orientation": "east",
-      "area": 8,
+      "x": 3.33,
+      "y": 2.4,
       "build_up": [
         {
           "material_id": "plasterboard",
@@ -300,7 +304,8 @@
         "outside"
       ],
       "orientation": "north",
-      "area": 3,
+      "x": 1.25,
+      "y": 2.4,
       "build_up": [
         {
           "material_id": "plasterboard",
@@ -344,7 +349,8 @@
         "living_room",
         "ground"
       ],
-      "area": 20,
+      "x": 5,
+      "y": 4,
       "build_up": [
         {
           "material_id": "plywood",
@@ -377,7 +383,8 @@
         "kitchen",
         "ground"
       ],
-      "area": 12,
+      "x": 4,
+      "y": 3,
       "build_up": [
         {
           "material_id": "plywood",
@@ -410,7 +417,8 @@
         "hall_ground",
         "ground"
       ],
-      "area": 8,
+      "x": 4,
+      "y": 2,
       "build_up": [
         {
           "material_id": "plywood",
@@ -439,7 +447,8 @@
         "living_room",
         "bedroom_1"
       ],
-      "area": 12,
+      "x": 4,
+      "y": 3,
       "build_up": [
         {
           "material_id": "plasterboard",
@@ -462,7 +471,8 @@
         "living_room",
         "hall_first"
       ],
-      "area": 8,
+      "x": 4,
+      "y": 2,
       "build_up": [
         {
           "material_id": "plasterboard",
@@ -485,7 +495,8 @@
         "kitchen",
         "bathroom"
       ],
-      "area": 6,
+      "x": 3,
+      "y": 2,
       "build_up": [
         {
           "material_id": "plasterboard",
@@ -508,7 +519,8 @@
         "loft",
         "outside"
       ],
-      "area": 30,
+      "x": 6,
+      "y": 5,
       "build_up": [
         {
           "material_id": "roof_tile",
@@ -531,7 +543,8 @@
         "bedroom_1",
         "loft"
       ],
-      "area": 12,
+      "x": 4,
+      "y": 3,
       "build_up": [
         {
           "material_id": "plasterboard",
@@ -550,7 +563,8 @@
         "bathroom",
         "loft"
       ],
-      "area": 6,
+      "x": 3,
+      "y": 2,
       "build_up": [
         {
           "material_id": "plasterboard",
@@ -569,7 +583,8 @@
         "hall_first",
         "loft"
       ],
-      "area": 8,
+      "x": 4,
+      "y": 2,
       "build_up": [
         {
           "material_id": "plasterboard",

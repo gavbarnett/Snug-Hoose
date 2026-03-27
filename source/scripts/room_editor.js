@@ -402,19 +402,12 @@ export function initRoomEditor(opts) {
   function createElementDetailCard(element, zoneKey, elementType, expandState) {
     const elementName = element.name || element.id || 'Unnamed element';
     const elementId = element.id || elementName;
-    const area = typeof element.area === 'number' ? element.area : null;
-    const width = typeof element.width === 'number' ? element.width : null;
-    const height = typeof element.height === 'number' ? element.height : null;
-
-    let widthText = width !== null ? `${width} m` : 'Unknown';
-    let heightText = height !== null ? `${height} m` : 'Unknown';
-
-    if (width === null && height !== null && area !== null && height > 0) {
-      widthText = `${(area / height).toFixed(2)} m (derived from area/height)`;
-    }
-    if (height === null && width !== null && area !== null && width > 0) {
-      heightText = `${(area / width).toFixed(2)} m (derived from area/width)`;
-    }
+    const x = typeof element.x === 'number' ? element.x : null;
+    const y = typeof element.y === 'number' ? element.y : null;
+    const area = (x !== null && y !== null) ? x * y : null;
+    const labels = getDimensionLabelsForType(elementType);
+    const xText = x !== null ? `${x} m` : 'Unknown';
+    const yText = y !== null ? `${y} m` : 'Unknown';
 
     const otherNodes = (Array.isArray(element.nodes) ? element.nodes : [])
       .filter(node => String(node || '').trim() !== zoneKey);
@@ -432,8 +425,8 @@ export function initRoomEditor(opts) {
     meta.className = 'wall-meta';
     meta.innerHTML = `
       <p><strong>Name:</strong> ${elementName}</p>
-      <p><strong>Height:</strong> ${heightText}</p>
-      <p><strong>Width:</strong> ${widthText}</p>
+      <p><strong>${labels.xLabel}:</strong> ${xText}</p>
+      <p><strong>${labels.yLabel}:</strong> ${yText}</p>
       <p><strong>Area:</strong> ${area !== null ? `${area} m²` : 'Unknown'}</p>
       <p><strong>Other connected rooms/nodes:</strong> ${otherNodes.length ? otherNodes.join(', ') : 'None'}</p>
     `;
@@ -444,6 +437,17 @@ export function initRoomEditor(opts) {
     details.appendChild(createDoorsSection(element, cardKey, expandState));
 
     return details;
+  }
+
+  function getDimensionLabelsForType(elementType) {
+    const type = String(elementType || '').toLowerCase();
+    if (type === 'wall') {
+      return { xLabel: 'Length', yLabel: 'Height' };
+    }
+    if (type === 'floor' || type === 'roof' || type === 'ceiling' || type === 'floor_ceiling') {
+      return { xLabel: 'Length', yLabel: 'Width' };
+    }
+    return { xLabel: 'X', yLabel: 'Y' };
   }
 
   function createBuildUpSection(element, parentKey, expandState) {

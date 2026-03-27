@@ -13,6 +13,11 @@ function calculateRadiatorOutput(radiator, surfaceArea, indoorTemp, flowTemp) {
   return h * surfaceArea * dT;
 }
 
+function elementArea(el) {
+  if (typeof el.x === 'number' && el.x > 0 && typeof el.y === 'number' && el.y > 0) return el.x * el.y;
+  return null;
+}
+
 export function computeRoomHeatRequirements(demo, radiators, opts) {
   const indoorTemp = (opts && typeof opts.indoorTemp === 'number') ? opts.indoorTemp : 21;
   const externalTemp = (opts && typeof opts.externalTemp === 'number') ? opts.externalTemp : 3;
@@ -32,9 +37,10 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
 
   for (const el of elements) {
     const nodes = el.nodes || [];
+    const elArea = elementArea(el);
     let elConductance = (typeof el.thermal_conductance === 'number') ? el.thermal_conductance : NaN;
-    if (!isFinite(elConductance) && typeof el.u_overall === 'number' && typeof el.area === 'number') {
-      elConductance = el.u_overall * el.area;
+    if (!isFinite(elConductance) && typeof el.u_overall === 'number' && typeof elArea === 'number') {
+      elConductance = el.u_overall * elArea;
     }
     if (!isFinite(elConductance) || elConductance <= 0) continue;
 
@@ -45,7 +51,7 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
       const zoneId = nonBoundaryNodes[0];
       const acc = roomAcc.get(zoneId) || { conductance: 0, area: null, contributions: [] };
       acc.conductance += elConductance;
-      if (typeof el.area === 'number') acc.area = (acc.area || 0) + el.area;
+      if (typeof elArea === 'number') acc.area = (acc.area || 0) + elArea;
       acc.contributions.push({ id: el.id, c: elConductance });
       roomAcc.set(zoneId, acc);
     } else if (boundaryNodes.length >= 1 && nonBoundaryNodes.length > 1) {
@@ -53,7 +59,7 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
       nonBoundaryNodes.forEach(nz => {
         const acc = roomAcc.get(nz) || { conductance: 0, area: null, contributions: [] };
         acc.conductance += elConductance / parts;
-        if (typeof el.area === 'number') acc.area = (acc.area || 0) + el.area / parts;
+        if (typeof elArea === 'number') acc.area = (acc.area || 0) + elArea / parts;
         acc.contributions.push({ id: el.id, c: elConductance / parts });
         roomAcc.set(nz, acc);
       });

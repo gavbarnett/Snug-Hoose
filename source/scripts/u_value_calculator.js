@@ -66,13 +66,21 @@ function layerR(layer, materials) {
   }
 }
 
+function getElementArea(elem) {
+  if (typeof elem.x === 'number' && elem.x > 0 && typeof elem.y === 'number' && elem.y > 0) return elem.x * elem.y;
+  return 0;
+}
+
 export function computeElementU(elem, materials) {
   const build_up = elem.build_up || [];
   let Rsum = 0;
   for (const layer of build_up) Rsum += layerR(layer, materials);
   const U_fabric = Rsum > 0 ? 1 / Rsum : 0;
 
-  const totalArea = elem.area || 0;
+  const totalArea = getElementArea(elem);
+  if ((!elem.area || elem.area <= 0) && totalArea > 0) {
+    elem.area = Number(totalArea.toFixed(3));
+  }
   let openingsArea = 0;
   let openingsConductance = 0;
   if (Array.isArray(elem.windows)) {
