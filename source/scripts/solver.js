@@ -202,11 +202,11 @@ editorTab.addEventListener('click', () => {
 let selectedZoneId = null;
 
 document.addEventListener('click', (e) => {
-  if (e.target.classList.contains('thermal-zone-cell')) {
-    const zoneId = e.target.getAttribute('data-zone-id');
-    if (zoneId) {
-      selectZone(zoneId);
-    }
+  const zoneCell = e.target.closest('.thermal-zone-cell');
+  if (!zoneCell) return;
+  const zoneId = zoneCell.getAttribute('data-zone-id');
+  if (zoneId) {
+    selectZone(zoneId);
   }
 });
 
@@ -237,31 +237,14 @@ function selectZone(zoneId) {
 }
 
 function populateRoomEditor(zoneId) {
-  const zone = currentDemo.zones.find(z => z.id === zoneId);
+  const zoneKey = String(zoneId || '').trim();
+  const zone = (currentDemo.zones || []).find(z => String(z.id || '').trim() === zoneKey);
   if (!zone) return;
   
-  const elementsList = document.getElementById('elementsList');
   const radiatorsList = document.getElementById('radiatorsList');
   
   // Clear existing
-  elementsList.innerHTML = '';
   radiatorsList.innerHTML = '';
-  
-  // Populate elements
-  if (zone.elements) {
-    zone.elements.forEach((elementId, index) => {
-      const element = currentDemo.elements.find(e => e.id === elementId);
-      if (element) {
-        const item = document.createElement('div');
-        item.className = 'element-item';
-        item.innerHTML = `
-          <span>${element.type || 'Unknown'} - ${element.id}</span>
-          <button onclick="editElement('${element.id}')">Edit</button>
-        `;
-        elementsList.appendChild(item);
-      }
-    });
-  }
   
   // Populate radiators
   if (zone.radiators) {
@@ -422,6 +405,164 @@ function populateRoomEditor(zoneId) {
       radiatorsList.appendChild(item);
     });
   }
+  
+  // Populate fabric elements grouped by type (wall, floor, roof, etc.)
+  const fabricList = document.getElementById('fabricList');
+  if (!fabricList) {
+    console.warn('fabricList container not found in DOM');
+    return;
+  }
+  fabricList.innerHTML = '';
+  const allElements = Array.isArray(currentDemo.elements) ? currentDemo.elements : [];
+  const connectedElements = allElements.filter(e => {
+    return Array.isArray(e.nodes) && e.nodes.some(node => String(node || '').trim() === zoneKey);
+  });
+
+  if (allElements.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'wall-empty';
+    empty.textContent = 'No elements array found in loaded data.';
+    fabricList.appendChild(empty);
+    return;
+  }
+
+  if (connectedElements.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'wall-empty';
+    empty.textContent = 'No fabric elements connected to this room.';
+    fabricList.appendChild(empty);
+  }
+
+  const groupedByType = new Map();
+  connectedElements.forEach(elem => {
+    const type = String(elem.type || 'unknown').toLowerCase();
+    if (!groupedByType.has(type)) groupedByType.set(type, []);
+    groupedByType.get(type).push(elem);
+  });
+
+  const sortedTypes = Array.from(groupedByType.keys()).sort();
+
+  sortedTypes.forEach(type => {
+    const typeSection = document.createElement('details');
+    typeSection.className = 'wall-subsection';
+    typeSection.open = type === 'wall';
+    const typeSummary = document.createElement('summary');
+    typeSummary.textContent = `${type} (${groupedByType.get(type).length})`;
+    typeSection.appendChild(typeSummary);
+
+    groupedByType.get(type).forEach(element => {
+      const elementName = element.name || element.id || 'Unnamed element';
+      const area = typeof element.area === 'number' ? element.area : null;
+      const width = typeof element.width === 'number' ? element.width : null;
+      const height = typeof element.height === 'number' ? element.height : null;
+
+      let widthText = width !== null ? `${width} m` : 'Unknown';
+      let heightText = height !== null ? `${height} m` : 'Unknown';
+
+      if (width === null && height !== null && area !== null && height > 0) {
+        widthText = `${(area / height).toFixed(2)} m (derived from area/height)`;
+      }
+      if (height === null && width !== null && area !== null && width > 0) {
+        heightText = `${(area / width).toFixed(2)} m (derived from area/width)`;
+      }
+
+      const otherNodes = (Array.isArray(element.nodes) ? element.nodes : []).filter(node => String(node || '').trim() !== zoneKey);
+      const details = document.createElement('details');
+      details.className = 'wall-card';
+
+      const summary = document.createElement('summary');
+      summary.textContent = `${elementName}${element.orientation ? ` (${element.orientation})` : ''}`;
+      details.appendChild(summary);
+
+      const meta = document.createElement('div');
+      meta.className = 'wall-meta';
+      meta.innerHTML = `
+        <p><strong>Name:</strong> ${elementName}</p>
+        <p><strong>Height:</strong> ${heightText}</p>
+        <p><strong>Width:</strong> ${widthText}</p>
+        <p><strong>Area:</strong> ${area !== null ? `${area} m²` : 'Unknown'}</p>
+        <p><strong>Other connected rooms/nodes:</strong> ${otherNodes.length ? otherNodes.join(', ') : 'None'}</p>
+      `;
+      details.appendChild(meta);
+
+      const buildUpSection = document.createElement('details');
+      buildUpSection.className = 'wall-subsection';
+      const buildUpSummary = document.createElement('summary');
+      buildUpSummary.textContent = 'Build-up';
+      buildUpSection.appendChild(buildUpSummary);
+
+      const buildUpList = document.createElement('ul');
+      const buildUp = Array.isArray(element.build_up) ? element.build_up : [];
+      if (buildUp.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = 'No build-up data';
+        buildUpList.appendChild(li);
+      } else {
+        buildUp.forEach((layer, i) => {
+          const li = document.createElement('li');
+          if (layer.type === 'composite' && Array.isArray(layer.paths)) {
+            const pathText = layer.paths
+              .map(path => `${path.material_id || 'unknown'} (${typeof path.fraction === 'number' ? path.fraction : 'n/a'})`)
+              .join(', ');
+            li.textContent = `Layer ${i + 1}: composite, thickness=${layer.thickness ?? 'n/a'} m, paths=${pathText}`;
+          } else {
+            li.textContent = `Layer ${i + 1}: ${layer.material_id || layer.type || 'unknown'}, thickness=${layer.thickness ?? 'n/a'} m`;
+          }
+          buildUpList.appendChild(li);
+        });
+      }
+      buildUpSection.appendChild(buildUpList);
+      details.appendChild(buildUpSection);
+
+      const windowsSection = document.createElement('details');
+      windowsSection.className = 'wall-subsection';
+      const windowsSummary = document.createElement('summary');
+      windowsSummary.textContent = 'Windows';
+      windowsSection.appendChild(windowsSummary);
+
+      const windowsList = document.createElement('ul');
+      const windows = Array.isArray(element.windows) ? element.windows : [];
+      if (windows.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = 'No windows';
+        windowsList.appendChild(li);
+      } else {
+        windows.forEach((win, i) => {
+          const li = document.createElement('li');
+          li.textContent = `${win.id || `window_${i + 1}`}: area=${win.area ?? 'n/a'} m², glazing=${win.glazing_id || 'n/a'}`;
+          windowsList.appendChild(li);
+        });
+      }
+      windowsSection.appendChild(windowsList);
+      details.appendChild(windowsSection);
+
+      const doorsSection = document.createElement('details');
+      doorsSection.className = 'wall-subsection';
+      const doorsSummary = document.createElement('summary');
+      doorsSummary.textContent = 'Doors';
+      doorsSection.appendChild(doorsSummary);
+
+      const doorsList = document.createElement('ul');
+      const doors = Array.isArray(element.doors) ? element.doors : [];
+      if (doors.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = 'No doors';
+        doorsList.appendChild(li);
+      } else {
+        doors.forEach((door, i) => {
+          const li = document.createElement('li');
+          li.textContent = `${door.id || `door_${i + 1}`}: area=${door.area ?? 'n/a'} m², type=${door.type || 'n/a'}, material=${door.material_id || 'n/a'}`;
+          doorsList.appendChild(li);
+        });
+      }
+      doorsSection.appendChild(doorsList);
+      details.appendChild(doorsSection);
+
+      typeSection.appendChild(details);
+    });
+
+    fabricList.appendChild(typeSection);
+  });
 }
 
 function removeRadiator(zoneId, radiatorIndex) {
@@ -435,51 +576,10 @@ function removeRadiator(zoneId, radiatorIndex) {
   }
 }
 
-// Global functions for button clicks (since onclick attributes)
-window.editElement = function(elementId) {
-  // TODO: Implement element editing modal/form
-  alert(`Edit element: ${elementId}`);
-};
-
 window.editRadiator = function(index, zoneId) {
   // TODO: Implement radiator editing modal/form
   alert(`Edit radiator ${index} in zone ${zoneId}`);
 };
-
-// Add element button
-document.getElementById('addElementBtn').addEventListener('click', () => {
-  if (selectedZoneId) {
-    // TODO: Implement add element modal/form
-    alert(`Add element to zone: ${selectedZoneId}`);
-  }
-});
-
-// Add radiator button
-document.getElementById('addRadiatorBtn').addEventListener('click', () => {
-  if (selectedZoneId) {
-    const zone = currentDemo.zones.find(z => z.id === selectedZoneId);
-    if (zone) {
-      if (!zone.radiators) zone.radiators = [];
-      // Add a default radiator
-      zone.radiators.push({
-        radiator_id: "type_11",
-        surface_area: 1.0,
-        width: 800,
-        height: 500
-      });
-      // Re-populate the editor
-      populateRoomEditor(selectedZoneId);
-      // Trigger solve to update calculations
-      triggerSolve();
-    }
-  }
-});
-
-// Add room button
-document.getElementById('addRoomBtn').addEventListener('click', () => {
-  // TODO: Implement add room modal/form
-  alert('Add room (not implemented yet)');
-});
 
 // Load and initialize on page load
 window.addEventListener('load', async () => {
@@ -490,6 +590,35 @@ window.addEventListener('load', async () => {
     currentMaterials = ins;
     currentRadiators = rads;
     currentDemo = demo;
+    
+    // Add event listeners after DOM is loaded
+    // Add radiator button
+    document.getElementById('addRadiatorBtn').addEventListener('click', () => {
+      if (selectedZoneId) {
+        const zone = currentDemo.zones.find(z => z.id === selectedZoneId);
+        if (zone) {
+          if (!zone.radiators) zone.radiators = [];
+          // Add a default radiator
+          zone.radiators.push({
+            radiator_id: "type_11",
+            surface_area: 1.0,
+            width: 800,
+            height: 500
+          });
+          // Re-populate the editor
+          populateRoomEditor(selectedZoneId);
+          // Trigger solve to update calculations
+          triggerSolve();
+        }
+      }
+    });
+
+    // Add room button
+    document.getElementById('addRoomBtn').addEventListener('click', () => {
+      // TODO: Implement add room modal/form
+      alert('Add room (not implemented yet)');
+    });
+    
     triggerSolve();
   } catch (error) {
     outEl.textContent = 'Initialization error: ' + String(error);

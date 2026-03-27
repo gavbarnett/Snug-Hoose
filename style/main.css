@@ -288,6 +288,45 @@ select:focus, input[type="number"]:focus {
   color: #ff5252 !important;
 }
 
+.wall-card,
+.wall-subsection {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  margin-bottom: 0.6rem;
+}
+
+.wall-card > summary,
+.wall-subsection > summary {
+  cursor: pointer;
+  padding: 0.6rem 0.8rem;
+  color: var(--text-light);
+  font-weight: 600;
+}
+
+.wall-subsection > summary {
+  font-weight: 500;
+}
+
+.wall-meta {
+  padding: 0 0.8rem 0.6rem;
+}
+
+.wall-meta p {
+  margin: 0.25rem 0;
+  color: var(--text-muted);
+}
+
+.wall-subsection ul {
+  margin: 0 0.8rem 0.8rem 1.6rem;
+  color: var(--text-muted);
+}
+
+.wall-empty {
+  color: var(--text-muted);
+  font-size: 0.9em;
+}
+
 .thermal-zone-cell.selected {
   border: 3px solid var(--accent);
   box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.3);
