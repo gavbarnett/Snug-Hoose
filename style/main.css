@@ -250,6 +250,44 @@ a#download:hover {
   cursor: pointer;
 }
 
+.element-item button:hover, .radiator-item button:hover {
+  background: var(--btn-hover);
+}
+
+select, input[type="number"] {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text-light);
+  padding: 0.5rem;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+select:focus, input[type="number"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.area-display {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.remove-btn {
+  background: transparent !important;
+  border: none !important;
+  color: #ff6b6b !important;
+  cursor: pointer !important;
+  font-size: 1.2em !important;
+  padding: 0.25rem !important;
+  transition: color 0.2s ease !important;
+}
+
+.remove-btn:hover {
+  color: #ff5252 !important;
+}
+
 .thermal-zone-cell.selected {
   border: 3px solid var(--accent);
   box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.3);

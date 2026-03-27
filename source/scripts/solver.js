@@ -269,12 +269,169 @@ function populateRoomEditor(zoneId) {
       const radiator = currentRadiators.radiators.find(r => r.id === radSpec.radiator_id);
       const item = document.createElement('div');
       item.className = 'radiator-item';
-      item.innerHTML = `
-        <span>${radiator ? radiator.name : radSpec.radiator_id} (${radSpec.surface_area}m²)</span>
-        <button onclick="editRadiator(${index}, '${zoneId}')">Edit</button>
-      `;
+      
+      // Create form elements
+      const typeSelect = document.createElement('select');
+      currentRadiators.radiators.forEach(rad => {
+        const option = document.createElement('option');
+        option.value = rad.id;
+        option.textContent = rad.name;
+        if (rad.id === radSpec.radiator_id) option.selected = true;
+        typeSelect.appendChild(option);
+      });
+      
+      const widthSelect = document.createElement('select');
+      const widthInput = document.createElement('input');
+      widthInput.type = 'number';
+      widthInput.placeholder = 'Width (mm)';
+      widthInput.value = radSpec.width || '';
+      widthInput.step = '10';
+      widthInput.min = '200';
+      widthInput.max = '3000';
+      
+      // Standard widths
+      const standardWidths = [400, 500, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000];
+      const widthOption = document.createElement('option');
+      widthOption.value = '';
+      widthOption.textContent = 'Custom width...';
+      widthSelect.appendChild(widthOption);
+      standardWidths.forEach(w => {
+        const option = document.createElement('option');
+        option.value = w;
+        option.textContent = `${w}mm`;
+        if (radSpec.width == w) option.selected = true;
+        widthSelect.appendChild(option);
+      });
+      
+      const heightSelect = document.createElement('select');
+      const heightInput = document.createElement('input');
+      heightInput.type = 'number';
+      heightInput.placeholder = 'Height (mm)';
+      heightInput.value = radSpec.height || '';
+      heightInput.step = '10';
+      heightInput.min = '200';
+      heightInput.max = '2000';
+      
+      // Standard heights
+      const standardHeights = [300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200];
+      const heightOption = document.createElement('option');
+      heightOption.value = '';
+      heightOption.textContent = 'Custom height...';
+      heightSelect.appendChild(heightOption);
+      standardHeights.forEach(h => {
+        const option = document.createElement('option');
+        option.value = h;
+        option.textContent = `${h}mm`;
+        if (radSpec.height == h) option.selected = true;
+        heightSelect.appendChild(option);
+      });
+      
+      const areaDisplay = document.createElement('span');
+      areaDisplay.className = 'area-display';
+      areaDisplay.textContent = `Area: ${radSpec.surface_area}m²`;
+      
+      // Update area when dimensions change
+      const updateArea = () => {
+        const width = parseFloat(widthInput.value || widthSelect.value) / 1000; // convert mm to m
+        const height = parseFloat(heightInput.value || heightSelect.value) / 1000;
+        if (width > 0 && height > 0) {
+          const area = (width * height).toFixed(2);
+          areaDisplay.textContent = `Area: ${area}m²`;
+          radSpec.surface_area = parseFloat(area);
+          radSpec.width = parseInt(widthInput.value || widthSelect.value);
+          radSpec.height = parseInt(heightInput.value || heightSelect.value);
+          triggerSolve(); // Auto-update on dimension change
+        }
+      };
+      
+      widthInput.addEventListener('input', updateArea);
+      heightInput.addEventListener('input', updateArea);
+      widthSelect.addEventListener('change', () => {
+        if (widthSelect.value) {
+          widthInput.value = widthSelect.value;
+          updateArea();
+        }
+      });
+      heightSelect.addEventListener('change', () => {
+        if (heightSelect.value) {
+          heightInput.value = heightSelect.value;
+          updateArea();
+        }
+      });
+      typeSelect.addEventListener('change', () => {
+        radSpec.radiator_id = typeSelect.value;
+        triggerSolve(); // Auto-update on type change
+      });
+      
+      // Layout the form
+      const formDiv = document.createElement('div');
+      formDiv.style.display = 'flex';
+      formDiv.style.flexDirection = 'column';
+      formDiv.style.gap = '0.5rem';
+      
+      const headerDiv = document.createElement('div');
+      headerDiv.style.display = 'flex';
+      headerDiv.style.justifyContent = 'space-between';
+      headerDiv.style.alignItems = 'center';
+      
+      const typeRow = document.createElement('div');
+      typeRow.textContent = 'Type: ';
+      typeRow.appendChild(typeSelect);
+      
+      const removeBtn = document.createElement('button');
+      removeBtn.innerHTML = '🗑️';
+      removeBtn.title = 'Remove radiator';
+      removeBtn.className = 'remove-btn';
+      removeBtn.addEventListener('click', () => {
+        removeRadiator(selectedZoneId, index);
+      });
+      
+      headerDiv.appendChild(typeRow);
+      headerDiv.appendChild(removeBtn);
+      
+      const sizeRow = document.createElement('div');
+      sizeRow.style.display = 'flex';
+      sizeRow.style.gap = '0.5rem';
+      sizeRow.style.alignItems = 'center';
+      sizeRow.style.flexWrap = 'wrap';
+      
+      const widthGroup = document.createElement('div');
+      widthGroup.style.display = 'flex';
+      widthGroup.style.alignItems = 'center';
+      widthGroup.style.gap = '0.25rem';
+      widthGroup.appendChild(document.createTextNode('W:'));
+      widthGroup.appendChild(widthSelect);
+      widthGroup.appendChild(widthInput);
+      
+      const heightGroup = document.createElement('div');
+      heightGroup.style.display = 'flex';
+      heightGroup.style.alignItems = 'center';
+      heightGroup.style.gap = '0.25rem';
+      heightGroup.appendChild(document.createTextNode('H:'));
+      heightGroup.appendChild(heightSelect);
+      heightGroup.appendChild(heightInput);
+      
+      sizeRow.appendChild(widthGroup);
+      sizeRow.appendChild(heightGroup);
+      sizeRow.appendChild(areaDisplay);
+      
+      formDiv.appendChild(headerDiv);
+      formDiv.appendChild(sizeRow);
+      
+      item.appendChild(formDiv);
       radiatorsList.appendChild(item);
     });
+  }
+}
+
+function removeRadiator(zoneId, radiatorIndex) {
+  const zone = currentDemo.zones.find(z => z.id === zoneId);
+  if (zone && zone.radiators && zone.radiators[radiatorIndex]) {
+    zone.radiators.splice(radiatorIndex, 1);
+    // Re-populate the editor
+    populateRoomEditor(zoneId);
+    // Trigger solve to update calculations
+    triggerSolve();
   }
 }
 
@@ -300,15 +457,22 @@ document.getElementById('addElementBtn').addEventListener('click', () => {
 // Add radiator button
 document.getElementById('addRadiatorBtn').addEventListener('click', () => {
   if (selectedZoneId) {
-    // TODO: Implement add radiator modal/form
-    alert(`Add radiator to zone: ${selectedZoneId}`);
+    const zone = currentDemo.zones.find(z => z.id === selectedZoneId);
+    if (zone) {
+      if (!zone.radiators) zone.radiators = [];
+      // Add a default radiator
+      zone.radiators.push({
+        radiator_id: "type_11",
+        surface_area: 1.0,
+        width: 800,
+        height: 500
+      });
+      // Re-populate the editor
+      populateRoomEditor(selectedZoneId);
+      // Trigger solve to update calculations
+      triggerSolve();
+    }
   }
-});
-
-// Save changes button
-document.getElementById('saveRoomChanges').addEventListener('click', () => {
-  // TODO: Save changes to currentDemo and re-solve
-  alert('Save changes (not implemented yet)');
 });
 
 // Add room button
