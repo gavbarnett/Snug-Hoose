@@ -1,0 +1,14 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Test output
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.code-workspace
