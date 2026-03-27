@@ -14,8 +14,8 @@ function getThermalColorClass(zone) {
   const canReachSetpoint = zone.can_reach_setpoint !== false;
   
   let delta;
-  if (isControlRoom) {
-    delta = 0; // Control room is always perfect (it's the reference)
+  if (isControlRoom && canReachSetpoint) {
+    delta = 0; // Control room at setpoint is perfect (it's the reference)
   } else if (hasTrv && canReachSetpoint) {
     delta = 0; // TRV that can reach setpoint is perfectly controlled
   } else {
@@ -274,7 +274,8 @@ export function renderThermalViz(demo, radiators) {
       if (zone.is_unheated === true) {
         displayTemp = deliveredTemp ?? maxTemp ?? externalTemp;
       } else if (isControlRoom) {
-        displayTemp = setpoint;
+        // Control room: show setpoint if it can reach it, otherwise show actual achieved temp
+        displayTemp = canReachSetpoint ? setpoint : (deliveredTemp ?? maxTemp ?? setpoint);
       } else if (hasTrv && canReachSetpoint) {
         displayTemp = setpoint;
       } else {

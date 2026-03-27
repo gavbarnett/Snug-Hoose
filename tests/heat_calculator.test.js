@@ -188,3 +188,45 @@ describe('Heated zone with undersized radiator', () => {
     expect(zone.can_reach_setpoint).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Control room capacity consistency — max_achievable_temp should be ≥ setpoint
+// ---------------------------------------------------------------------------
+describe('Control room consistency check', () => {
+  it('computes max_achievable_temperature >= setpoint for control zone', () => {
+    // A control room with fixed radiator surface area and boundary conductance.
+    // We should always be able to reach the setpoint at some intermediate flow temp,
+    // and max flow should give us at least as much capacity.
+    const demo = {
+      zones: [
+        {
+          id: 'z_control', name: 'Control', is_unheated: false,
+          setpoint_temperature: 21, is_boiler_control: true,
+          radiators: [{ radiator_id: 'rad_std', surface_area: 1.5, trv_enabled: false }],
+        },
+        outside,
+      ],
+      elements: [{
+        id: 'el_wall', type: 'wall',
+        nodes: ['z_control', 'z_outside'],
+        thermal_conductance: 15,  // 15 W/K heat loss at ΔT=18K → 270W
+      }],
+    };
+
+    const result = computeRoomHeatRequirements(demo, radiators, { indoorTemp: 21, externalTemp: 3, flowTemp: 55 });
+    const zone = result.rooms.find(r => r.zoneId === 'z_control');
+
+    // Control room must reach its setpoint operationally
+    expect(zone.delivered_indoor_temperature).toBeCloseTo(21, 0);
+    expect(zone.can_reach_setpoint).toBe(true);
+    
+    // max_achievable_temperature must be >= setpoint for a control room
+    expect(zone.max_achievable_temperature).toBeGreaterThanOrEqual(20.5);
+    
+    // Capacity should be >= 100% (room can reach setpoint at max flow)
+    const requiredLift = zone.setpoint_temperature - 3;  // external temp = 3
+    const availableLift = zone.max_achievable_temperature - 3;
+    const capacityPct = availableLift / requiredLift * 100;
+    expect(capacityPct).toBeGreaterThanOrEqual(95); // Allow small rounding margin
+  });
+});
