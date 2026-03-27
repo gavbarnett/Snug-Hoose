@@ -77,7 +77,7 @@
       "radiators": [
         {
           "radiator_id": "type_11",
-          "surface_area": 1.0,
+          "surface_area": 1,
           "width": 800,
           "height": 500,
           "trv_enabled": false
@@ -176,7 +176,7 @@
           "id": "win_liv",
           "name": "Living Window",
           "glazing_id": "window_double_modern",
-          "area": 2.0
+          "area": 2
         }
       ]
     },
@@ -186,10 +186,10 @@
       "type": "wall",
       "nodes": [
         "id_7a538d23f564",
-        "id_878112d2b104"
+        "id_8d48a0ccfcb9"
       ],
       "orientation": "north",
-      "x": 5,
+      "x": 4,
       "y": 2.4,
       "build_up": [
         {
@@ -212,7 +212,7 @@
       "type": "wall",
       "nodes": [
         "id_7a538d23f564",
-        "id_cf4d374ca5ba"
+        "id_dff6504b35ba"
       ],
       "orientation": "east",
       "x": 4,
@@ -312,7 +312,7 @@
       "type": "wall",
       "nodes": [
         "id_878112d2b104",
-        "id_7a538d23f564"
+        "id_dff6504b35ba"
       ],
       "orientation": "south",
       "x": 4,
@@ -338,7 +338,7 @@
       "type": "wall",
       "nodes": [
         "id_878112d2b104",
-        "id_cf4d374ca5ba"
+        "id_d4a5f6543bd7"
       ],
       "orientation": "west",
       "x": 3,
@@ -438,7 +438,7 @@
       "type": "wall",
       "nodes": [
         "id_cf4d374ca5ba",
-        "id_7a538d23f564"
+        "id_dff6504b35ba"
       ],
       "orientation": "east",
       "x": 2,
@@ -464,7 +464,7 @@
       "type": "wall",
       "nodes": [
         "id_cf4d374ca5ba",
-        "id_878112d2b104"
+        "id_8d48a0ccfcb9"
       ],
       "orientation": "north",
       "x": 4,
@@ -559,84 +559,6 @@
       ]
     },
     {
-      "id": "el_bed_wall_1",
-      "name": "Bedroom 1 - Internal Wall A",
-      "type": "wall",
-      "nodes": [
-        "id_dff6504b35ba",
-        "id_8d48a0ccfcb9"
-      ],
-      "orientation": "north",
-      "x": 4,
-      "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
-    },
-    {
-      "id": "el_bed_wall_2",
-      "name": "Bedroom 1 - Internal Wall B",
-      "type": "wall",
-      "nodes": [
-        "id_dff6504b35ba",
-        "id_d4a5f6543bd7"
-      ],
-      "orientation": "west",
-      "x": 3,
-      "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
-    },
-    {
-      "id": "el_bed_wall_3",
-      "name": "Bedroom 1 - Internal Wall C",
-      "type": "wall",
-      "nodes": [
-        "id_dff6504b35ba",
-        "id_7a538d23f564"
-      ],
-      "orientation": "south",
-      "x": 3,
-      "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
-    },
-    {
       "id": "el_bath_wall_ext",
       "name": "Bathroom - External Wall",
       "type": "wall",
@@ -681,84 +603,6 @@
           "name": "Bathroom Window",
           "glazing_id": "window_single",
           "area": 0.6
-        }
-      ]
-    },
-    {
-      "id": "el_bath_wall_1",
-      "name": "Bathroom - Internal Wall A",
-      "type": "wall",
-      "nodes": [
-        "id_8d48a0ccfcb9",
-        "id_dff6504b35ba"
-      ],
-      "orientation": "south",
-      "x": 3,
-      "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
-    },
-    {
-      "id": "el_bath_wall_2",
-      "name": "Bathroom - Internal Wall B",
-      "type": "wall",
-      "nodes": [
-        "id_8d48a0ccfcb9",
-        "id_d4a5f6543bd7"
-      ],
-      "orientation": "west",
-      "x": 2,
-      "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
-    },
-    {
-      "id": "el_bath_wall_3",
-      "name": "Bathroom - Internal Wall C",
-      "type": "wall",
-      "nodes": [
-        "id_8d48a0ccfcb9",
-        "id_878112d2b104"
-      ],
-      "orientation": "east",
-      "x": 2,
-      "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
         }
       ]
     },
@@ -811,84 +655,6 @@
       ]
     },
     {
-      "id": "el_hf_wall_1",
-      "name": "Hall First - Internal Wall A",
-      "type": "wall",
-      "nodes": [
-        "id_d4a5f6543bd7",
-        "id_dff6504b35ba"
-      ],
-      "orientation": "east",
-      "x": 2,
-      "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
-    },
-    {
-      "id": "el_hf_wall_2",
-      "name": "Hall First - Internal Wall B",
-      "type": "wall",
-      "nodes": [
-        "id_d4a5f6543bd7",
-        "id_8d48a0ccfcb9"
-      ],
-      "orientation": "north",
-      "x": 4,
-      "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
-    },
-    {
-      "id": "el_hf_wall_3",
-      "name": "Hall First - Internal Wall C",
-      "type": "wall",
-      "nodes": [
-        "id_d4a5f6543bd7",
-        "id_cf4d374ca5ba"
-      ],
-      "orientation": "south",
-      "x": 4,
-      "y": 2.4,
-      "build_up": [
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        },
-        {
-          "material_id": "blockwork",
-          "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
-        }
-      ]
-    },
-    {
       "id": "el_loft_wall_ext",
       "name": "Loft - External Wall",
       "type": "wall",
@@ -898,29 +664,11 @@
       ],
       "orientation": "south",
       "x": 6,
-      "y": 2.0,
+      "y": 2,
       "build_up": [
         {
           "material_id": "plasterboard",
           "thickness": 0.0125
-        },
-        {
-          "type": "composite",
-          "thickness": 0.09,
-          "paths": [
-            {
-              "material_id": "stud_wood",
-              "fraction": 0.15
-            },
-            {
-              "material_id": "pir",
-              "fraction": 0.85
-            }
-          ]
-        },
-        {
-          "material_id": "pir",
-          "thickness": 0.05
         },
         {
           "material_id": "blockwork",
@@ -932,21 +680,21 @@
           "id": "win_loft",
           "name": "Loft Window",
           "glazing_id": "window_double_modern",
-          "area": 1.0
+          "area": 1
         }
       ]
     },
     {
       "id": "el_loft_wall_1",
-      "name": "Loft - Internal Wall A",
+      "name": "Loft - External Wall B",
       "type": "wall",
       "nodes": [
         "id_a4d77187437b",
-        "id_dff6504b35ba"
+        "id_33568f084a87"
       ],
       "orientation": "north",
       "x": 6,
-      "y": 2.0,
+      "y": 2,
       "build_up": [
         {
           "material_id": "plasterboard",
@@ -955,24 +703,20 @@
         {
           "material_id": "blockwork",
           "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
         }
       ]
     },
     {
       "id": "el_loft_wall_2",
-      "name": "Loft - Internal Wall B",
+      "name": "Loft - External Wall C",
       "type": "wall",
       "nodes": [
         "id_a4d77187437b",
-        "id_8d48a0ccfcb9"
+        "id_33568f084a87"
       ],
       "orientation": "east",
       "x": 5,
-      "y": 2.0,
+      "y": 2,
       "build_up": [
         {
           "material_id": "plasterboard",
@@ -981,24 +725,20 @@
         {
           "material_id": "blockwork",
           "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
         }
       ]
     },
     {
       "id": "el_loft_wall_3",
-      "name": "Loft - Internal Wall C",
+      "name": "Loft - External Wall D",
       "type": "wall",
       "nodes": [
         "id_a4d77187437b",
-        "id_d4a5f6543bd7"
+        "id_33568f084a87"
       ],
       "orientation": "west",
       "x": 5,
-      "y": 2.0,
+      "y": 2,
       "build_up": [
         {
           "material_id": "plasterboard",
@@ -1007,10 +747,6 @@
         {
           "material_id": "blockwork",
           "thickness": 0.1
-        },
-        {
-          "material_id": "plasterboard",
-          "thickness": 0.0125
         }
       ]
     },
@@ -1210,8 +946,8 @@
           "thickness": 0.0125
         },
         {
-          "material_id": "glass_wool",
-          "thickness": 0.2
+          "material_id": "rockwool",
+          "thickness": 0.0001
         }
       ]
     },
@@ -1231,8 +967,8 @@
           "thickness": 0.0125
         },
         {
-          "material_id": "glass_wool",
-          "thickness": 0.2
+          "material_id": "rockwool",
+          "thickness": 0.0001
         }
       ]
     },
@@ -1252,8 +988,8 @@
           "thickness": 0.0125
         },
         {
-          "material_id": "glass_wool",
-          "thickness": 0.2
+          "material_id": "rockwool",
+          "thickness": 0.0001
         }
       ]
     },
