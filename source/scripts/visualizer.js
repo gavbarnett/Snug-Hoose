@@ -1,7 +1,7 @@
 // Thermal visualizer: generates thermal color-coded table display for heating balance
 
 function getThermalColorClass(zone) {
-  if (!zone || zone.is_unheated === true) return 'thermal-neutral';
+  if (!zone || zone.is_unheated === true) return 'thermal-unheated';
 
   const setpoint = typeof zone.setpoint_temperature === 'number' ? zone.setpoint_temperature : null;
   const actual = typeof zone.max_achievable_temperature === 'number' ? zone.max_achievable_temperature : null;
@@ -237,9 +237,6 @@ export function renderThermalViz(demo, radiators) {
       
       const zoneDiv = document.createElement('div');
       zoneDiv.className = `thermal-zone-cell ${colorClass}`;
-      if (zone.is_unheated === true) {
-        zoneDiv.classList.add('zone-unheated');
-      }
       if (!zone.can_reach_setpoint) {
         zoneDiv.classList.add('zone-undersized');
       }
@@ -265,63 +262,63 @@ export function renderThermalViz(demo, radiators) {
         zoneDiv.appendChild(unheatedDiv);
       }
 
-      if (zone.is_unheated !== true) {
-        const hasTrv = zoneHasTrv(zone);
-        const isControlRoom = zone.is_boiler_control === true;
-        const maxTemp = typeof zone.max_achievable_temperature === 'number' ? zone.max_achievable_temperature : null;
-        const setpoint = typeof zone.setpoint_temperature === 'number' ? zone.setpoint_temperature : null;
-        const canReachSetpoint = zone.can_reach_setpoint !== false;
+      const hasTrv = zoneHasTrv(zone);
+      const isControlRoom = zone.is_boiler_control === true;
+      const maxTemp = typeof zone.max_achievable_temperature === 'number' ? zone.max_achievable_temperature : null;
+      const deliveredTemp = typeof zone.delivered_indoor_temperature === 'number' ? zone.delivered_indoor_temperature : null;
+      const setpoint = typeof zone.setpoint_temperature === 'number' ? zone.setpoint_temperature : null;
+      const canReachSetpoint = zone.can_reach_setpoint !== false;
 
-        // Display logic: control room and TRV (if it can reach setpoint) show setpoint; others show max_achievable
-        let displayTemp;
-        if (isControlRoom) {
-          displayTemp = setpoint;
-        } else if (hasTrv && canReachSetpoint) {
-          displayTemp = setpoint;
-        } else {
-          displayTemp = maxTemp ?? setpoint;
+      // Display logic: unheated shows solved delivered temperature; heated rooms use control/TRV semantics.
+      let displayTemp;
+      if (zone.is_unheated === true) {
+        displayTemp = deliveredTemp ?? maxTemp ?? externalTemp;
+      } else if (isControlRoom) {
+        displayTemp = setpoint;
+      } else if (hasTrv && canReachSetpoint) {
+        displayTemp = setpoint;
+      } else {
+        displayTemp = maxTemp ?? deliveredTemp ?? setpoint;
+      }
+
+      if (displayTemp !== null) {
+        const temperatureDiv = document.createElement('div');
+        temperatureDiv.className = 'zone-temperature';
+        temperatureDiv.style.fontSize = '0.9em';
+        temperatureDiv.style.color = '#fff';
+        const setpointText = setpoint !== null ? ` [ ${setpoint.toFixed(1)}°C]` : '';
+        temperatureDiv.textContent = `🌡️ ${displayTemp.toFixed(1)}°C${setpointText}`;
+        zoneDiv.appendChild(temperatureDiv);
+      }
+
+      // Capacity only applies to heated rooms with setpoints.
+      if (zone.is_unheated !== true && maxTemp !== null && setpoint !== null) {
+        const requiredLift = Math.max(0, setpoint - externalTemp);
+        const availableLift = Math.max(0, maxTemp - externalTemp);
+        const capacityPctRaw = requiredLift > 0 ? (availableLift / requiredLift) * 100 : 100;
+        const capacityPct = Number(capacityPctRaw.toFixed(0));
+
+        let capacitySymbol = '✓';
+        let capacityState = 'good';
+        if (!canReachSetpoint || capacityPctRaw < 100) {
+          capacitySymbol = '⚠️';
+          capacityState = 'bad';
+        } else if (capacityPctRaw > 130) {
+          capacitySymbol = '⬆';
+          capacityState = 'excessive';
         }
 
-        if (displayTemp !== null) {
-          const temperatureDiv = document.createElement('div');
-          temperatureDiv.className = 'zone-temperature';
-          temperatureDiv.style.fontSize = '0.9em';
-          temperatureDiv.style.color = '#fff';
-          const setpointText = setpoint !== null ? ` [ ${setpoint.toFixed(1)}°C]` : '';
-          temperatureDiv.textContent = `🌡️ ${displayTemp.toFixed(1)}°C${setpointText}`;
-          zoneDiv.appendChild(temperatureDiv);
-        }
-
-        // Capacity is shown for all heated rooms, including control room.
-        // For control room, maxTemp is already evaluated at max boiler flow in the calculator.
-        if (maxTemp !== null && setpoint !== null) {
-          const requiredLift = Math.max(0, setpoint - externalTemp);
-          const availableLift = Math.max(0, maxTemp - externalTemp);
-          const capacityPctRaw = requiredLift > 0 ? (availableLift / requiredLift) * 100 : 100;
-          const capacityPct = Number(capacityPctRaw.toFixed(0));
-
-          let capacitySymbol = '✓';
-          let capacityState = 'good';
-          if (!canReachSetpoint || capacityPctRaw < 100) {
-            capacitySymbol = '⚠️';
-            capacityState = 'bad';
-          } else if (capacityPctRaw > 130) {
-            capacitySymbol = '⬆';
-            capacityState = 'excessive';
-          }
-
-          const capacityDiv = document.createElement('div');
-          capacityDiv.className = 'zone-capacity';
-          capacityDiv.style.fontSize = '0.86em';
-          capacityDiv.style.color = '#fff';
-          capacityDiv.textContent = `Capacity: ${capacityPct}% ${capacitySymbol}`;
-          capacityDiv.title = capacityState === 'bad'
-            ? `Insufficient capacity: ${zone.radiator_output?.toFixed(0) || 0}W output vs ${zone.heat_loss?.toFixed(0) || 0}W needed at ${zone.setpoint_temperature}°C`
-            : (capacityState === 'excessive'
-              ? `Excess radiator capacity at current flow: ${capacityPct}% of temperature lift requirement`
-              : `Capacity is in range: ${capacityPct}% of temperature lift requirement`);
-          zoneDiv.appendChild(capacityDiv);
-        }
+        const capacityDiv = document.createElement('div');
+        capacityDiv.className = 'zone-capacity';
+        capacityDiv.style.fontSize = '0.86em';
+        capacityDiv.style.color = '#fff';
+        capacityDiv.textContent = `Capacity: ${capacityPct}% ${capacitySymbol}`;
+        capacityDiv.title = capacityState === 'bad'
+          ? `Insufficient capacity: ${zone.radiator_output?.toFixed(0) || 0}W output vs ${zone.heat_loss?.toFixed(0) || 0}W needed at ${zone.setpoint_temperature}°C`
+          : (capacityState === 'excessive'
+            ? `Excess radiator capacity at current flow: ${capacityPct}% of temperature lift requirement`
+            : `Capacity is in range: ${capacityPct}% of temperature lift requirement`);
+        zoneDiv.appendChild(capacityDiv);
       }
 
       if (zone.is_unheated !== true && typeof zone.heat_savings === 'number' && zone.heat_savings > 0) {

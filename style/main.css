@@ -494,6 +494,7 @@ input[type="text"]::placeholder {
 .epc-G { background: #d32f2f; color: #ffffff; }
 
 /* Thermal color gradients */
+.thermal-unheated { background: linear-gradient(135deg, #3a3a3a, #5a5a5a); color: white; }
 .thermal-extreme-cold { background: linear-gradient(135deg, #0a1f5c, #1f4fc9); color: white; }
 .thermal-cold { background: linear-gradient(135deg, #0b4fc2, #2f8cff); color: white; }
 .thermal-cool { background: linear-gradient(135deg, #0b4fc2, #2f8cff); color: white; }
