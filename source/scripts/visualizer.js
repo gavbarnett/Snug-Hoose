@@ -190,6 +190,7 @@ export function renderThermalViz(demo, radiators) {
   if (!container) return;
   
   const zones = demo.zones || [];
+  const externalTemp = (demo.meta && typeof demo.meta.externalTemp === 'number') ? demo.meta.externalTemp : 3;
   const levels = {};
   
   // Group zones by level, excluding boundary zones
@@ -232,7 +233,6 @@ export function renderThermalViz(demo, radiators) {
     
     for (const zone of levels[level]) {
       const cell = row.insertCell();
-      const balance = typeof zone.heating_balance === 'number' ? zone.heating_balance : 0;
       const colorClass = getThermalColorClass(zone);
       
       const zoneDiv = document.createElement('div');
@@ -255,11 +255,6 @@ export function renderThermalViz(demo, radiators) {
         zoneName.title = 'Boiler control zone';
       }
       zoneDiv.appendChild(zoneName);
-      
-      const balanceDiv = document.createElement('div');
-      balanceDiv.className = 'zone-balance';
-      balanceDiv.textContent = `Balance: ${balance > 0 ? '+' : ''}${balance}W`;
-      zoneDiv.appendChild(balanceDiv);
 
       if (zone.is_unheated === true) {
         const unheatedDiv = document.createElement('div');
@@ -268,17 +263,6 @@ export function renderThermalViz(demo, radiators) {
         unheatedDiv.style.color = '#7a8b9d';
         unheatedDiv.textContent = 'Unheated zone';
         zoneDiv.appendChild(unheatedDiv);
-      }
-
-      if (zone.is_unheated !== true && !zone.can_reach_setpoint) {
-        const warningDiv = document.createElement('div');
-        warningDiv.className = 'zone-warning';
-        warningDiv.style.fontSize = '0.9em';
-        warningDiv.style.color = '#d32f2f';
-        warningDiv.style.fontWeight = 'bold';
-        warningDiv.textContent = '⚠️ Can\'t reach setpoint';
-        warningDiv.title = `Radiators insufficient: ${zone.radiator_output?.toFixed(0) || 0}W output vs ${zone.heat_loss?.toFixed(0) || 0}W needed at ${zone.setpoint_temperature}°C`;
-        zoneDiv.appendChild(warningDiv);
       }
 
       if (zone.is_unheated !== true) {
@@ -302,21 +286,40 @@ export function renderThermalViz(demo, radiators) {
           const temperatureDiv = document.createElement('div');
           temperatureDiv.className = 'zone-temperature';
           temperatureDiv.style.fontSize = '0.9em';
-          temperatureDiv.style.color = '#666';
-          temperatureDiv.textContent = `Temperature: ${displayTemp.toFixed(1)}°C`;
+          temperatureDiv.style.color = '#fff';
+          const setpointText = setpoint !== null ? ` [ ${setpoint.toFixed(1)}°C]` : '';
+          temperatureDiv.textContent = `🌡️ ${displayTemp.toFixed(1)}°C${setpointText}`;
           zoneDiv.appendChild(temperatureDiv);
         }
 
-        // Skip capacity display for control room (not meaningful since it's the reference)
-        if (maxTemp !== null && setpoint !== null && !isControlRoom) {
-          const capacity = maxTemp - setpoint;
+        // Capacity is shown for all heated rooms, including control room.
+        // For control room, maxTemp is already evaluated at max boiler flow in the calculator.
+        if (maxTemp !== null && setpoint !== null) {
+          const requiredLift = Math.max(0, setpoint - externalTemp);
+          const availableLift = Math.max(0, maxTemp - externalTemp);
+          const capacityPctRaw = requiredLift > 0 ? (availableLift / requiredLift) * 100 : 100;
+          const capacityPct = Number(capacityPctRaw.toFixed(0));
+
+          let capacitySymbol = '✓';
+          let capacityState = 'good';
+          if (!canReachSetpoint || capacityPctRaw < 100) {
+            capacitySymbol = '⚠️';
+            capacityState = 'bad';
+          } else if (capacityPctRaw > 130) {
+            capacitySymbol = '⬆';
+            capacityState = 'excessive';
+          }
+
           const capacityDiv = document.createElement('div');
           capacityDiv.className = 'zone-capacity';
           capacityDiv.style.fontSize = '0.86em';
-          capacityDiv.style.color = capacity >= 0 ? '#00aa00' : '#d32f2f';
-          capacityDiv.textContent = capacity >= 0
-            ? `Capacity: +${capacity.toFixed(1)}°C headroom`
-            : `Capacity: ${capacity.toFixed(1)}°C missed target`;
+          capacityDiv.style.color = '#fff';
+          capacityDiv.textContent = `Capacity: ${capacityPct}% ${capacitySymbol}`;
+          capacityDiv.title = capacityState === 'bad'
+            ? `Insufficient capacity: ${zone.radiator_output?.toFixed(0) || 0}W output vs ${zone.heat_loss?.toFixed(0) || 0}W needed at ${zone.setpoint_temperature}°C`
+            : (capacityState === 'excessive'
+              ? `Excess radiator capacity at current flow: ${capacityPct}% of temperature lift requirement`
+              : `Capacity is in range: ${capacityPct}% of temperature lift requirement`);
           zoneDiv.appendChild(capacityDiv);
         }
       }
