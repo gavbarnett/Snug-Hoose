@@ -9,6 +9,7 @@ import { initAppUi } from './app_ui.js';
 let currentMaterials = null;
 let currentRadiators = null;
 let currentDemo = null;
+let currentOpenings = null;
 let roomEditorApi = null;
 let appUiApi = null;
 
@@ -61,8 +62,35 @@ async function loadDefaultInputs() {
       ]
     };
   }
+
+  let openings = await tryFetchJson('./source/resources/openings.json');
+  if (!openings) {
+    console.warn('Failed to load openings.json, using fallback opening options');
+    openings = {
+      windows: [
+        { id: 'window_single', name: 'Single Glazing', u_value: 5.7 },
+        { id: 'window_double_modern', name: 'Double Glazing (Modern)', u_value: 1.6 }
+      ],
+      doors: [
+        { id: 'door_wood_solid', name: 'Solid Wood Door', u_value: 2.8 },
+        { id: 'door_pvc_insulated', name: 'PVC Insulated Door', u_value: 1.8 }
+      ]
+    };
+  }
   
-  return [ins, demo, rads];
+  return [ins, demo, rads, openings];
+}
+
+function getOpeningMaterials(openings) {
+  if (!openings) return [];
+  const windows = Array.isArray(openings.windows) ? openings.windows : [];
+  const doors = Array.isArray(openings.doors) ? openings.doors : [];
+  const asMaterial = (item) => ({
+    id: item.id,
+    name: item.name,
+    u_value: item.u_value
+  });
+  return [...windows.map(asMaterial), ...doors.map(asMaterial)];
 }
 
 async function solveAndRender(demoRaw) {
@@ -70,7 +98,9 @@ async function solveAndRender(demoRaw) {
     if (!currentMaterials) {
       throw new Error('Materials data not loaded. Please check that insulation.json is available.');
     }
-    const materials = currentMaterials.materials || currentMaterials;
+    const baseMaterials = currentMaterials.materials || currentMaterials;
+    const openingMaterials = getOpeningMaterials(currentOpenings);
+    const materials = [...baseMaterials, ...openingMaterials];
     const radiators = currentRadiators ? (currentRadiators.radiators || []) : [];
     const elements = demoRaw.elements || demoRaw.rooms || [];
     if (!Array.isArray(elements)) throw new Error('No elements array found in demo json');
@@ -145,15 +175,18 @@ window.addEventListener('load', async () => {
 
   appUiApi.setStatus('Initializing...');
   try {
-    const [ins, demo, rads] = await loadDefaultInputs();
-    console.log('Loaded data:', { ins: !!ins, demo: !!demo, rads: !!rads });
+    const [ins, demo, rads, openings] = await loadDefaultInputs();
+    console.log('Loaded data:', { ins: !!ins, demo: !!demo, rads: !!rads, openings: !!openings });
     currentMaterials = ins;
     currentRadiators = rads;
     currentDemo = demo;
+    currentOpenings = openings;
 
     roomEditorApi = initRoomEditor({
       getDemo: () => currentDemo,
       getRadiatorsData: () => currentRadiators,
+      getMaterialsData: () => currentMaterials,
+      getOpeningsData: () => currentOpenings,
       onDataChanged: triggerSolve,
       onAddRoom: () => {
         alert('Add room (not implemented yet)');

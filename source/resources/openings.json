@@ -1,0 +1,83 @@
+{
+  "units": {
+    "u_value": "W/m²K",
+    "dimensions": "mm",
+    "area": "m²"
+  },
+  "windows": [
+    {
+      "id": "window_single",
+      "name": "Single Glazing",
+      "u_value": 5.7,
+      "frame": "mixed"
+    },
+    {
+      "id": "window_double_old",
+      "name": "Double Glazing (Old)",
+      "u_value": 3.0,
+      "frame": "mixed"
+    },
+    {
+      "id": "window_double_modern",
+      "name": "Double Glazing (Modern)",
+      "u_value": 1.6,
+      "frame": "mixed"
+    },
+    {
+      "id": "window_triple",
+      "name": "Triple Glazing",
+      "u_value": 0.8,
+      "frame": "mixed"
+    },
+    {
+      "id": "window_pvc_double",
+      "name": "PVC Frame Double Glazing",
+      "u_value": 1.4,
+      "frame": "pvc"
+    },
+    {
+      "id": "window_wood_double",
+      "name": "Wood Frame Double Glazing",
+      "u_value": 1.5,
+      "frame": "wood"
+    },
+    {
+      "id": "window_aluminium_thermal",
+      "name": "Aluminium Frame (Thermal Break)",
+      "u_value": 1.8,
+      "frame": "aluminium"
+    }
+  ],
+  "doors": [
+    {
+      "id": "door_pvc_insulated",
+      "name": "PVC Insulated Door",
+      "u_value": 1.8,
+      "frame": "pvc"
+    },
+    {
+      "id": "door_wood_solid",
+      "name": "Solid Wood Door",
+      "u_value": 2.8,
+      "frame": "wood"
+    },
+    {
+      "id": "door_wood_insulated",
+      "name": "Insulated Timber Door",
+      "u_value": 1.7,
+      "frame": "wood"
+    },
+    {
+      "id": "door_aluminium_thermal",
+      "name": "Aluminium Door (Thermal Break)",
+      "u_value": 2.0,
+      "frame": "aluminium"
+    },
+    {
+      "id": "door_steel_insulated",
+      "name": "Insulated Steel Door",
+      "u_value": 1.6,
+      "frame": "steel"
+    }
+  ]
+}
