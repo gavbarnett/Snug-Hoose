@@ -164,12 +164,13 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
     const heatingBalanceBaseline = radiatorOutputBaseline - heatLossBaselineW;
     const heatSavingsW = Math.max(0, heatLossBaselineW - heatLossWithTrvW);
     const canReachSetpoint = zoneSetpoint === null ? true : (radiatorOutputWithTrv >= heatLossWithTrvW);
+    const tempEvalFlow = (zone && zone.is_boiler_control) ? maxFlowTemp : effectiveFlowTemp;
     const achievableTempRaw = (radiatorCoefficient + acc.conductance) > 0
-      ? ((radiatorCoefficient * effectiveFlowTemp) + (acc.conductance * externalTemp)) / (radiatorCoefficient + acc.conductance)
+      ? ((radiatorCoefficient * tempEvalFlow) + (acc.conductance * externalTemp)) / (radiatorCoefficient + acc.conductance)
       : externalTemp;
     const maxAchievableTemp = zoneSetpoint === null
       ? null
-      : Math.max(externalTemp, Math.min(effectiveFlowTemp, achievableTempRaw));
+      : Math.max(externalTemp, Math.min(tempEvalFlow, achievableTempRaw));
     const setpointShortfall = zoneSetpoint === null ? 0 : Math.max(0, zoneSetpoint - maxAchievableTemp);
 
     results.push({

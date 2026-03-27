@@ -494,13 +494,13 @@ input[type="text"]::placeholder {
 .epc-G { background: #d32f2f; color: #ffffff; }
 
 /* Thermal color gradients */
-.thermal-extreme-cold { background: linear-gradient(135deg, #0a1f5c, #002faf); color: white; }
-.thermal-cold { background: linear-gradient(135deg, #0066cc, #00a3ff); color: white; }
-.thermal-cool { background: linear-gradient(135deg, #00b36b, #00d98e); color: white; }
-.thermal-neutral { background: linear-gradient(135deg, #ccaa00, #ffdd00); color: #1a1a1a; text-shadow: 0 1px 2px rgba(255,255,255,0.3); }
-.thermal-warm { background: linear-gradient(135deg, #ff9500, #ffb347); color: #1a1a1a; text-shadow: 0 1px 2px rgba(255,255,255,0.3); }
-.thermal-hot { background: linear-gradient(135deg, #ff4400, #ff6347); color: white; }
-.thermal-extreme-hot { background: linear-gradient(135deg, #cc0000, #ff0000); color: white; }
+.thermal-extreme-cold { background: linear-gradient(135deg, #0a1f5c, #1f4fc9); color: white; }
+.thermal-cold { background: linear-gradient(135deg, #0b4fc2, #2f8cff); color: white; }
+.thermal-cool { background: linear-gradient(135deg, #0b4fc2, #2f8cff); color: white; }
+.thermal-neutral { background: linear-gradient(135deg, #0f8f45, #21c162); color: white; }
+.thermal-warm { background: linear-gradient(135deg, #c93a1d, #e76138); color: white; }
+.thermal-hot { background: linear-gradient(135deg, #c93a1d, #e76138); color: white; }
+.thermal-extreme-hot { background: linear-gradient(135deg, #8f1212, #d32f2f); color: white; }
 
 /* Output section */
 pre { 

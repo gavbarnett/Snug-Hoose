@@ -1,14 +1,31 @@
 // Thermal visualizer: generates thermal color-coded table display for heating balance
 
-function getThermalColorClass(balance) {
-  // balance can be negative (cold) or positive (hot)
-  // Map to thermal colors: -500+ = blue, ..., 0 = neutral (yellow), ..., +500+ = red
-  if (balance <= -500) return 'thermal-extreme-cold';
-  if (balance <= -200) return 'thermal-cold';
-  if (balance <= -50) return 'thermal-cool';
-  if (balance <= 50) return 'thermal-neutral';
-  if (balance <= 200) return 'thermal-warm';
-  if (balance <= 500) return 'thermal-hot';
+function getThermalColorClass(zone) {
+  if (!zone || zone.is_unheated === true) return 'thermal-neutral';
+
+  const setpoint = typeof zone.setpoint_temperature === 'number' ? zone.setpoint_temperature : null;
+  const actual = typeof zone.max_achievable_temperature === 'number' ? zone.max_achievable_temperature : null;
+  if (setpoint === null || actual === null) return 'thermal-neutral';
+
+  // For TRV rooms that CAN reach setpoint and boiler-control rooms, delta is 0 (neutral)
+  // For TRV rooms that CAN'T reach setpoint, show the actual deficit (cold color)
+  const hasTrv = zoneHasTrv(zone);
+  const isControlRoom = zone.is_boiler_control === true;
+  const canReachSetpoint = zone.can_reach_setpoint !== false;
+  
+  let delta;
+  if (isControlRoom) {
+    delta = 0; // Control room is always perfect (it's the reference)
+  } else if (hasTrv && canReachSetpoint) {
+    delta = 0; // TRV that can reach setpoint is perfectly controlled
+  } else {
+    delta = actual - setpoint; // Otherwise show the actual delta (could be shortfall)
+  }
+  
+  if (delta <= -2.0) return 'thermal-extreme-cold';
+  if (delta <= -0.4) return 'thermal-cold';
+  if (delta < 0.4) return 'thermal-neutral';
+  if (delta < 2.0) return 'thermal-hot';
   return 'thermal-extreme-hot';
 }
 
@@ -32,6 +49,11 @@ function computeEpcEstimate(zone) {
   // Approximate annualized demand intensity from steady-state heat loss per m2
   const intensityKwhM2Yr = Math.max(0, (heatLossPerM2 * 24 * 365) / 1000);
   return { letter: getEpcBand(intensityKwhM2Yr), intensityKwhM2Yr };
+}
+
+function zoneHasTrv(zone) {
+  if (!zone || !Array.isArray(zone.radiators)) return false;
+  return zone.radiators.some(rad => rad && rad.trv_enabled === true);
 }
 
 function computeWholeHouseStats(demo) {
@@ -205,7 +227,7 @@ export function renderThermalViz(demo, radiators) {
     for (const zone of levels[level]) {
       const cell = row.insertCell();
       const balance = typeof zone.heating_balance === 'number' ? zone.heating_balance : 0;
-      const colorClass = getThermalColorClass(balance);
+      const colorClass = getThermalColorClass(zone);
       
       const zoneDiv = document.createElement('div');
       zoneDiv.className = `thermal-zone-cell ${colorClass}`;
@@ -253,31 +275,44 @@ export function renderThermalViz(demo, radiators) {
         zoneDiv.appendChild(warningDiv);
       }
 
-      if (zone.is_unheated !== true && typeof zone.setpoint_temperature === 'number') {
-        const setpointDiv = document.createElement('div');
-        setpointDiv.className = 'zone-setpoint';
-        setpointDiv.style.fontSize = '0.9em';
-        setpointDiv.style.color = '#666';
-        setpointDiv.textContent = `Setpoint: ${zone.setpoint_temperature}°C`;
-        zoneDiv.appendChild(setpointDiv);
-      }
+      if (zone.is_unheated !== true) {
+        const hasTrv = zoneHasTrv(zone);
+        const isControlRoom = zone.is_boiler_control === true;
+        const maxTemp = typeof zone.max_achievable_temperature === 'number' ? zone.max_achievable_temperature : null;
+        const setpoint = typeof zone.setpoint_temperature === 'number' ? zone.setpoint_temperature : null;
+        const canReachSetpoint = zone.can_reach_setpoint !== false;
 
-      if (zone.is_unheated !== true && typeof zone.max_achievable_temperature === 'number') {
-        const achievableDiv = document.createElement('div');
-        achievableDiv.className = 'zone-achievable';
-        achievableDiv.style.fontSize = '0.86em';
-        achievableDiv.style.color = '#888';
-        achievableDiv.textContent = `Max achievable: ${zone.max_achievable_temperature.toFixed(1)}°C`;
-        zoneDiv.appendChild(achievableDiv);
-      }
+        // Display logic: control room and TRV (if it can reach setpoint) show setpoint; others show max_achievable
+        let displayTemp;
+        if (isControlRoom) {
+          displayTemp = setpoint;
+        } else if (hasTrv && canReachSetpoint) {
+          displayTemp = setpoint;
+        } else {
+          displayTemp = maxTemp ?? setpoint;
+        }
 
-      if (zone.is_unheated !== true && typeof zone.setpoint_shortfall === 'number' && zone.setpoint_shortfall > 0.05) {
-        const shortfallDiv = document.createElement('div');
-        shortfallDiv.className = 'zone-shortfall';
-        shortfallDiv.style.fontSize = '0.86em';
-        shortfallDiv.style.color = '#d32f2f';
-        shortfallDiv.textContent = `Shortfall: ${zone.setpoint_shortfall.toFixed(1)}°C`;
-        zoneDiv.appendChild(shortfallDiv);
+        if (displayTemp !== null) {
+          const temperatureDiv = document.createElement('div');
+          temperatureDiv.className = 'zone-temperature';
+          temperatureDiv.style.fontSize = '0.9em';
+          temperatureDiv.style.color = '#666';
+          temperatureDiv.textContent = `Temperature: ${displayTemp.toFixed(1)}°C`;
+          zoneDiv.appendChild(temperatureDiv);
+        }
+
+        // Skip capacity display for control room (not meaningful since it's the reference)
+        if (maxTemp !== null && setpoint !== null && !isControlRoom) {
+          const capacity = maxTemp - setpoint;
+          const capacityDiv = document.createElement('div');
+          capacityDiv.className = 'zone-capacity';
+          capacityDiv.style.fontSize = '0.86em';
+          capacityDiv.style.color = capacity >= 0 ? '#00aa00' : '#d32f2f';
+          capacityDiv.textContent = capacity >= 0
+            ? `Capacity: +${capacity.toFixed(1)}°C headroom`
+            : `Capacity: ${capacity.toFixed(1)}°C missed target`;
+          zoneDiv.appendChild(capacityDiv);
+        }
       }
 
       if (zone.is_unheated !== true && typeof zone.heat_savings === 'number' && zone.heat_savings > 0) {
