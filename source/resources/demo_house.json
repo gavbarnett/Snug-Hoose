@@ -130,7 +130,7 @@
         ]
       },
       "buo_06": {
-        "name": "Loft Floor - Min Insulation",
+        "name": "Loft Floor - Insulation",
         "usage_count": 3,
         "build_up": [
           {
@@ -139,7 +139,7 @@
           },
           {
             "material_id": "rockwool",
-            "thickness": 0.0001
+            "thickness": 0.05
           }
         ]
       }
