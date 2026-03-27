@@ -37,14 +37,14 @@
     </div>
     <div class="content-right">
       <div class="editor-tabs">
-        <button id="jsonTab" class="tab-button active">JSON View</button>
-        <button id="editorTab" class="tab-button">Room Editor</button>
+        <button id="jsonTab" class="tab-button">JSON View</button>
+        <button id="editorTab" class="tab-button active">Room Editor</button>
       </div>
-      <div id="jsonPanel" class="editor-panel active">
+      <div id="jsonPanel" class="editor-panel">
         <h4>Detailed Output</h4>
         <pre id="out"></pre>
       </div>
-      <div id="roomEditorPanel" class="editor-panel">
+      <div id="roomEditorPanel" class="editor-panel active">
         <h4>Room Editor</h4>
         <div id="roomSelector">
           <p>Click on a room in the visualization to edit its properties.</p>
@@ -64,7 +64,6 @@
         <div class="editor-section">
           <h6>Add New</h6>
           <button id="addRoomBtn">Add Room</button>
-          <button id="addLevelBtn">Add Level</button>
         </div>
       </div>
     </div>

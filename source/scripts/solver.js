@@ -481,12 +481,6 @@ document.getElementById('addRoomBtn').addEventListener('click', () => {
   alert('Add room (not implemented yet)');
 });
 
-// Add level button
-document.getElementById('addLevelBtn').addEventListener('click', () => {
-  // TODO: Implement add level modal/form
-  alert('Add level (not implemented yet)');
-});
-
 // Load and initialize on page load
 window.addEventListener('load', async () => {
   outEl.textContent = 'Initializing...';
