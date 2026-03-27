@@ -41,13 +41,15 @@ function getEpcBand(intensityKwhM2Yr) {
 }
 
 function computeEpcEstimate(zone) {
-  const heatLossPerM2 = typeof zone.heat_loss_per_unit_area === 'number' ? zone.heat_loss_per_unit_area : null;
-  if (heatLossPerM2 === null) {
+  const deliveredPerM2 = typeof zone.delivered_heat_per_unit_area === 'number'
+    ? zone.delivered_heat_per_unit_area
+    : (typeof zone.heat_loss_per_unit_area === 'number' ? zone.heat_loss_per_unit_area : null);
+  if (deliveredPerM2 === null) {
     return { letter: 'N/A', intensityKwhM2Yr: null };
   }
 
-  // Approximate annualized demand intensity from steady-state heat loss per m2
-  const intensityKwhM2Yr = Math.max(0, (heatLossPerM2 * 24 * 365) / 1000);
+  // Approximate annualized delivered heating intensity under current modulation/TRV behavior.
+  const intensityKwhM2Yr = Math.max(0, (deliveredPerM2 * 24 * 365) / 1000);
   return { letter: getEpcBand(intensityKwhM2Yr), intensityKwhM2Yr };
 }
 
@@ -60,9 +62,11 @@ function computeWholeHouseStats(demo) {
   const zones = Array.isArray(demo.zones) ? demo.zones : [];
   const conditionedZones = zones.filter(zone => zone.type !== 'boundary' && zone.is_unheated !== true);
 
-  const totalHeatLossW = conditionedZones.reduce((sum, zone) => {
-    const heatLoss = typeof zone.heat_loss === 'number' ? zone.heat_loss : 0;
-    return sum + heatLoss;
+  const totalDeliveredHeatW = conditionedZones.reduce((sum, zone) => {
+    const deliveredHeat = typeof zone.delivered_heat === 'number'
+      ? zone.delivered_heat
+      : (typeof zone.heat_loss === 'number' ? zone.heat_loss : 0);
+    return sum + deliveredHeat;
   }, 0);
 
   const totalHeatLossBaselineW = conditionedZones.reduce((sum, zone) => {
@@ -71,7 +75,9 @@ function computeWholeHouseStats(demo) {
   }, 0);
 
   const totalHeatSavingsW = conditionedZones.reduce((sum, zone) => {
-    const savings = typeof zone.heat_savings === 'number' ? zone.heat_savings : 0;
+    const savings = typeof zone.delivered_heat_savings === 'number'
+      ? zone.delivered_heat_savings
+      : (typeof zone.heat_savings === 'number' ? zone.heat_savings : 0);
     return sum + savings;
   }, 0);
 
@@ -80,7 +86,7 @@ function computeWholeHouseStats(demo) {
     return sum + area;
   }, 0);
 
-  const annualHeatingDemand = Math.max(0, (totalHeatLossW * 24 * 365) / 1000);
+  const annualHeatingDemand = Math.max(0, (totalDeliveredHeatW * 24 * 365) / 1000);
   const annualHeatingDemandBaseline = Math.max(0, (totalHeatLossBaselineW * 24 * 365) / 1000);
   const annualHeatingDemandSavings = Math.max(0, (totalHeatSavingsW * 24 * 365) / 1000);
   const epcIntensity = totalFloorArea > 0 ? annualHeatingDemand / totalFloorArea : null;
@@ -119,7 +125,7 @@ function createHouseStatsSection(demo) {
 
   const annualLine = document.createElement('div');
   annualLine.className = 'house-stat-line';
-  annualLine.textContent = `Annual heating demand: ${stats.annualHeatingDemand.toFixed(0)} kWh/yr`;
+  annualLine.textContent = `Annual heating demand (delivered): ${stats.annualHeatingDemand.toFixed(0)} kWh/yr`;
 
   const modulationLine = document.createElement('div');
   modulationLine.className = 'house-stat-line';
@@ -320,7 +326,8 @@ export function renderThermalViz(demo, radiators) {
         savingsDiv.className = 'zone-savings';
         savingsDiv.style.fontSize = '0.9em';
         savingsDiv.style.color = '#00aa00';
-        const annualSavings = (zone.heat_savings * 24 * 365) / 1000;
+        const savingsW = typeof zone.delivered_heat_savings === 'number' ? zone.delivered_heat_savings : zone.heat_savings;
+        const annualSavings = (savingsW * 24 * 365) / 1000;
         savingsDiv.textContent = `Savings: ${annualSavings.toFixed(0)} kWh/yr`;
         zoneDiv.appendChild(savingsDiv);
       }

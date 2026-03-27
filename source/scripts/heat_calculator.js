@@ -19,6 +19,11 @@ function calculateRadiatorCoefficient(radiator, surfaceArea) {
   return radiator.heat_transfer_coefficient * surfaceArea;
 }
 
+function zoneHasTrv(zone) {
+  if (!zone || !Array.isArray(zone.radiators)) return false;
+  return zone.radiators.some(rad => rad && rad.trv_enabled === true);
+}
+
 function elementArea(el) {
   if (typeof el.x === 'number' && el.x > 0 && typeof el.y === 'number' && el.y > 0) return el.x * el.y;
   return null;
@@ -107,6 +112,7 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
   let totalRadiatorOutputWithTrv = 0;
   let totalHeatBaseline = 0;
   let totalRadiatorOutputBaseline = 0;
+  let totalDeliveredHeatWithModulation = 0;
 
   for (const [zoneId, acc] of roomAcc.entries()) {
     const zone = zoneMap.get(zoneId);
@@ -114,12 +120,19 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
     const zoneSetpoint = zoneIsHeated
       ? ((zone && typeof zone.setpoint_temperature === 'number') ? zone.setpoint_temperature : globalIndoorTemp)
       : null;
+    const hasTrv = zoneHasTrv(zone);
+    const isControlRoom = zone ? zone.is_boiler_control === true : false;
+
+    // Local setpoint only applies when TRV is present (or for boiler control room).
+    // Otherwise, room follows the global target because there is no local valve control.
+    const zoneTargetIndoorTemp = zoneSetpoint === null
+      ? null
+      : ((hasTrv || isControlRoom) ? zoneSetpoint : globalIndoorTemp);
     
-    // TRV calculation: use zone's setpoint
-    const dTWithTrv = zoneSetpoint === null ? 0 : Math.max(0, zoneSetpoint - externalTemp);
+    const dTWithTrv = zoneTargetIndoorTemp === null ? 0 : Math.max(0, zoneTargetIndoorTemp - externalTemp);
     const heatLossWithTrvW = acc.conductance * dTWithTrv;
     const area = acc.area || null;
-    const perM2WithTrv = (zoneSetpoint !== null && area) ? heatLossWithTrvW / area : null;
+    const perM2WithTrv = (zoneTargetIndoorTemp !== null && area) ? heatLossWithTrvW / area : null;
     totalHeatWithTrv += heatLossWithTrvW;
 
     // Baseline calculation: all zones at global temp
@@ -136,9 +149,9 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
       for (const radSpec of zone.radiators) {
         const rad = findRadiator(radiators, radSpec.radiator_id);
         if (rad) {
-          const output = zoneSetpoint === null
+          const output = zoneTargetIndoorTemp === null
             ? 0
-            : calculateRadiatorOutput(rad, radSpec.surface_area, zoneSetpoint, effectiveFlowTemp);
+            : calculateRadiatorOutput(rad, radSpec.surface_area, zoneTargetIndoorTemp, effectiveFlowTemp);
           radiatorOutputWithTrv += output;
           radiatorCoefficient += calculateRadiatorCoefficient(rad, radSpec.surface_area);
           totalRadSurfaceArea += radSpec.surface_area;
@@ -163,7 +176,7 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
     const heatingBalanceWithTrv = radiatorOutputWithTrv - heatLossWithTrvW;
     const heatingBalanceBaseline = radiatorOutputBaseline - heatLossBaselineW;
     const heatSavingsW = Math.max(0, heatLossBaselineW - heatLossWithTrvW);
-    const canReachSetpoint = zoneSetpoint === null ? true : (radiatorOutputWithTrv >= heatLossWithTrvW);
+    const canReachSetpoint = zoneTargetIndoorTemp === null ? true : (radiatorOutputWithTrv >= heatLossWithTrvW);
     const tempEvalFlow = (zone && zone.is_boiler_control) ? maxFlowTemp : effectiveFlowTemp;
     const achievableTempRaw = (radiatorCoefficient + acc.conductance) > 0
       ? ((radiatorCoefficient * tempEvalFlow) + (acc.conductance * externalTemp)) / (radiatorCoefficient + acc.conductance)
@@ -172,6 +185,15 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
       ? null
       : Math.max(externalTemp, Math.min(tempEvalFlow, achievableTempRaw));
     const setpointShortfall = zoneSetpoint === null ? 0 : Math.max(0, zoneSetpoint - maxAchievableTemp);
+    const deliveredIndoorTemp = zoneTargetIndoorTemp === null
+      ? null
+      : ((isControlRoom || (hasTrv && canReachSetpoint)) ? zoneSetpoint : (maxAchievableTemp ?? zoneTargetIndoorTemp));
+    const deliveredHeatW = deliveredIndoorTemp === null
+      ? 0
+      : acc.conductance * Math.max(0, deliveredIndoorTemp - externalTemp);
+    const deliveredHeatPerM2 = (deliveredIndoorTemp !== null && area) ? deliveredHeatW / area : null;
+    const deliveredHeatSavingsW = Math.max(0, heatLossBaselineW - deliveredHeatW);
+    totalDeliveredHeatWithModulation += deliveredHeatW;
 
     results.push({
       zoneId,
@@ -185,6 +207,10 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
       heat_loss_baseline: Number(heatLossBaselineW.toFixed(1)),
       heat_savings: Number(heatSavingsW.toFixed(1)),
       heat_loss_per_unit_area: perM2WithTrv ? Number(perM2WithTrv.toFixed(1)) : null,
+      delivered_indoor_temperature: deliveredIndoorTemp === null ? null : Number(deliveredIndoorTemp.toFixed(2)),
+      delivered_heat: Number(deliveredHeatW.toFixed(1)),
+      delivered_heat_per_unit_area: deliveredHeatPerM2 ? Number(deliveredHeatPerM2.toFixed(1)) : null,
+      delivered_heat_savings: Number(deliveredHeatSavingsW.toFixed(1)),
       radiator_surface_area: Number(totalRadSurfaceArea.toFixed(3)),
       radiator_coefficient: Number(radiatorCoefficient.toFixed(3)),
       radiator_output: Number(radiatorOutputWithTrv.toFixed(1)),
@@ -204,6 +230,11 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
       const zoneSetpoint = zoneIsHeated
         ? ((typeof z.setpoint_temperature === 'number') ? z.setpoint_temperature : globalIndoorTemp)
         : null;
+      const hasTrv = zoneHasTrv(z);
+      const isControlRoom = z.is_boiler_control === true;
+      const zoneTargetIndoorTemp = zoneSetpoint === null
+        ? null
+        : ((hasTrv || isControlRoom) ? zoneSetpoint : globalIndoorTemp);
       
       let radiatorOutputWithTrv = 0;
       let radiatorOutputBaseline = 0;
@@ -213,9 +244,9 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
         for (const radSpec of z.radiators) {
           const rad = findRadiator(radiators, radSpec.radiator_id);
           if (rad) {
-            const outputTrv = zoneSetpoint === null
+            const outputTrv = zoneTargetIndoorTemp === null
               ? 0
-              : calculateRadiatorOutput(rad, radSpec.surface_area, zoneSetpoint, effectiveFlowTemp);
+              : calculateRadiatorOutput(rad, radSpec.surface_area, zoneTargetIndoorTemp, effectiveFlowTemp);
             const outputBaseline = calculateRadiatorOutput(rad, radSpec.surface_area, globalIndoorTemp, maxFlowTemp);
             radiatorOutputWithTrv += outputTrv;
             radiatorOutputBaseline += outputBaseline;
@@ -237,6 +268,10 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
         heat_loss_baseline: 0,
         heat_savings: 0,
         heat_loss_per_unit_area: null,
+        delivered_indoor_temperature: zoneTargetIndoorTemp === null ? null : Number(zoneTargetIndoorTemp.toFixed(2)),
+        delivered_heat: 0,
+        delivered_heat_per_unit_area: null,
+        delivered_heat_savings: 0,
         radiator_surface_area: Number(totalRadSurfaceArea.toFixed(3)),
         radiator_coefficient: Number(radiatorCoefficient.toFixed(3)),
         radiator_output: Number(radiatorOutputWithTrv.toFixed(1)),
@@ -257,6 +292,8 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
     total_heat_loss: Number(totalHeatWithTrv.toFixed(1)), 
     total_heat_loss_baseline: Number(totalHeatBaseline.toFixed(1)),
     total_heat_savings: Number(Math.max(0, totalHeatBaseline - totalHeatWithTrv).toFixed(1)),
+    total_delivered_heat: Number(totalDeliveredHeatWithModulation.toFixed(1)),
+    total_delivered_heat_savings: Number(Math.max(0, totalHeatBaseline - totalDeliveredHeatWithModulation).toFixed(1)),
     total_radiator_output: Number(totalRadiatorOutputWithTrv.toFixed(1)),
     total_radiator_output_baseline: Number(totalRadiatorOutputBaseline.toFixed(1)),
     total_balance: Number((totalRadiatorOutputWithTrv - totalHeatWithTrv).toFixed(1)),

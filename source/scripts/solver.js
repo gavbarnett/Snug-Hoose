@@ -126,6 +126,8 @@ async function solveAndRender(demoRaw) {
     demoRaw.meta.total_heat_loss = heatResults.total_heat_loss;
     demoRaw.meta.total_heat_loss_baseline = heatResults.total_heat_loss_baseline;
     demoRaw.meta.total_heat_savings = heatResults.total_heat_savings;
+    demoRaw.meta.total_delivered_heat = heatResults.total_delivered_heat;
+    demoRaw.meta.total_delivered_heat_savings = heatResults.total_delivered_heat_savings;
     demoRaw.meta.total_radiator_output = heatResults.total_radiator_output;
     demoRaw.meta.total_radiator_output_baseline = heatResults.total_radiator_output_baseline;
     demoRaw.meta.total_balance = heatResults.total_balance;
@@ -145,6 +147,10 @@ async function solveAndRender(demoRaw) {
         zone.heat_loss_baseline = room.heat_loss_baseline;
         zone.heat_savings = room.heat_savings;
         zone.heat_loss_per_unit_area = room.heat_loss_per_unit_area;
+        zone.delivered_indoor_temperature = room.delivered_indoor_temperature;
+        zone.delivered_heat = room.delivered_heat;
+        zone.delivered_heat_per_unit_area = room.delivered_heat_per_unit_area;
+        zone.delivered_heat_savings = room.delivered_heat_savings;
         zone.radiator_surface_area = room.radiator_surface_area;
         zone.radiator_coefficient = room.radiator_coefficient;
         zone.radiator_output = room.radiator_output;
