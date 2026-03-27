@@ -296,8 +296,33 @@ export function initRoomEditor(opts) {
         sizeRow.appendChild(heightGroup);
         sizeRow.appendChild(areaDisplay);
 
+        const trvRow = document.createElement('div');
+        trvRow.style.display = 'flex';
+        trvRow.style.alignItems = 'center';
+        trvRow.style.gap = '0.5rem';
+
+        const trvCheckbox = document.createElement('input');
+        trvCheckbox.type = 'checkbox';
+        trvCheckbox.checked = radSpec.trv_enabled || false;
+        trvCheckbox.addEventListener('change', () => {
+          radSpec.trv_enabled = trvCheckbox.checked;
+          queueFocusRestore();
+          onDataChanged();
+        });
+
+        const trvLabel = document.createElement('label');
+        trvLabel.style.display = 'flex';
+        trvLabel.style.alignItems = 'center';
+        trvLabel.style.gap = '0.3rem';
+        trvLabel.style.cursor = 'pointer';
+        trvLabel.appendChild(trvCheckbox);
+        trvLabel.appendChild(document.createTextNode('TRV Enabled'));
+
+        trvRow.appendChild(trvLabel);
+
         formDiv.appendChild(headerDiv);
         formDiv.appendChild(sizeRow);
+        formDiv.appendChild(trvRow);
 
         item.appendChild(formDiv);
         radiatorsList.appendChild(item);
@@ -320,6 +345,10 @@ export function initRoomEditor(opts) {
   }
 
   function populateRoomMetadata(zone, zoneKey) {
+    const demo = getDemo();
+    const globalTargetTemp = (demo && demo.meta && typeof demo.meta.global_target_temperature === 'number')
+      ? demo.meta.global_target_temperature
+      : 21;
     const idRow = document.createElement('div');
     idRow.style.display = 'flex';
     idRow.style.alignItems = 'center';
@@ -392,9 +421,143 @@ export function initRoomEditor(opts) {
     levelRow.appendChild(levelLabel);
     levelRow.appendChild(levelInput);
 
+    const heatingRow = document.createElement('div');
+    heatingRow.style.display = 'flex';
+    heatingRow.style.alignItems = 'center';
+    heatingRow.style.gap = '0.5rem';
+    heatingRow.style.flexWrap = 'wrap';
+
+    const heatedCheckbox = document.createElement('input');
+    heatedCheckbox.type = 'checkbox';
+    heatedCheckbox.checked = zone.is_unheated !== true;
+    heatedCheckbox.dataset.focusKey = `zone:${zoneKey}:meta:heated`;
+
+    const heatedLabel = document.createElement('label');
+    heatedLabel.style.display = 'flex';
+    heatedLabel.style.alignItems = 'center';
+    heatedLabel.style.gap = '0.3rem';
+    heatedLabel.style.cursor = 'pointer';
+    heatedLabel.appendChild(heatedCheckbox);
+    heatedLabel.appendChild(document.createTextNode('Heated Zone'));
+
+    heatingRow.appendChild(heatedLabel);
+
+    const setpointRow = document.createElement('div');
+    setpointRow.style.display = 'flex';
+    setpointRow.style.alignItems = 'center';
+    setpointRow.style.gap = '0.5rem';
+    setpointRow.style.flexWrap = 'wrap';
+
+    const setpointLabel = document.createElement('strong');
+    setpointLabel.textContent = 'Setpoint (°C):';
+
+    const setpointInput = document.createElement('input');
+    setpointInput.type = 'range';
+    setpointInput.min = '16';
+    setpointInput.max = '25';
+    setpointInput.step = '1';
+    setpointInput.value = zone.setpoint_temperature ?? globalTargetTemp;
+    setpointInput.style.flex = '1';
+    setpointInput.style.minWidth = '120px';
+    setpointInput.dataset.focusKey = `zone:${zoneKey}:meta:setpoint`;
+
+    const setpointDisplay = document.createElement('span');
+    setpointDisplay.textContent = zone.is_unheated === true
+      ? 'Unheated'
+      : (typeof zone.setpoint_temperature === 'number' ? `${zone.setpoint_temperature}°C` : `Inherit ${globalTargetTemp}°C`);
+    setpointDisplay.style.minWidth = '40px';
+
+    const refreshSetpointUi = () => {
+      const isHeated = heatedCheckbox.checked;
+      setpointInput.disabled = !isHeated;
+      if (!isHeated) {
+        setpointDisplay.textContent = 'Unheated';
+        return;
+      }
+      if (typeof zone.setpoint_temperature === 'number') {
+        setpointInput.value = zone.setpoint_temperature;
+        setpointDisplay.textContent = `${zone.setpoint_temperature}°C`;
+      } else {
+        setpointInput.value = globalTargetTemp;
+        setpointDisplay.textContent = `Inherit ${globalTargetTemp}°C`;
+      }
+    };
+
+    setpointInput.addEventListener('input', () => {
+      if (!heatedCheckbox.checked) return;
+      const nextSetpoint = parseInt(setpointInput.value, 10);
+      if (!isNaN(nextSetpoint)) {
+        zone.setpoint_temperature = nextSetpoint;
+        setpointDisplay.textContent = `${nextSetpoint}°C`;
+      }
+      queueFocusRestore();
+      onDataChanged();
+    });
+
+    heatedCheckbox.addEventListener('change', () => {
+      const isHeated = heatedCheckbox.checked;
+      if (!isHeated) {
+        zone.is_unheated = true;
+        delete zone.setpoint_temperature;
+        zone.is_boiler_control = false;
+      } else {
+        delete zone.is_unheated;
+      }
+      refreshSetpointUi();
+      syncBoilerControlUi();
+      queueFocusRestore();
+      onDataChanged();
+    });
+
+    setpointRow.appendChild(setpointLabel);
+    setpointRow.appendChild(setpointInput);
+    setpointRow.appendChild(setpointDisplay);
+
+    const boilerControlRow = document.createElement('div');
+    boilerControlRow.style.display = 'flex';
+    boilerControlRow.style.alignItems = 'center';
+    boilerControlRow.style.gap = '0.5rem';
+    boilerControlRow.style.flexWrap = 'wrap';
+
+    const boilerCheckbox = document.createElement('input');
+    boilerCheckbox.type = 'checkbox';
+    boilerCheckbox.checked = zone.is_boiler_control || false;
+    boilerCheckbox.disabled = zone.is_unheated === true;
+    boilerCheckbox.dataset.focusKey = `zone:${zoneKey}:meta:boiler`;
+    boilerCheckbox.addEventListener('change', () => {
+      if (zone.is_unheated === true && boilerCheckbox.checked) {
+        boilerCheckbox.checked = false;
+      }
+      zone.is_boiler_control = boilerCheckbox.checked;
+      queueFocusRestore();
+      onDataChanged();
+    });
+
+    const boilerLabel = document.createElement('label');
+    boilerLabel.style.display = 'flex';
+    boilerLabel.style.alignItems = 'center';
+    boilerLabel.style.gap = '0.3rem';
+    boilerLabel.style.cursor = 'pointer';
+    boilerLabel.appendChild(boilerCheckbox);
+    boilerLabel.appendChild(document.createTextNode('🔥 Boiler Control'));
+
+    boilerControlRow.appendChild(boilerLabel);
+
+    const syncBoilerControlUi = () => {
+      const isHeated = heatedCheckbox.checked;
+      boilerCheckbox.disabled = !isHeated;
+      if (!isHeated) boilerCheckbox.checked = false;
+    };
+
+    refreshSetpointUi();
+    syncBoilerControlUi();
+
     roomMetaList.appendChild(idRow);
     roomMetaList.appendChild(nameRow);
     roomMetaList.appendChild(levelRow);
+    roomMetaList.appendChild(heatingRow);
+    roomMetaList.appendChild(setpointRow);
+    roomMetaList.appendChild(boilerControlRow);
   }
 
   function createRoom() {

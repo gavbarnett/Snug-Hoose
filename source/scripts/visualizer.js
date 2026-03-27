@@ -36,11 +36,21 @@ function computeEpcEstimate(zone) {
 
 function computeWholeHouseStats(demo) {
   const zones = Array.isArray(demo.zones) ? demo.zones : [];
-  const conditionedZones = zones.filter(zone => zone.type !== 'boundary');
+  const conditionedZones = zones.filter(zone => zone.type !== 'boundary' && zone.is_unheated !== true);
 
   const totalHeatLossW = conditionedZones.reduce((sum, zone) => {
     const heatLoss = typeof zone.heat_loss === 'number' ? zone.heat_loss : 0;
     return sum + heatLoss;
+  }, 0);
+
+  const totalHeatLossBaselineW = conditionedZones.reduce((sum, zone) => {
+    const heatLoss = typeof zone.heat_loss_baseline === 'number' ? zone.heat_loss_baseline : 0;
+    return sum + heatLoss;
+  }, 0);
+
+  const totalHeatSavingsW = conditionedZones.reduce((sum, zone) => {
+    const savings = typeof zone.heat_savings === 'number' ? zone.heat_savings : 0;
+    return sum + savings;
   }, 0);
 
   const totalFloorArea = conditionedZones.reduce((sum, zone) => {
@@ -49,18 +59,29 @@ function computeWholeHouseStats(demo) {
   }, 0);
 
   const annualHeatingDemand = Math.max(0, (totalHeatLossW * 24 * 365) / 1000);
+  const annualHeatingDemandBaseline = Math.max(0, (totalHeatLossBaselineW * 24 * 365) / 1000);
+  const annualHeatingDemandSavings = Math.max(0, (totalHeatSavingsW * 24 * 365) / 1000);
   const epcIntensity = totalFloorArea > 0 ? annualHeatingDemand / totalFloorArea : null;
+  const epcIntensityBaseline = totalFloorArea > 0 ? annualHeatingDemandBaseline / totalFloorArea : null;
   const epcLetter = getEpcBand(epcIntensity);
+  const epcLetterBaseline = getEpcBand(epcIntensityBaseline);
 
   return {
     epcLetter,
     epcIntensity,
-    annualHeatingDemand
+    annualHeatingDemand,
+    epcLetterBaseline,
+    epcIntensityBaseline,
+    annualHeatingDemandBaseline,
+    annualHeatingDemandSavings
   };
 }
 
 function createHouseStatsSection(demo) {
   const stats = computeWholeHouseStats(demo);
+  const effectiveFlowTemp = (demo.meta && typeof demo.meta.effective_flow_temp === 'number') ? demo.meta.effective_flow_temp : null;
+  const maxFlowTemp = (demo.meta && typeof demo.meta.max_flow_temp === 'number') ? demo.meta.max_flow_temp : null;
+  const controlZoneName = demo.meta && demo.meta.control_zone_name ? demo.meta.control_zone_name : null;
 
   const section = document.createElement('div');
   section.className = 'house-stats';
@@ -71,11 +92,27 @@ function createHouseStatsSection(demo) {
   const epcLine = document.createElement('div');
   epcLine.className = 'house-stat-line';
   const epcValue = stats.epcIntensity === null ? 'n/a' : stats.epcIntensity.toFixed(0);
-  epcLine.textContent = `EPC: ${stats.epcLetter} (${epcValue})`;
+  const epcValueBaseline = stats.epcIntensityBaseline === null ? 'n/a' : stats.epcIntensityBaseline.toFixed(0);
+  epcLine.textContent = `EPC: ${stats.epcLetter} (${epcValue})${stats.epcLetterBaseline && stats.epcLetterBaseline !== stats.epcLetter ? ` [baseline: ${stats.epcLetterBaseline}]` : ''}`;
 
   const annualLine = document.createElement('div');
   annualLine.className = 'house-stat-line';
   annualLine.textContent = `Annual heating demand: ${stats.annualHeatingDemand.toFixed(0)} kWh/yr`;
+
+  const modulationLine = document.createElement('div');
+  modulationLine.className = 'house-stat-line';
+  if (effectiveFlowTemp !== null && maxFlowTemp !== null && controlZoneName) {
+    modulationLine.textContent = `Boiler modulation: ${effectiveFlowTemp.toFixed(1)}°C (max ${maxFlowTemp.toFixed(1)}°C), controlled by ${controlZoneName}`;
+  } else if (effectiveFlowTemp !== null && maxFlowTemp !== null) {
+    modulationLine.textContent = `Boiler modulation: ${effectiveFlowTemp.toFixed(1)}°C (max ${maxFlowTemp.toFixed(1)}°C)`;
+  } else {
+    modulationLine.textContent = 'Boiler modulation: n/a';
+  }
+
+  const savingsLine = document.createElement('div');
+  savingsLine.className = 'house-stat-line';
+  savingsLine.style.color = stats.annualHeatingDemandSavings > 0 ? '#00aa00' : '#999';
+  savingsLine.textContent = `TRV savings: ${stats.annualHeatingDemandSavings.toFixed(0)} kWh/yr`;
 
   const epcScale = document.createElement('div');
   epcScale.className = 'house-epc-scale';
@@ -90,6 +127,8 @@ function createHouseStatsSection(demo) {
   section.appendChild(epcLine);
   section.appendChild(epcScale);
   section.appendChild(annualLine);
+  section.appendChild(modulationLine);
+  if (stats.annualHeatingDemandSavings > 0) section.appendChild(savingsLine);
   return section;
 }
 
@@ -170,6 +209,12 @@ export function renderThermalViz(demo, radiators) {
       
       const zoneDiv = document.createElement('div');
       zoneDiv.className = `thermal-zone-cell ${colorClass}`;
+      if (zone.is_unheated === true) {
+        zoneDiv.classList.add('zone-unheated');
+      }
+      if (!zone.can_reach_setpoint) {
+        zoneDiv.classList.add('zone-undersized');
+      }
       zoneDiv.setAttribute('data-zone-id', zone.id);
       zoneDiv.style.cursor = 'pointer';
       zoneDiv.title = 'Click to edit this room';
@@ -177,6 +222,10 @@ export function renderThermalViz(demo, radiators) {
       const zoneName = document.createElement('div');
       zoneName.className = 'zone-name';
       zoneName.textContent = zone.name || zone.id || 'Unknown';
+      if (zone.is_boiler_control) {
+        zoneName.textContent += ' 🔥';
+        zoneName.title = 'Boiler control zone';
+      }
       zoneDiv.appendChild(zoneName);
       
       const balanceDiv = document.createElement('div');
@@ -184,7 +233,66 @@ export function renderThermalViz(demo, radiators) {
       balanceDiv.textContent = `Balance: ${balance > 0 ? '+' : ''}${balance}W`;
       zoneDiv.appendChild(balanceDiv);
 
-      zoneDiv.appendChild(createEpcScale(zone));
+      if (zone.is_unheated === true) {
+        const unheatedDiv = document.createElement('div');
+        unheatedDiv.className = 'zone-unheated-label';
+        unheatedDiv.style.fontSize = '0.9em';
+        unheatedDiv.style.color = '#7a8b9d';
+        unheatedDiv.textContent = 'Unheated zone';
+        zoneDiv.appendChild(unheatedDiv);
+      }
+
+      if (zone.is_unheated !== true && !zone.can_reach_setpoint) {
+        const warningDiv = document.createElement('div');
+        warningDiv.className = 'zone-warning';
+        warningDiv.style.fontSize = '0.9em';
+        warningDiv.style.color = '#d32f2f';
+        warningDiv.style.fontWeight = 'bold';
+        warningDiv.textContent = '⚠️ Can\'t reach setpoint';
+        warningDiv.title = `Radiators insufficient: ${zone.radiator_output?.toFixed(0) || 0}W output vs ${zone.heat_loss?.toFixed(0) || 0}W needed at ${zone.setpoint_temperature}°C`;
+        zoneDiv.appendChild(warningDiv);
+      }
+
+      if (zone.is_unheated !== true && typeof zone.setpoint_temperature === 'number') {
+        const setpointDiv = document.createElement('div');
+        setpointDiv.className = 'zone-setpoint';
+        setpointDiv.style.fontSize = '0.9em';
+        setpointDiv.style.color = '#666';
+        setpointDiv.textContent = `Setpoint: ${zone.setpoint_temperature}°C`;
+        zoneDiv.appendChild(setpointDiv);
+      }
+
+      if (zone.is_unheated !== true && typeof zone.max_achievable_temperature === 'number') {
+        const achievableDiv = document.createElement('div');
+        achievableDiv.className = 'zone-achievable';
+        achievableDiv.style.fontSize = '0.86em';
+        achievableDiv.style.color = '#888';
+        achievableDiv.textContent = `Max achievable: ${zone.max_achievable_temperature.toFixed(1)}°C`;
+        zoneDiv.appendChild(achievableDiv);
+      }
+
+      if (zone.is_unheated !== true && typeof zone.setpoint_shortfall === 'number' && zone.setpoint_shortfall > 0.05) {
+        const shortfallDiv = document.createElement('div');
+        shortfallDiv.className = 'zone-shortfall';
+        shortfallDiv.style.fontSize = '0.86em';
+        shortfallDiv.style.color = '#d32f2f';
+        shortfallDiv.textContent = `Shortfall: ${zone.setpoint_shortfall.toFixed(1)}°C`;
+        zoneDiv.appendChild(shortfallDiv);
+      }
+
+      if (zone.is_unheated !== true && typeof zone.heat_savings === 'number' && zone.heat_savings > 0) {
+        const savingsDiv = document.createElement('div');
+        savingsDiv.className = 'zone-savings';
+        savingsDiv.style.fontSize = '0.9em';
+        savingsDiv.style.color = '#00aa00';
+        const annualSavings = (zone.heat_savings * 24 * 365) / 1000;
+        savingsDiv.textContent = `Savings: ${annualSavings.toFixed(0)} kWh/yr`;
+        zoneDiv.appendChild(savingsDiv);
+      }
+
+      if (zone.is_unheated !== true) {
+        zoneDiv.appendChild(createEpcScale(zone));
+      }
       
       cell.appendChild(zoneDiv);
     }

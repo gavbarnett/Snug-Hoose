@@ -124,8 +124,16 @@ async function solveAndRender(demoRaw) {
     demoRaw.meta.externalTemp = externalTemp;
     demoRaw.meta.flowTemp = flowTemp;
     demoRaw.meta.total_heat_loss = heatResults.total_heat_loss;
+    demoRaw.meta.total_heat_loss_baseline = heatResults.total_heat_loss_baseline;
+    demoRaw.meta.total_heat_savings = heatResults.total_heat_savings;
     demoRaw.meta.total_radiator_output = heatResults.total_radiator_output;
+    demoRaw.meta.total_radiator_output_baseline = heatResults.total_radiator_output_baseline;
     demoRaw.meta.total_balance = heatResults.total_balance;
+    demoRaw.meta.total_balance_baseline = heatResults.total_balance_baseline;
+    demoRaw.meta.effective_flow_temp = heatResults.effectiveFlowTemp;
+    demoRaw.meta.max_flow_temp = heatResults.maxFlowTemp;
+    demoRaw.meta.control_zone_id = heatResults.controlZoneId;
+    demoRaw.meta.control_zone_name = heatResults.controlZoneName;
 
     // Merge room heat results into zones
     for (const zone of demoRaw.zones) {
@@ -134,12 +142,21 @@ async function solveAndRender(demoRaw) {
         zone.floor_area = room.floorArea;
         zone.total_conductance = room.total_conductance;
         zone.heat_loss = room.heat_loss;
+        zone.heat_loss_baseline = room.heat_loss_baseline;
+        zone.heat_savings = room.heat_savings;
         zone.heat_loss_per_unit_area = room.heat_loss_per_unit_area;
         zone.radiator_surface_area = room.radiator_surface_area;
+        zone.radiator_coefficient = room.radiator_coefficient;
         zone.radiator_output = room.radiator_output;
         zone.heating_balance = room.heating_balance;
+        zone.is_unheated = room.is_unheated;
+        zone.can_reach_setpoint = room.can_reach_setpoint;
+        zone.max_achievable_temperature = room.max_achievable_temperature;
+        zone.setpoint_shortfall = room.setpoint_shortfall;
         zone.balance_status = room.balance_status;
         zone.contributing_elements = room.contributing_elements;
+        zone.setpoint_temperature = room.setpoint_temperature;
+        zone.is_boiler_control = room.is_boiler_control;
       }
     }
 

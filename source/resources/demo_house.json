@@ -1,6 +1,7 @@
 {
   "meta": {
     "name": "Demo House - Snug Hoose (Composite Walls + Subfloor, Consistent Stack Order)",
+    "global_target_temperature": 21,
     "units": {
       "area": "m2",
       "thickness": "m",
@@ -23,12 +24,15 @@
       "id": "id_7a538d23f564",
       "name": "Living Room",
       "level": 0,
+      "setpoint_temperature": 21,
+      "is_boiler_control": true,
       "radiators": [
         {
           "radiator_id": "type_22",
           "surface_area": 1.5,
           "width": 1000,
-          "height": 600
+          "height": 600,
+          "trv_enabled": false
         }
       ]
     },
@@ -36,12 +40,15 @@
       "id": "id_878112d2b104",
       "name": "Kitchen",
       "level": 0,
+      "setpoint_temperature": 21,
+      "is_boiler_control": false,
       "radiators": [
         {
           "radiator_id": "type_22",
           "surface_area": 1.2,
           "width": 800,
-          "height": 600
+          "height": 600,
+          "trv_enabled": false
         }
       ]
     },
@@ -49,12 +56,15 @@
       "id": "id_cf4d374ca5ba",
       "name": "Hall Ground",
       "level": 0,
+      "setpoint_temperature": 21,
+      "is_boiler_control": false,
       "radiators": [
         {
           "radiator_id": "type_1",
           "surface_area": 0.4,
           "width": 400,
-          "height": 400
+          "height": 400,
+          "trv_enabled": false
         }
       ]
     },
@@ -62,12 +72,15 @@
       "id": "id_dff6504b35ba",
       "name": "Bedroom 1",
       "level": 1,
+      "setpoint_temperature": 18,
+      "is_boiler_control": false,
       "radiators": [
         {
           "radiator_id": "type_11",
           "surface_area": 1.0,
           "width": 800,
-          "height": 500
+          "height": 500,
+          "trv_enabled": false
         }
       ]
     },
@@ -75,12 +88,15 @@
       "id": "id_8d48a0ccfcb9",
       "name": "Bathroom",
       "level": 1,
+      "setpoint_temperature": 21,
+      "is_boiler_control": false,
       "radiators": [
         {
           "radiator_id": "type_11",
           "surface_area": 0.6,
           "width": 600,
-          "height": 400
+          "height": 400,
+          "trv_enabled": false
         }
       ]
     },
@@ -88,17 +104,21 @@
       "id": "id_d4a5f6543bd7",
       "name": "Hall First",
       "level": 1,
+      "setpoint_temperature": 18,
+      "is_boiler_control": false,
       "radiators": [
         {
           "radiator_id": "type_1",
-          "surface_area": 0.4
+          "surface_area": 0.4,
+          "trv_enabled": false
         }
       ]
     },
     {
       "id": "id_a4d77187437b",
       "name": "Loft",
-      "level": 2
+      "level": 2,
+      "is_unheated": true
     },
     {
       "id": "id_33568f084a87",

@@ -416,6 +416,22 @@ input[type="text"]::placeholder {
   box-shadow: 0 6px 12px rgba(0,0,0,0.3);
 }
 
+.thermal-zone-cell.zone-undersized {
+  border: 2px solid #d32f2f;
+  box-shadow: 0 0 8px rgba(211, 47, 47, 0.4), 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.thermal-zone-cell.zone-unheated {
+  border: 2px dashed #6b7280;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(107, 114, 128, 0.16),
+    rgba(107, 114, 128, 0.16) 8px,
+    rgba(107, 114, 128, 0.06) 8px,
+    rgba(107, 114, 128, 0.06) 16px
+  );
+}
+
 .zone-name { 
   font-size: 1.15em; 
   margin-bottom: 0.4rem;
