@@ -1,0 +1,12 @@
+{
+	"name": "snug-hoose",
+	"type": "module",
+	"version": "0.1.0",
+	"scripts": {
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"devDependencies": {
+		"vitest": "^2.0.0"
+	}
+}
