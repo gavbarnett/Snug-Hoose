@@ -369,6 +369,34 @@ input[type="text"]::placeholder {
   vertical-align: middle;
 }
 
+.house-stats {
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.12), rgba(0, 212, 255, 0.05));
+  border: 1px solid rgba(0, 212, 255, 0.35);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.house-stats h5 {
+  margin: 0 0 0.35rem 0;
+  color: var(--accent);
+  font-size: 0.95em;
+}
+
+.house-stat-line {
+  font-size: 0.85em;
+  color: var(--text-light);
+  margin: 0.2rem 0;
+}
+
+.house-epc-scale {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.18rem;
+  margin: 0.35rem 0;
+  max-width: 360px;
+}
+
 .thermal-zone-cell { 
   min-height: 170px; 
   display: flex; 

@@ -12,6 +12,17 @@ function getThermalColorClass(balance) {
   return 'thermal-extreme-hot';
 }
 
+function getEpcBand(intensityKwhM2Yr) {
+  if (typeof intensityKwhM2Yr !== 'number' || !isFinite(intensityKwhM2Yr)) return 'N/A';
+  if (intensityKwhM2Yr <= 50) return 'A';
+  if (intensityKwhM2Yr <= 90) return 'B';
+  if (intensityKwhM2Yr <= 150) return 'C';
+  if (intensityKwhM2Yr <= 230) return 'D';
+  if (intensityKwhM2Yr <= 330) return 'E';
+  if (intensityKwhM2Yr <= 450) return 'F';
+  return 'G';
+}
+
 function computeEpcEstimate(zone) {
   const heatLossPerM2 = typeof zone.heat_loss_per_unit_area === 'number' ? zone.heat_loss_per_unit_area : null;
   if (heatLossPerM2 === null) {
@@ -20,17 +31,66 @@ function computeEpcEstimate(zone) {
 
   // Approximate annualized demand intensity from steady-state heat loss per m2
   const intensityKwhM2Yr = Math.max(0, (heatLossPerM2 * 24 * 365) / 1000);
+  return { letter: getEpcBand(intensityKwhM2Yr), intensityKwhM2Yr };
+}
 
-  // EPC-style bands (estimated, intensity-based)
-  let letter = 'G';
-  if (intensityKwhM2Yr <= 50) letter = 'A';
-  else if (intensityKwhM2Yr <= 90) letter = 'B';
-  else if (intensityKwhM2Yr <= 150) letter = 'C';
-  else if (intensityKwhM2Yr <= 230) letter = 'D';
-  else if (intensityKwhM2Yr <= 330) letter = 'E';
-  else if (intensityKwhM2Yr <= 450) letter = 'F';
+function computeWholeHouseStats(demo) {
+  const zones = Array.isArray(demo.zones) ? demo.zones : [];
+  const conditionedZones = zones.filter(zone => zone.type !== 'boundary');
 
-  return { letter, intensityKwhM2Yr };
+  const totalHeatLossW = conditionedZones.reduce((sum, zone) => {
+    const heatLoss = typeof zone.heat_loss === 'number' ? zone.heat_loss : 0;
+    return sum + heatLoss;
+  }, 0);
+
+  const totalFloorArea = conditionedZones.reduce((sum, zone) => {
+    const area = typeof zone.floor_area === 'number' && zone.floor_area > 0 ? zone.floor_area : 0;
+    return sum + area;
+  }, 0);
+
+  const annualHeatingDemand = Math.max(0, (totalHeatLossW * 24 * 365) / 1000);
+  const epcIntensity = totalFloorArea > 0 ? annualHeatingDemand / totalFloorArea : null;
+  const epcLetter = getEpcBand(epcIntensity);
+
+  return {
+    epcLetter,
+    epcIntensity,
+    annualHeatingDemand
+  };
+}
+
+function createHouseStatsSection(demo) {
+  const stats = computeWholeHouseStats(demo);
+
+  const section = document.createElement('div');
+  section.className = 'house-stats';
+
+  const heading = document.createElement('h5');
+  heading.textContent = 'Overall House Stats';
+
+  const epcLine = document.createElement('div');
+  epcLine.className = 'house-stat-line';
+  const epcValue = stats.epcIntensity === null ? 'n/a' : stats.epcIntensity.toFixed(0);
+  epcLine.textContent = `EPC: ${stats.epcLetter} (${epcValue})`;
+
+  const annualLine = document.createElement('div');
+  annualLine.className = 'house-stat-line';
+  annualLine.textContent = `Annual heating demand: ${stats.annualHeatingDemand.toFixed(0)} kWh/yr`;
+
+  const epcScale = document.createElement('div');
+  epcScale.className = 'house-epc-scale';
+  ['A', 'B', 'C', 'D', 'E', 'F', 'G'].forEach(letter => {
+    const chip = document.createElement('span');
+    chip.className = `epc-chip epc-${letter}${letter === stats.epcLetter ? ' active' : ''}`;
+    chip.textContent = letter;
+    epcScale.appendChild(chip);
+  });
+
+  section.appendChild(heading);
+  section.appendChild(epcLine);
+  section.appendChild(epcScale);
+  section.appendChild(annualLine);
+  return section;
 }
 
 function createEpcScale(zone) {
@@ -140,6 +200,8 @@ export function renderThermalViz(demo, radiators) {
     metaDiv.textContent = demo.meta.name;
     container.appendChild(metaDiv);
   }
+
+  container.appendChild(createHouseStatsSection(demo));
   
   container.appendChild(table);
 }
