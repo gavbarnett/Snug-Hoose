@@ -406,6 +406,7 @@ export function initRoomEditor(opts) {
     const y = typeof element.y === 'number' ? element.y : null;
     const area = (x !== null && y !== null) ? x * y : null;
     const labels = getDimensionLabelsForType(elementType);
+    const totalRDisplay = formatElementRDisplay(element);
 
     const otherNodes = (Array.isArray(element.nodes) ? element.nodes : [])
       .filter(node => String(node || '').trim() !== zoneKey);
@@ -416,7 +417,7 @@ export function initRoomEditor(opts) {
     restoreOpenState(details, cardKey, false, expandState);
 
     const summary = document.createElement('summary');
-    summary.textContent = `${elementName}${element.orientation ? ` (${element.orientation})` : ''}`;
+    summary.textContent = `${elementName}${element.orientation ? ` (${element.orientation})` : ''}${totalRDisplay ? ` [R: ${totalRDisplay}]` : ''}`;
     details.appendChild(summary);
 
     const meta = document.createElement('div');
@@ -497,12 +498,15 @@ export function initRoomEditor(opts) {
 
     const areaRow = document.createElement('p');
     areaRow.innerHTML = `<strong>Area:</strong> ${area !== null ? `${area} m²` : 'Unknown'}`;
+    const rRow = document.createElement('p');
+    rRow.innerHTML = `<strong>Total R:</strong> ${totalRDisplay || 'Unknown'}`;
     const nodeRow = document.createElement('p');
     nodeRow.innerHTML = `<strong>Other connected rooms/nodes:</strong> ${otherNodes.length ? otherNodes.join(', ') : 'None'}`;
 
     meta.appendChild(nameRow);
     meta.appendChild(dimRow);
     meta.appendChild(areaRow);
+    meta.appendChild(rRow);
     meta.appendChild(nodeRow);
     details.appendChild(meta);
 
@@ -533,30 +537,333 @@ export function initRoomEditor(opts) {
     summary.textContent = 'Build-up';
     section.appendChild(summary);
 
-    const list = document.createElement('ul');
+    const list = document.createElement('div');
     const buildUp = Array.isArray(element.build_up) ? element.build_up : [];
+    const materialOptions = getBuildUpMaterialOptions();
+    const materialLookup = getBuildUpMaterialLookup();
+
+    if (!Array.isArray(element.build_up)) element.build_up = [];
 
     if (buildUp.length === 0) {
-      const li = document.createElement('li');
-      li.textContent = 'No build-up data';
-      list.appendChild(li);
+      const empty = document.createElement('div');
+      empty.textContent = 'No build-up data';
+      list.appendChild(empty);
     } else {
       buildUp.forEach((layer, i) => {
-        const li = document.createElement('li');
-        if (layer.type === 'composite' && Array.isArray(layer.paths)) {
-          const pathText = layer.paths
-            .map(path => `${path.material_id || 'unknown'} (${typeof path.fraction === 'number' ? path.fraction : 'n/a'})`)
-            .join(', ');
-          li.textContent = `Layer ${i + 1}: composite, thickness=${layer.thickness ?? 'n/a'} m, paths=${pathText}`;
-        } else {
-          li.textContent = `Layer ${i + 1}: ${layer.material_id || layer.type || 'unknown'}, thickness=${layer.thickness ?? 'n/a'} m`;
-        }
-        list.appendChild(li);
+        list.appendChild(createBuildUpLayerEditor({
+          layer,
+          layerIndex: i,
+          buildUp,
+          parentKey,
+          materialOptions,
+          materialLookup
+        }));
       });
     }
 
+    const addRow = document.createElement('div');
+    addRow.style.display = 'flex';
+    addRow.style.gap = '0.5rem';
+    addRow.style.flexWrap = 'wrap';
+
+    const addLayerBtn = document.createElement('button');
+    addLayerBtn.textContent = 'Add Layer';
+    addLayerBtn.addEventListener('click', () => {
+      const firstMaterial = materialOptions[0] ? materialOptions[0].id : 'plasterboard';
+      element.build_up.push({ material_id: firstMaterial, thickness: 0.0125 });
+      onDataChanged();
+      refreshSelectedZone();
+    });
+
+    const addCompositeBtn = document.createElement('button');
+    addCompositeBtn.textContent = 'Add Composite Layer';
+    addCompositeBtn.addEventListener('click', () => {
+      element.build_up.push({
+        type: 'composite',
+        thickness: 0.09,
+        paths: [
+          { material_id: 'stud_wood', fraction: 0.063 },
+          { material_id: 'pir', fraction: 0.937 }
+        ]
+      });
+      onDataChanged();
+      refreshSelectedZone();
+    });
+
+    addRow.appendChild(addLayerBtn);
+    addRow.appendChild(addCompositeBtn);
+
     section.appendChild(list);
+    section.appendChild(addRow);
     return section;
+  }
+
+  function createBuildUpLayerEditor(config) {
+    const layer = config.layer;
+    const layerIndex = config.layerIndex;
+    const buildUp = config.buildUp;
+    const parentKey = config.parentKey;
+    const materialOptions = config.materialOptions;
+    const materialLookup = config.materialLookup;
+    const focusBaseKey = `${parentKey}|layer:${layerIndex}`;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'radiator-item';
+
+    const form = document.createElement('div');
+    form.style.display = 'flex';
+    form.style.flexDirection = 'column';
+    form.style.gap = '0.5rem';
+
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.justifyContent = 'space-between';
+    header.style.alignItems = 'center';
+
+    const title = document.createElement('strong');
+    const rDisplay = formatLayerRDisplay(layer, materialLookup);
+    title.textContent = `Layer ${layerIndex + 1}${rDisplay ? ` [R: ${rDisplay}]` : ''}`;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-btn';
+    removeBtn.textContent = 'x';
+    removeBtn.title = 'Remove layer';
+    removeBtn.addEventListener('click', () => {
+      buildUp.splice(layerIndex, 1);
+      onDataChanged();
+      refreshSelectedZone();
+    });
+
+    header.appendChild(title);
+    header.appendChild(removeBtn);
+    form.appendChild(header);
+
+    const thicknessRow = document.createElement('div');
+    thicknessRow.style.display = 'flex';
+    thicknessRow.style.alignItems = 'center';
+    thicknessRow.style.gap = '0.5rem';
+    thicknessRow.style.flexWrap = 'wrap';
+
+    const thicknessLabel = document.createElement('span');
+    thicknessLabel.textContent = 'Thickness (m):';
+    const thicknessInput = document.createElement('input');
+    thicknessInput.type = 'number';
+    thicknessInput.step = '0.001';
+    thicknessInput.min = '0';
+    thicknessInput.value = typeof layer.thickness === 'number' ? layer.thickness : '';
+    thicknessInput.dataset.focusKey = `${focusBaseKey}:thickness`;
+    thicknessInput.addEventListener('input', () => {
+      const value = parseFloat(thicknessInput.value);
+      if (isFinite(value) && value > 0) {
+        layer.thickness = Number(value.toFixed(4));
+        queueFocusRestore();
+        onDataChanged();
+      }
+    });
+
+    thicknessRow.appendChild(thicknessLabel);
+    thicknessRow.appendChild(thicknessInput);
+    form.appendChild(thicknessRow);
+
+    if (layer.type === 'composite') {
+      form.appendChild(createCompositeLayerEditor(layer, focusBaseKey, materialOptions));
+    } else {
+      const materialRow = document.createElement('div');
+      materialRow.style.display = 'flex';
+      materialRow.style.alignItems = 'center';
+      materialRow.style.gap = '0.5rem';
+      materialRow.style.flexWrap = 'wrap';
+
+      const materialLabel = document.createElement('span');
+      materialLabel.textContent = 'Material:';
+      const materialSelect = document.createElement('select');
+      materialSelect.dataset.focusKey = `${focusBaseKey}:material`;
+
+      const selectedMaterial = layer.material_id;
+      if (selectedMaterial && !materialOptions.some(opt => opt.id === selectedMaterial)) {
+        const fallbackOption = document.createElement('option');
+        fallbackOption.value = selectedMaterial;
+        fallbackOption.textContent = `${selectedMaterial} (current)`;
+        fallbackOption.selected = true;
+        materialSelect.appendChild(fallbackOption);
+      }
+
+      materialOptions.forEach(opt => {
+        const option = document.createElement('option');
+        option.value = opt.id;
+          option.textContent = opt.label || opt.name;
+        if (opt.id === selectedMaterial) option.selected = true;
+        materialSelect.appendChild(option);
+      });
+
+      materialSelect.addEventListener('change', () => {
+        layer.material_id = materialSelect.value;
+        queueFocusRestore();
+        onDataChanged();
+      });
+
+      const makeCompositeBtn = document.createElement('button');
+      makeCompositeBtn.textContent = 'Make Composite';
+      makeCompositeBtn.addEventListener('click', () => {
+        layer.type = 'composite';
+        if (typeof layer.thickness !== 'number' || layer.thickness <= 0) layer.thickness = 0.09;
+        layer.paths = [
+          { material_id: 'stud_wood', fraction: 0.063 },
+          { material_id: 'pir', fraction: 0.937 }
+        ];
+        delete layer.material_id;
+        onDataChanged();
+        refreshSelectedZone();
+      });
+
+      materialRow.appendChild(materialLabel);
+      materialRow.appendChild(materialSelect);
+      materialRow.appendChild(makeCompositeBtn);
+      form.appendChild(materialRow);
+    }
+
+    wrap.appendChild(form);
+    return wrap;
+  }
+
+  function createCompositeLayerEditor(layer, focusBaseKey, materialOptions) {
+    if (!Array.isArray(layer.paths)) layer.paths = [];
+
+    const container = document.createElement('div');
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.gap = '0.5rem';
+
+    const presetRow = document.createElement('div');
+    presetRow.style.display = 'flex';
+    presetRow.style.gap = '0.5rem';
+    presetRow.style.flexWrap = 'wrap';
+
+    const presetButtons = [
+      { label: '600mm c-c + PIR', center: 600, fill: 'pir' },
+      { label: '600mm c-c + Rockwool', center: 600, fill: 'rockwool' },
+      { label: '400mm c-c + PIR', center: 400, fill: 'pir' },
+      { label: '400mm c-c + Rockwool', center: 400, fill: 'rockwool' }
+    ];
+
+    presetButtons.forEach(preset => {
+      const btn = document.createElement('button');
+      btn.textContent = preset.label;
+      btn.addEventListener('click', () => {
+        applyCompositeStudPreset(layer, preset.center, preset.fill);
+      });
+      presetRow.appendChild(btn);
+    });
+
+    const makeSingleBtn = document.createElement('button');
+    makeSingleBtn.textContent = 'Make Single Layer';
+    makeSingleBtn.addEventListener('click', () => {
+      delete layer.type;
+      layer.material_id = layer.paths[0]?.material_id || 'plasterboard';
+      delete layer.paths;
+      onDataChanged();
+      refreshSelectedZone();
+    });
+    presetRow.appendChild(makeSingleBtn);
+
+    container.appendChild(presetRow);
+
+    const pathsWrap = document.createElement('div');
+    pathsWrap.style.display = 'flex';
+    pathsWrap.style.flexDirection = 'column';
+    pathsWrap.style.gap = '0.4rem';
+
+    layer.paths.forEach((path, pathIndex) => {
+      const row = document.createElement('div');
+      row.className = 'radiator-item';
+      row.style.padding = '0.4rem';
+
+      const matSelect = document.createElement('select');
+      matSelect.dataset.focusKey = `${focusBaseKey}:path:${pathIndex}:material`;
+
+      const selectedMat = path.material_id;
+      if (selectedMat && !materialOptions.some(opt => opt.id === selectedMat)) {
+        const fallbackOption = document.createElement('option');
+        fallbackOption.value = selectedMat;
+        fallbackOption.textContent = `${selectedMat} (current)`;
+        fallbackOption.selected = true;
+        matSelect.appendChild(fallbackOption);
+      }
+
+      materialOptions.forEach(opt => {
+        const option = document.createElement('option');
+        option.value = opt.id;
+        option.textContent = opt.label || opt.name;
+        if (opt.id === selectedMat) option.selected = true;
+        matSelect.appendChild(option);
+      });
+
+      matSelect.addEventListener('change', () => {
+        path.material_id = matSelect.value;
+        queueFocusRestore();
+        onDataChanged();
+      });
+
+      const fracInput = document.createElement('input');
+      fracInput.type = 'number';
+      fracInput.step = '0.001';
+      fracInput.min = '0';
+      fracInput.max = '1';
+      fracInput.value = typeof path.fraction === 'number' ? path.fraction : '';
+      fracInput.dataset.focusKey = `${focusBaseKey}:path:${pathIndex}:fraction`;
+      fracInput.addEventListener('input', () => {
+        const fv = parseFloat(fracInput.value);
+        if (isFinite(fv) && fv >= 0) {
+          path.fraction = Number(fv.toFixed(3));
+          queueFocusRestore();
+          onDataChanged();
+        }
+      });
+
+      const removePathBtn = document.createElement('button');
+      removePathBtn.className = 'remove-btn';
+      removePathBtn.textContent = 'x';
+      removePathBtn.title = 'Remove path';
+      removePathBtn.addEventListener('click', () => {
+        layer.paths.splice(pathIndex, 1);
+        onDataChanged();
+        refreshSelectedZone();
+      });
+
+      row.appendChild(document.createTextNode(`Path ${pathIndex + 1}: `));
+      row.appendChild(matSelect);
+      row.appendChild(document.createTextNode(' Fraction: '));
+      row.appendChild(fracInput);
+      row.appendChild(removePathBtn);
+      pathsWrap.appendChild(row);
+    });
+
+    container.appendChild(pathsWrap);
+
+    const addPathBtn = document.createElement('button');
+    addPathBtn.textContent = 'Add Path';
+    addPathBtn.addEventListener('click', () => {
+      const defaultMaterial = materialOptions[0] ? materialOptions[0].id : 'stud_wood';
+      layer.paths.push({ material_id: defaultMaterial, fraction: 0.5 });
+      onDataChanged();
+      refreshSelectedZone();
+    });
+    container.appendChild(addPathBtn);
+
+    return container;
+  }
+
+  function applyCompositeStudPreset(layer, centerMm, fillMaterialId) {
+    const studFraction = Number((38 / centerMm).toFixed(3));
+    const fillFraction = Number((1 - studFraction).toFixed(3));
+    layer.type = 'composite';
+    if (typeof layer.thickness !== 'number' || layer.thickness <= 0) layer.thickness = 0.09;
+    layer.paths = [
+      { material_id: 'stud_wood', fraction: studFraction },
+      { material_id: fillMaterialId, fraction: fillFraction }
+    ];
+    queueFocusRestore();
+    onDataChanged();
   }
 
   function createWindowsSection(element, parentKey, expandState) {
@@ -691,11 +998,12 @@ export function initRoomEditor(opts) {
     header.style.alignItems = 'center';
 
     const left = document.createElement('div');
-    left.textContent = `${opening.id || `${kind}_${index + 1}`} - `;
+    const selectedValue = kind === 'window' ? opening.glazing_id : opening.material_id;
+    const openingUDisplay = formatOpeningUDisplay(kind, selectedValue);
+    left.textContent = `${opening.id || `${kind}_${index + 1}`}${openingUDisplay ? ` [U: ${openingUDisplay}]` : ''} - `;
 
     const materialSelect = document.createElement('select');
     materialSelect.dataset.focusKey = `${focusBaseKey}:material`;
-    const selectedValue = kind === 'window' ? opening.glazing_id : opening.material_id;
     if (selectedValue && !options.some(opt => opt.id === selectedValue)) {
       const fallbackOption = document.createElement('option');
       fallbackOption.value = selectedValue;
@@ -801,7 +1109,11 @@ export function initRoomEditor(opts) {
   function getWindowOptions() {
     const openings = getOpeningsData ? getOpeningsData() : null;
     if (openings && Array.isArray(openings.windows) && openings.windows.length > 0) {
-      return openings.windows.map(w => ({ id: w.id, name: w.name || w.id }));
+      return openings.windows.map(w => ({
+        id: w.id,
+        name: w.name || w.id,
+        label: formatOpeningOptionLabel(w.name || w.id, w.u_value)
+      }));
     }
 
     const materialsData = getMaterialsData ? getMaterialsData() : null;
@@ -814,7 +1126,11 @@ export function initRoomEditor(opts) {
   function getDoorOptions() {
     const openings = getOpeningsData ? getOpeningsData() : null;
     if (openings && Array.isArray(openings.doors) && openings.doors.length > 0) {
-      return openings.doors.map(d => ({ id: d.id, name: d.name || d.id }));
+      return openings.doors.map(d => ({
+        id: d.id,
+        name: d.name || d.id,
+        label: formatOpeningOptionLabel(d.name || d.id, d.u_value)
+      }));
     }
 
     const materialsData = getMaterialsData ? getMaterialsData() : null;
@@ -823,7 +1139,121 @@ export function initRoomEditor(opts) {
       .filter(m => !String(m.id || '').startsWith('window_'))
       .filter(m => typeof m.u_value === 'number' || typeof m.typical_u_value_w_m2k === 'number' || typeof m.thermal_conductivity === 'number')
       .slice(0, 20)
-      .map(m => ({ id: m.id, name: m.name || m.id }));
+      .map(m => ({ id: m.id, name: m.name || m.id, label: m.name || m.id }));
+  }
+
+  function formatOpeningOptionLabel(name, uValue) {
+    if (typeof uValue !== 'number' || !isFinite(uValue) || uValue <= 0) return name;
+    return `${name} [${uValue} ${getOpeningUUnits()}]`;
+  }
+
+  function formatOpeningUDisplay(kind, openingId) {
+    const openings = getOpeningsData ? getOpeningsData() : null;
+    if (!openings || !openingId) return null;
+    const list = kind === 'window' ? openings.windows : openings.doors;
+    if (!Array.isArray(list)) return null;
+    const match = list.find(item => item.id === openingId);
+    if (!match || typeof match.u_value !== 'number' || !isFinite(match.u_value) || match.u_value <= 0) return null;
+    return `${match.u_value} ${getOpeningUUnits()}`;
+  }
+
+  function getOpeningUUnits() {
+    const openings = getOpeningsData ? getOpeningsData() : null;
+    if (openings && openings.units && openings.units.u_value) return openings.units.u_value;
+    return 'W/m²K';
+  }
+
+  function getBuildUpMaterialOptions() {
+    const materialsData = getMaterialsData ? getMaterialsData() : null;
+    const materials = materialsData && Array.isArray(materialsData.materials) ? materialsData.materials : [];
+    const kUnits = materialsData && materialsData.units && materialsData.units.thermal_conductivity
+      ? materialsData.units.thermal_conductivity
+      : 'W/mK';
+    return materials
+      .filter(m => {
+        const id = String(m.id || '');
+        if (id.startsWith('window_') || id.startsWith('door_')) return false;
+        return typeof m.thermal_conductivity === 'number' || typeof m.u_value === 'number' || typeof m.typical_u_value_w_m2k === 'number';
+      })
+      .map(m => {
+        const name = m.name || m.id;
+        const kLabel = typeof m.thermal_conductivity === 'number' ? `${m.thermal_conductivity} ${kUnits}` : null;
+        return {
+          id: m.id,
+          name,
+          label: kLabel ? `${name} [${kLabel}]` : name
+        };
+      });
+  }
+
+  function getBuildUpMaterialLookup() {
+    const materialsData = getMaterialsData ? getMaterialsData() : null;
+    const materials = materialsData && Array.isArray(materialsData.materials) ? materialsData.materials : [];
+    return new Map(materials.map(m => [m.id, m]));
+  }
+
+  function formatLayerRDisplay(layer, materialLookup) {
+    const r = computeLayerRValue(layer, materialLookup);
+    if (typeof r !== 'number' || !isFinite(r) || r <= 0) return null;
+    return r.toFixed(3);
+  }
+
+  function formatElementRDisplay(element) {
+    const materialLookup = getBuildUpMaterialLookup();
+    const buildUp = Array.isArray(element.build_up) ? element.build_up : [];
+    if (buildUp.length === 0) return null;
+
+    let totalR = 0;
+    for (const layer of buildUp) {
+      const layerR = computeLayerRValue(layer, materialLookup);
+      if (typeof layerR !== 'number' || !isFinite(layerR) || layerR <= 0) return null;
+      totalR += layerR;
+    }
+
+    return totalR > 0 ? totalR.toFixed(3) : null;
+  }
+
+  function computeLayerRValue(layer, materialLookup) {
+    if (!layer) return null;
+    const thickness = typeof layer.thickness === 'number' ? layer.thickness : null;
+
+    if (layer.type === 'composite') {
+      if (!thickness || thickness <= 0 || !Array.isArray(layer.paths) || layer.paths.length === 0) return null;
+      let totalFraction = 0;
+      layer.paths.forEach(path => {
+        if (typeof path.fraction === 'number' && path.fraction > 0) totalFraction += path.fraction;
+      });
+      if (totalFraction <= 0) totalFraction = layer.paths.length;
+
+      let uEq = 0;
+      for (const path of layer.paths) {
+        const mat = materialLookup.get(path.material_id);
+        if (!mat || typeof mat.thermal_conductivity !== 'number' || mat.thermal_conductivity <= 0) return null;
+        const fracRaw = typeof path.fraction === 'number' && path.fraction > 0 ? path.fraction : 1;
+        const frac = fracRaw / totalFraction;
+        const rPath = thickness / mat.thermal_conductivity;
+        if (!isFinite(rPath) || rPath <= 0) return null;
+        uEq += frac * (1 / rPath);
+      }
+      return uEq > 0 ? 1 / uEq : null;
+    }
+
+    const mat = materialLookup.get(layer.material_id);
+    if (!mat) return null;
+
+    if (typeof mat.u_value === 'number' && (!thickness || thickness <= 0)) {
+      return 1 / mat.u_value;
+    }
+
+    if (typeof mat.typical_u_value_w_m2k === 'number' && (!thickness || thickness <= 0)) {
+      return 1 / mat.typical_u_value_w_m2k;
+    }
+
+    if (typeof mat.thermal_conductivity === 'number' && mat.thermal_conductivity > 0 && thickness && thickness > 0) {
+      return thickness / mat.thermal_conductivity;
+    }
+
+    return null;
   }
 
   function removeRadiator(zoneId, radiatorIndex) {
