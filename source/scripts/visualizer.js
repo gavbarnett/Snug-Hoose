@@ -65,8 +65,7 @@ export function renderThermalViz(demo, radiators) {
     
     const levelCell = row.insertCell();
     levelCell.textContent = `Level ${level}`;
-    levelCell.style.fontWeight = 'bold';
-    levelCell.style.backgroundColor = '#e8e8e8';
+    levelCell.classList.add('level-cell');
     
     for (const zone of levels[level]) {
       const cell = row.insertCell();
