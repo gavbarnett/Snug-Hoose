@@ -4,19 +4,13 @@ import { computeElementU } from './u_value_calculator.js';
 import { computeRoomHeatRequirements } from './heat_calculator.js';
 import { renderThermalViz } from './visualizer.js';
 import { initRoomEditor } from './room_editor.js';
-
-const outEl = document.getElementById('out');
-const dlEl = document.getElementById('download');
-const indoorInput = document.getElementById('indoorTemp');
-const externalInput = document.getElementById('externalTemp');
-const flowTempInput = document.getElementById('flowTemp');
-const fileUpload = document.getElementById('fileUpload');
-const uploadBtn = document.getElementById('uploadBtn');
+import { initAppUi } from './app_ui.js';
 
 let currentMaterials = null;
 let currentRadiators = null;
 let currentDemo = null;
 let roomEditorApi = null;
+let appUiApi = null;
 
 async function tryFetchJson(url) {
   try {
@@ -87,9 +81,10 @@ async function solveAndRender(demoRaw) {
     }
 
     // Get input values and calculate room heat requirements
-    const indoorTemp = parseFloat(indoorInput.value) || 21;
-    const externalTemp = parseFloat(externalInput.value) || 3;
-    const flowTemp = parseFloat(flowTempInput.value) || 55;
+    const inputTemps = appUiApi ? appUiApi.getTemperatureInputs() : {};
+    const indoorTemp = inputTemps && typeof inputTemps.indoorTemp === 'number' && isFinite(inputTemps.indoorTemp) ? inputTemps.indoorTemp : 21;
+    const externalTemp = inputTemps && typeof inputTemps.externalTemp === 'number' && isFinite(inputTemps.externalTemp) ? inputTemps.externalTemp : 3;
+    const flowTemp = inputTemps && typeof inputTemps.flowTemp === 'number' && isFinite(inputTemps.flowTemp) ? inputTemps.flowTemp : 55;
 
     const heatResults = computeRoomHeatRequirements(demoRaw, radiators, { indoorTemp, externalTemp, flowTemp });
 
@@ -125,17 +120,9 @@ async function solveAndRender(demoRaw) {
 
     // Output results
     const solved = JSON.stringify(demoRaw, null, 2);
-    outEl.textContent = solved;
-
-    // Enable download
-    const blob = new Blob([solved], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    dlEl.href = url;
-    dlEl.style.pointerEvents = 'auto';
-    dlEl.style.opacity = '1';
-    dlEl.onclick = () => setTimeout(() => URL.revokeObjectURL(url), 1500);
+    if (appUiApi) appUiApi.setSolvedOutput(solved);
   } catch (err) {
-    outEl.textContent = 'Solver error: ' + String(err);
+    if (appUiApi) appUiApi.setStatus('Solver error: ' + String(err));
     console.error(err);
   }
 }
@@ -146,36 +133,17 @@ function triggerSolve() {
   }
 }
 
-// Upload button opens file picker
-uploadBtn.addEventListener('click', () => {
-  fileUpload.click();
-});
-
-// File upload handler
-fileUpload.addEventListener('change', async (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  
-  try {
-    const text = await file.text();
-    const uploadedDemo = JSON.parse(text);
-    currentDemo = uploadedDemo;
-    outEl.textContent = 'Processing uploaded file...';
-    triggerSolve();
-  } catch (err) {
-    outEl.textContent = 'Error parsing JSON file: ' + String(err);
-    console.error(err);
-  }
-});
-
-// Temperature inputs trigger recalculation
-indoorInput.addEventListener('change', triggerSolve);
-externalInput.addEventListener('change', triggerSolve);
-flowTempInput.addEventListener('change', triggerSolve);
-
 // Load and initialize on page load
 window.addEventListener('load', async () => {
-  outEl.textContent = 'Initializing...';
+  appUiApi = initAppUi({
+    onSolveRequested: triggerSolve,
+    onUploadDemo: (uploadedDemo) => {
+      currentDemo = uploadedDemo;
+      triggerSolve();
+    }
+  });
+
+  appUiApi.setStatus('Initializing...');
   try {
     const [ins, demo, rads] = await loadDefaultInputs();
     console.log('Loaded data:', { ins: !!ins, demo: !!demo, rads: !!rads });
@@ -194,7 +162,7 @@ window.addEventListener('load', async () => {
     
     triggerSolve();
   } catch (error) {
-    outEl.textContent = 'Initialization error: ' + String(error);
+    if (appUiApi) appUiApi.setStatus('Initialization error: ' + String(error));
     console.error('Initialization failed:', error);
   }
 });
