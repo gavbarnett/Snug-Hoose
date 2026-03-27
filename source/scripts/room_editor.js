@@ -12,8 +12,8 @@ export function initRoomEditor(opts) {
   const editorTab = document.getElementById('editorTab');
   const jsonPanel = document.getElementById('jsonPanel');
   const roomEditorPanel = document.getElementById('roomEditorPanel');
-  const toggleSidebar = document.getElementById('toggleSidebar');
   const contentLayout = document.querySelector('.content-layout');
+  const thermalContainer = document.getElementById('thermal-container');
 
   const roomSelector = document.getElementById('roomSelector');
   const roomEditor = document.getElementById('roomEditor');
@@ -46,22 +46,30 @@ export function initRoomEditor(opts) {
     });
   }
 
-  if (toggleSidebar && contentLayout) {
-    toggleSidebar.addEventListener('click', () => {
-      contentLayout.classList.toggle('sidebar-hidden');
-      toggleSidebar.setAttribute(
-        'title',
-        contentLayout.classList.contains('sidebar-hidden') ? 'Show panel' : 'Hide panel'
-      );
-    });
-  }
-
+  // Click on zone to select and open panel
   document.addEventListener('click', (e) => {
     const zoneCell = e.target.closest('.thermal-zone-cell');
-    if (!zoneCell) return;
+    if (!zoneCell) {
+      // Clicking outside a zone: close the panel if it's not from tab/editor area
+      if (!e.target.closest('.editor-tabs') && !e.target.closest('.editor-panel')) {
+        if (contentLayout && !contentLayout.classList.contains('sidebar-hidden')) {
+          contentLayout.classList.add('sidebar-hidden');
+        }
+      }
+      return;
+    }
     const zoneId = zoneCell.getAttribute('data-zone-id');
     if (zoneId) {
       selectZone(zoneId);
+      // Open the panel
+      if (contentLayout) contentLayout.classList.remove('sidebar-hidden');
+      // Switch to editor tab
+      if (editorTab && jsonTab && roomEditorPanel && jsonPanel) {
+        editorTab.classList.add('active');
+        jsonTab.classList.remove('active');
+        roomEditorPanel.classList.add('active');
+        jsonPanel.classList.remove('active');
+      }
     }
   });
 
