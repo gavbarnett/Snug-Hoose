@@ -370,11 +370,11 @@ input[type="text"]::placeholder {
 }
 
 .thermal-zone-cell { 
-  min-height: 130px; 
+  min-height: 170px; 
   display: flex; 
   flex-direction: column; 
-  justify-content: center; 
-  align-items: center; 
+  justify-content: flex-start; 
+  align-items: flex-start; 
   text-align: center; 
   font-weight: 600;
   border-radius: 6px;
@@ -392,20 +392,62 @@ input[type="text"]::placeholder {
   font-size: 1.15em; 
   margin-bottom: 0.4rem;
   letter-spacing: 0.3px;
+  width: 100%;
+  text-align: left;
 }
 
 .zone-balance { 
   font-size: 0.95em; 
   margin: 0.3rem 0;
   font-weight: 700;
+  width: 100%;
+  text-align: left;
 }
 
-.zone-radiator { 
-  font-size: 0.85em; 
-  margin: 0.3rem 0;
-  opacity: 0.95;
-  white-space: pre-line;;
+.zone-epc {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.3rem;
 }
+
+.zone-epc-summary {
+  font-size: 0.78em;
+  font-weight: 700;
+  text-align: left;
+}
+
+.zone-epc-scale {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.18rem;
+}
+
+.epc-chip {
+  text-align: center;
+  font-size: 0.66em;
+  font-weight: 800;
+  border-radius: 3px;
+  padding: 0.16rem 0;
+  opacity: 0.45;
+  color: #101010;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+}
+
+.epc-chip.active {
+  opacity: 1;
+  transform: translateY(-1px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.epc-A { background: #17a84b; color: #ffffff; }
+.epc-B { background: #62be4f; }
+.epc-C { background: #b3ce3f; }
+.epc-D { background: #f2d33a; }
+.epc-E { background: #f4ab2f; }
+.epc-F { background: #e87825; color: #ffffff; }
+.epc-G { background: #d32f2f; color: #ffffff; }
 
 /* Thermal color gradients */
 .thermal-extreme-cold { background: linear-gradient(135deg, #0a1f5c, #002faf); color: white; }
@@ -461,7 +503,8 @@ pre::-webkit-scrollbar-thumb:hover {
   .thermal-zone-cell { min-height: 100px; padding: 0.75rem; }
   .zone-name { font-size: 1em; }
   .zone-balance { font-size: 0.85em; }
-  .zone-radiator { font-size: 0.75em; }
+  .zone-epc-summary { font-size: 0.72em; }
+  .epc-chip { font-size: 0.62em; padding: 0.12rem 0; }
   .content-layout {
     grid-template-columns: 1fr;
     gap: 1rem;

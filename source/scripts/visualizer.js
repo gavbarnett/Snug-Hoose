@@ -12,14 +12,50 @@ function getThermalColorClass(balance) {
   return 'thermal-extreme-hot';
 }
 
-function getRadiatorInfo(zone, radiators) {
-  if (!zone || !Array.isArray(zone.radiators) || zone.radiators.length === 0) return 'No radiator';
-  const rads = zone.radiators.map(spec => {
-    const rad = radiators.find(r => r.id === spec.radiator_id);
-    const name = rad ? rad.name : spec.radiator_id;
-    return `${name} (${spec.surface_area}m²)`;
+function computeEpcEstimate(zone) {
+  const heatLossPerM2 = typeof zone.heat_loss_per_unit_area === 'number' ? zone.heat_loss_per_unit_area : null;
+  if (heatLossPerM2 === null) {
+    return { letter: 'N/A', intensityKwhM2Yr: null };
+  }
+
+  // Approximate annualized demand intensity from steady-state heat loss per m2
+  const intensityKwhM2Yr = Math.max(0, (heatLossPerM2 * 24 * 365) / 1000);
+
+  // EPC-style bands (estimated, intensity-based)
+  let letter = 'G';
+  if (intensityKwhM2Yr <= 50) letter = 'A';
+  else if (intensityKwhM2Yr <= 90) letter = 'B';
+  else if (intensityKwhM2Yr <= 150) letter = 'C';
+  else if (intensityKwhM2Yr <= 230) letter = 'D';
+  else if (intensityKwhM2Yr <= 330) letter = 'E';
+  else if (intensityKwhM2Yr <= 450) letter = 'F';
+
+  return { letter, intensityKwhM2Yr };
+}
+
+function createEpcScale(zone) {
+  const epc = computeEpcEstimate(zone);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'zone-epc';
+
+  const summary = document.createElement('div');
+  summary.className = 'zone-epc-summary';
+  const valueText = epc.intensityKwhM2Yr === null ? 'n/a' : `${epc.intensityKwhM2Yr.toFixed(0)}`;
+  summary.textContent = `EPC ${epc.letter} (${valueText})`;
+
+  const scale = document.createElement('div');
+  scale.className = 'zone-epc-scale';
+  ['A', 'B', 'C', 'D', 'E', 'F', 'G'].forEach(letter => {
+    const chip = document.createElement('span');
+    chip.className = `epc-chip epc-${letter}${letter === epc.letter ? ' active' : ''}`;
+    chip.textContent = letter;
+    scale.appendChild(chip);
   });
-  return rads.join('\n');
+
+  wrap.appendChild(summary);
+  wrap.appendChild(scale);
+  return wrap;
 }
 
 export function renderThermalViz(demo, radiators) {
@@ -87,11 +123,8 @@ export function renderThermalViz(demo, radiators) {
       balanceDiv.className = 'zone-balance';
       balanceDiv.textContent = `Balance: ${balance > 0 ? '+' : ''}${balance}W`;
       zoneDiv.appendChild(balanceDiv);
-      
-      const radDiv = document.createElement('div');
-      radDiv.className = 'zone-radiator';
-      radDiv.textContent = getRadiatorInfo(zone, radiators);
-      zoneDiv.appendChild(radDiv);
+
+      zoneDiv.appendChild(createEpcScale(zone));
       
       cell.appendChild(zoneDiv);
     }

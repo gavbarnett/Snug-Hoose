@@ -131,6 +131,7 @@ async function solveAndRender(demoRaw) {
     for (const zone of demoRaw.zones) {
       const room = heatResults.rooms.find(r => r.zoneId === zone.id);
       if (room) {
+        zone.floor_area = room.floorArea;
         zone.total_conductance = room.total_conductance;
         zone.heat_loss = room.heat_loss;
         zone.heat_loss_per_unit_area = room.heat_loss_per_unit_area;
