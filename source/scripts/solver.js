@@ -29,16 +29,55 @@ async function tryFetchJson(url) {
 }
 
 async function loadDefaultInputs() {
-  const ins = await tryFetchJson('./source/resources/insulation.json') || JSON.parse(document.getElementById('insulation-json')?.textContent || '{}');
-  const demo = await tryFetchJson('./source/resources/demo_house.json') || JSON.parse(document.getElementById('demo-json')?.textContent || '{}');
-  const rads = await tryFetchJson('./source/resources/radiators.json') || { radiators: [] };
+  let ins = await tryFetchJson('./source/resources/insulation.json');
+  if (!ins) {
+    console.warn('Failed to load insulation.json, using fallback materials');
+    ins = {
+      materials: [
+        { id: "brick", name: "Brick", thermal_conductivity: 0.77 },
+        { id: "concrete", name: "Concrete", thermal_conductivity: 1.4 },
+        { id: "pir", name: "PIR board", thermal_conductivity: 0.022 },
+        { id: "glass", name: "Glass", thermal_conductivity: 0.96 },
+        { id: "air", name: "Air gap", thermal_conductivity: 0.025 }
+      ]
+    };
+  }
+  
+  let demo = await tryFetchJson('./source/resources/demo_house.json');
+  if (!demo) {
+    console.warn('Failed to load demo_house.json, using fallback demo');
+    demo = {
+      meta: { name: "Fallback Demo House" },
+      zones: [
+        { id: "living_room", level: 0, elements: ["wall1", "window1"], radiators: [{ radiator_id: "panel_rad", surface_area: 2.0 }] }
+      ],
+      elements: [
+        { id: "wall1", type: "wall", area: 20, orientation: "north", layers: [{ material: "brick", thickness: 0.1 }, { material: "pir", thickness: 0.1 }] },
+        { id: "window1", type: "window", area: 4, orientation: "north", material: "glass", thickness: 0.006 }
+      ]
+    };
+  }
+  
+  let rads = await tryFetchJson('./source/resources/radiators.json');
+  if (!rads) {
+    console.warn('Failed to load radiators.json, using fallback radiators');
+    rads = {
+      radiators: [
+        { id: "panel_rad", name: "Panel Radiator", heat_transfer_coefficient: 100 }
+      ]
+    };
+  }
+  
   return [ins, demo, rads];
 }
 
 async function solveAndRender(demoRaw) {
   try {
+    if (!currentMaterials) {
+      throw new Error('Materials data not loaded. Please check that insulation.json is available.');
+    }
     const materials = currentMaterials.materials || currentMaterials;
-    const radiators = currentRadiators.radiators || [];
+    const radiators = currentRadiators ? (currentRadiators.radiators || []) : [];
     const elements = demoRaw.elements || demoRaw.rooms || [];
     if (!Array.isArray(elements)) throw new Error('No elements array found in demo json');
 
@@ -139,12 +178,163 @@ indoorInput.addEventListener('change', triggerSolve);
 externalInput.addEventListener('change', triggerSolve);
 flowTempInput.addEventListener('change', triggerSolve);
 
+// Tab switching for editor panels
+const jsonTab = document.getElementById('jsonTab');
+const editorTab = document.getElementById('editorTab');
+const jsonPanel = document.getElementById('jsonPanel');
+const roomEditorPanel = document.getElementById('roomEditorPanel');
+
+jsonTab.addEventListener('click', () => {
+  jsonTab.classList.add('active');
+  editorTab.classList.remove('active');
+  jsonPanel.classList.add('active');
+  roomEditorPanel.classList.remove('active');
+});
+
+editorTab.addEventListener('click', () => {
+  editorTab.classList.add('active');
+  jsonTab.classList.remove('active');
+  roomEditorPanel.classList.add('active');
+  jsonPanel.classList.remove('active');
+});
+
+// Zone selection from visualizer
+let selectedZoneId = null;
+
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('thermal-zone-cell')) {
+    const zoneId = e.target.getAttribute('data-zone-id');
+    if (zoneId) {
+      selectZone(zoneId);
+    }
+  }
+});
+
+function selectZone(zoneId) {
+  selectedZoneId = zoneId;
+  
+  // Remove selected class from all zones
+  document.querySelectorAll('.thermal-zone-cell').forEach(cell => {
+    cell.classList.remove('selected');
+  });
+  
+  // Add selected class to clicked zone
+  const selectedCell = document.querySelector(`.thermal-zone-cell[data-zone-id="${zoneId}"]`);
+  if (selectedCell) {
+    selectedCell.classList.add('selected');
+  }
+  
+  const selectedRoomName = document.getElementById('selectedRoomName');
+  selectedRoomName.textContent = `Selected Room: ${zoneId}`;
+  
+  const roomSelector = document.getElementById('roomSelector');
+  const roomEditor = document.getElementById('roomEditor');
+  roomSelector.style.display = 'none';
+  roomEditor.style.display = 'block';
+  
+  // Populate editor with zone data
+  populateRoomEditor(zoneId);
+}
+
+function populateRoomEditor(zoneId) {
+  const zone = currentDemo.zones.find(z => z.id === zoneId);
+  if (!zone) return;
+  
+  const elementsList = document.getElementById('elementsList');
+  const radiatorsList = document.getElementById('radiatorsList');
+  
+  // Clear existing
+  elementsList.innerHTML = '';
+  radiatorsList.innerHTML = '';
+  
+  // Populate elements
+  if (zone.elements) {
+    zone.elements.forEach((elementId, index) => {
+      const element = currentDemo.elements.find(e => e.id === elementId);
+      if (element) {
+        const item = document.createElement('div');
+        item.className = 'element-item';
+        item.innerHTML = `
+          <span>${element.type || 'Unknown'} - ${element.id}</span>
+          <button onclick="editElement('${element.id}')">Edit</button>
+        `;
+        elementsList.appendChild(item);
+      }
+    });
+  }
+  
+  // Populate radiators
+  if (zone.radiators) {
+    zone.radiators.forEach((radSpec, index) => {
+      const radiator = currentRadiators.radiators.find(r => r.id === radSpec.radiator_id);
+      const item = document.createElement('div');
+      item.className = 'radiator-item';
+      item.innerHTML = `
+        <span>${radiator ? radiator.name : radSpec.radiator_id} (${radSpec.surface_area}m²)</span>
+        <button onclick="editRadiator(${index}, '${zoneId}')">Edit</button>
+      `;
+      radiatorsList.appendChild(item);
+    });
+  }
+}
+
+// Global functions for button clicks (since onclick attributes)
+window.editElement = function(elementId) {
+  // TODO: Implement element editing modal/form
+  alert(`Edit element: ${elementId}`);
+};
+
+window.editRadiator = function(index, zoneId) {
+  // TODO: Implement radiator editing modal/form
+  alert(`Edit radiator ${index} in zone ${zoneId}`);
+};
+
+// Add element button
+document.getElementById('addElementBtn').addEventListener('click', () => {
+  if (selectedZoneId) {
+    // TODO: Implement add element modal/form
+    alert(`Add element to zone: ${selectedZoneId}`);
+  }
+});
+
+// Add radiator button
+document.getElementById('addRadiatorBtn').addEventListener('click', () => {
+  if (selectedZoneId) {
+    // TODO: Implement add radiator modal/form
+    alert(`Add radiator to zone: ${selectedZoneId}`);
+  }
+});
+
+// Save changes button
+document.getElementById('saveRoomChanges').addEventListener('click', () => {
+  // TODO: Save changes to currentDemo and re-solve
+  alert('Save changes (not implemented yet)');
+});
+
+// Add room button
+document.getElementById('addRoomBtn').addEventListener('click', () => {
+  // TODO: Implement add room modal/form
+  alert('Add room (not implemented yet)');
+});
+
+// Add level button
+document.getElementById('addLevelBtn').addEventListener('click', () => {
+  // TODO: Implement add level modal/form
+  alert('Add level (not implemented yet)');
+});
+
 // Load and initialize on page load
 window.addEventListener('load', async () => {
   outEl.textContent = 'Initializing...';
-  const [ins, demo, rads] = await loadDefaultInputs();
-  currentMaterials = ins;
-  currentRadiators = rads;
-  currentDemo = demo;
-  triggerSolve();
+  try {
+    const [ins, demo, rads] = await loadDefaultInputs();
+    console.log('Loaded data:', { ins: !!ins, demo: !!demo, rads: !!rads });
+    currentMaterials = ins;
+    currentRadiators = rads;
+    currentDemo = demo;
+    triggerSolve();
+  } catch (error) {
+    outEl.textContent = 'Initialization error: ' + String(error);
+    console.error('Initialization failed:', error);
+  }
 });

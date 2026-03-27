@@ -74,6 +74,9 @@ export function renderThermalViz(demo, radiators) {
       
       const zoneDiv = document.createElement('div');
       zoneDiv.className = `thermal-zone-cell ${colorClass}`;
+      zoneDiv.setAttribute('data-zone-id', zone.id);
+      zoneDiv.style.cursor = 'pointer';
+      zoneDiv.title = 'Click to edit this room';
       
       const zoneName = document.createElement('div');
       zoneName.className = 'zone-name';

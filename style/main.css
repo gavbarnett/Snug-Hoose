@@ -177,6 +177,84 @@ a#download:hover {
   transition: opacity 0.3s ease;
 }
 
+/* Editor Tabs */
+.editor-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1rem;
+}
+
+.tab-button {
+  background: var(--bg-darker);
+  color: var(--text-muted);
+  border: none;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
+.tab-button.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: rgba(0, 212, 255, 0.05);
+}
+
+.tab-button:hover {
+  color: var(--text-light);
+  background: rgba(0, 212, 255, 0.1);
+}
+
+.editor-panel {
+  display: none;
+}
+
+.editor-panel.active {
+  display: block;
+}
+
+.editor-section {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--bg-darker);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.editor-section h6 {
+  margin: 0 0 0.5rem 0;
+  color: var(--accent);
+  font-size: 1em;
+}
+
+.element-item, .radiator-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  background: var(--input-bg);
+  border-radius: 4px;
+  border: 1px solid var(--input-border);
+}
+
+.element-item button, .radiator-item button {
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  border: none;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.thermal-zone-cell.selected {
+  border: 3px solid var(--accent);
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.3);
+}
+
 /* Thermal Visualization */
 .thermal-table {  
   width: 100%; 
