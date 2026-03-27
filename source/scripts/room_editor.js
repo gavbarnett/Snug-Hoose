@@ -65,10 +65,12 @@ export function initRoomEditor(opts) {
 
   // Click on zone to select and open panel
   document.addEventListener('click', (e) => {
+    const clickedInThermal = !!e.target.closest('#thermal-container');
     const zoneCell = e.target.closest('.thermal-zone-cell');
     if (!zoneCell) {
-      // Clicking outside a zone: close the panel if it's not from tab/editor area
-      if (!e.target.closest('.editor-tabs') && !e.target.closest('.editor-panel')) {
+      // Only close when clicking in thermal view but not on a zone cell.
+      // This avoids accidental closes when editor actions trigger re-renders.
+      if (clickedInThermal) {
         if (contentLayout && !contentLayout.classList.contains('sidebar-hidden')) {
           contentLayout.classList.add('sidebar-hidden');
         }
@@ -288,7 +290,10 @@ export function initRoomEditor(opts) {
         removeBtn.innerHTML = 'x';
         removeBtn.title = 'Remove radiator';
         removeBtn.className = 'remove-btn';
-        removeBtn.addEventListener('click', () => {
+        removeBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          queueFocusRestore();
           removeRadiator(selectedZoneId, index);
         });
 
@@ -1041,16 +1046,21 @@ export function initRoomEditor(opts) {
       modifyBtn.title = isTemplateModifyMode
         ? 'Stop editing this template'
         : 'Edit this template in place (affects all elements using it)';
-      modifyBtn.addEventListener('click', () => {
-        element._templateEditMode = isTemplateModifyMode ? 'view' : 'modify';
+      modifyBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         queueFocusRestore();
+        element._templateEditMode = isTemplateModifyMode ? 'view' : 'modify';
         refreshSelectedZone();
       });
 
       const cloneBtn = document.createElement('button');
       cloneBtn.textContent = 'Clone';
       cloneBtn.title = 'Create a copy of this template, rename it, and edit the copy';
-      cloneBtn.addEventListener('click', () => {
+      cloneBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        queueFocusRestore();
         if (!templateBuildup) return;
         if (!demo.meta) demo.meta = {};
         if (!demo.meta.build_up_templates) demo.meta.build_up_templates = {};
@@ -1072,7 +1082,6 @@ export function initRoomEditor(opts) {
         delete element.build_up;
 
         updateTemplateUsageCounts(demo);
-        queueFocusRestore();
         onDataChanged();
         refreshSelectedZone();
       });
@@ -1083,7 +1092,10 @@ export function initRoomEditor(opts) {
       if (isTemplateModifyMode) {
         const addLayerBtn = document.createElement('button');
         addLayerBtn.textContent = 'Add Layer';
-        addLayerBtn.addEventListener('click', () => {
+        addLayerBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          queueFocusRestore();
           const firstMaterial = materialOptions[0] ? materialOptions[0].id : 'plasterboard';
           templateBuildup.push({ material_id: firstMaterial, thickness: 0.0125 });
           onDataChanged();
@@ -1092,7 +1104,10 @@ export function initRoomEditor(opts) {
 
         const addCompositeBtn = document.createElement('button');
         addCompositeBtn.textContent = 'Add Composite Layer';
-        addCompositeBtn.addEventListener('click', () => {
+        addCompositeBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          queueFocusRestore();
           templateBuildup.push({
             type: 'composite',
             thickness: 0.09,
@@ -1114,7 +1129,10 @@ export function initRoomEditor(opts) {
       
       const addLayerBtn = document.createElement('button');
       addLayerBtn.textContent = 'Add Layer';
-      addLayerBtn.addEventListener('click', () => {
+      addLayerBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        queueFocusRestore();
         const firstMaterial = materialOptions[0] ? materialOptions[0].id : 'plasterboard';
         element.build_up.push({ material_id: firstMaterial, thickness: 0.0125 });
         onDataChanged();
@@ -1123,7 +1141,10 @@ export function initRoomEditor(opts) {
 
       const addCompositeBtn = document.createElement('button');
       addCompositeBtn.textContent = 'Add Composite Layer';
-      addCompositeBtn.addEventListener('click', () => {
+      addCompositeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        queueFocusRestore();
         element.build_up.push({
           type: 'composite',
           thickness: 0.09,
@@ -1139,7 +1160,10 @@ export function initRoomEditor(opts) {
       const saveAsTemplateBtn = document.createElement('button');
       saveAsTemplateBtn.textContent = 'Save as template';
       saveAsTemplateBtn.title = 'Create a new build-up template from this configuration';
-      saveAsTemplateBtn.addEventListener('click', () => {
+      saveAsTemplateBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        queueFocusRestore();
         const name = prompt('Enter template name:', `${element.name || 'custom'} build-up`);
         if (name && name.trim()) {
           const newTemplateId = `buo_custom_${Date.now()}`;
@@ -1248,7 +1272,10 @@ export function initRoomEditor(opts) {
     removeBtn.className = 'remove-btn';
     removeBtn.textContent = 'x';
     removeBtn.title = 'Remove layer';
-    removeBtn.addEventListener('click', () => {
+    removeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      queueFocusRestore();
       buildUp.splice(layerIndex, 1);
       onDataChanged();
       refreshSelectedZone();
@@ -1444,7 +1471,10 @@ export function initRoomEditor(opts) {
       removePathBtn.className = 'remove-btn';
       removePathBtn.textContent = 'x';
       removePathBtn.title = 'Remove path';
-      removePathBtn.addEventListener('click', () => {
+      removePathBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        queueFocusRestore();
         layer.paths.splice(pathIndex, 1);
         onDataChanged();
         refreshSelectedZone();
@@ -1646,7 +1676,12 @@ export function initRoomEditor(opts) {
     removeBtn.className = 'remove-btn';
     removeBtn.textContent = 'x';
     removeBtn.title = `Remove ${kind}`;
-    removeBtn.addEventListener('click', config.onRemove);
+    removeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      queueFocusRestore();
+      config.onRemove();
+    });
 
     header.appendChild(left);
     header.appendChild(removeBtn);
