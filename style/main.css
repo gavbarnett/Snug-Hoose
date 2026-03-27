@@ -108,7 +108,9 @@ button:active {
 
 /* Download link */
 a#download {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--input-bg);
   color: var(--accent);
   text-decoration: none;
@@ -118,6 +120,9 @@ a#download {
   transition: all 0.2s ease;
   font-weight: 600;
   font-size: 0.95em;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+  line-height: 1;
 }
 
 a#download:hover {
@@ -131,12 +136,7 @@ a#download:hover {
   font-size: 0.9em;
 }
 
-/* Thermal Visualization */
-.thermal-viz { 
-  margin-top: 3rem;
-  margin-bottom: 3rem;
-}
-
+/* House Metadata */
 .house-metadata {
   background: rgba(0, 212, 255, 0.05);
   border-left: 3px solid var(--accent);
@@ -148,7 +148,37 @@ a#download:hover {
   font-weight: 500;
 }
 
-.thermal-table { 
+/* Two-column content layout */
+.content-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+  transition: grid-template-columns 0.3s ease;
+}
+
+.content-layout.sidebar-hidden {
+  grid-template-columns: 1fr;
+}
+
+.content-layout.sidebar-hidden .content-right {
+  display: none;
+}
+
+.content-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.content-right {
+  display: flex;
+  flex-direction: column;
+  transition: opacity 0.3s ease;
+}
+
+/* Thermal Visualization */
+.thermal-table {  
   width: 100%; 
   border-collapse: collapse; 
   margin-bottom: 1.5rem;
@@ -156,6 +186,7 @@ a#download:hover {
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .thermal-table th, .thermal-table td { 
@@ -232,11 +263,12 @@ pre {
   color: var(--text-light);
   padding: 1.5rem;
   border-radius: 8px;
-  max-height: 50vh; 
+  max-height: 70vh; 
   overflow: auto;
   font-family: 'Courier New', monospace;
-  font-size: 0.9em;
-  line-height: 1.5;
+  font-size: 0.85em;
+  line-height: 1.4;
+  flex: 1;
 }
 
 pre::-webkit-scrollbar {
@@ -270,4 +302,13 @@ pre::-webkit-scrollbar-thumb:hover {
   .zone-name { font-size: 1em; }
   .zone-balance { font-size: 0.85em; }
   .zone-radiator { font-size: 0.75em; }
+  .content-layout {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .sidebar-toggle {
+    width: 32px;
+    height: 32px;
+    font-size: 1em;
+  }
 }

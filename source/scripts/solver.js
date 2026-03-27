@@ -11,6 +11,8 @@ const externalInput = document.getElementById('externalTemp');
 const flowTempInput = document.getElementById('flowTemp');
 const fileUpload = document.getElementById('fileUpload');
 const uploadBtn = document.getElementById('uploadBtn');
+const toggleSidebar = document.getElementById('toggleSidebar');
+const contentLayout = document.querySelector('.content-layout');
 
 let currentMaterials = null;
 let currentRadiators = null;
@@ -122,6 +124,14 @@ fileUpload.addEventListener('change', async (e) => {
     outEl.textContent = 'Error parsing JSON file: ' + String(err);
     console.error(err);
   }
+});
+
+// Sidebar toggle handler
+toggleSidebar.addEventListener('click', () => {
+  contentLayout.classList.toggle('sidebar-hidden');
+  toggleSidebar.setAttribute('title', 
+    contentLayout.classList.contains('sidebar-hidden') ? 'Show panel' : 'Hide panel'
+  );
 });
 
 // Temperature inputs trigger recalculation
