@@ -238,6 +238,7 @@ function triggerSolve() {
     const polygonsByZoneId = collectLayoutPolygonsByZoneId(currentDemo);
     if (Object.keys(polygonsByZoneId).length > 0) {
       reconcileWallElementsFromPolygons(currentDemo, polygonsByZoneId);
+      reconcileInterlevelElementsFromPolygons(currentDemo, polygonsByZoneId);
     }
     solveAndRender(JSON.parse(JSON.stringify(currentDemo)));
   }
@@ -405,6 +406,215 @@ function collectLayoutPolygonsByZoneId(demo) {
   }
 
   return polygonsByZoneId;
+}
+
+function getPolygonIntervalsAtY(polygon, y) {
+  const xs = [];
+  for (let i = 0; i < polygon.length; i++) {
+    const p0 = polygon[i];
+    const p1 = polygon[(i + 1) % polygon.length];
+    if (Math.abs(p0.y - p1.y) < 1e-9) continue;
+    const minY = Math.min(p0.y, p1.y);
+    const maxY = Math.max(p0.y, p1.y);
+    if (y < minY || y >= maxY) continue;
+    const t = (y - p0.y) / (p1.y - p0.y);
+    xs.push(p0.x + t * (p1.x - p0.x));
+  }
+
+  xs.sort((a, b) => a - b);
+  const intervals = [];
+  for (let i = 0; i + 1 < xs.length; i += 2) {
+    const left = xs[i];
+    const right = xs[i + 1];
+    if (right - left > 1e-9) intervals.push([left, right]);
+  }
+  return intervals;
+}
+
+function getIntervalsOverlapLength(aIntervals, bIntervals) {
+  let i = 0;
+  let j = 0;
+  let total = 0;
+  while (i < aIntervals.length && j < bIntervals.length) {
+    const [a0, a1] = aIntervals[i];
+    const [b0, b1] = bIntervals[j];
+    const left = Math.max(a0, b0);
+    const right = Math.min(a1, b1);
+    if (right > left) total += right - left;
+    if (a1 < b1) i += 1;
+    else j += 1;
+  }
+  return total;
+}
+
+function polygonOverlapArea(polyA, polyB) {
+  const ys = [...new Set([...polyA.map(pt => pt.y), ...polyB.map(pt => pt.y)])].sort((a, b) => a - b);
+  let area = 0;
+  for (let i = 0; i + 1 < ys.length; i++) {
+    const y0 = ys[i];
+    const y1 = ys[i + 1];
+    const height = y1 - y0;
+    if (height <= 1e-9) continue;
+    const yMid = (y0 + y1) / 2;
+    const aIntervals = getPolygonIntervalsAtY(polyA, yMid);
+    const bIntervals = getPolygonIntervalsAtY(polyB, yMid);
+    const widthOverlap = getIntervalsOverlapLength(aIntervals, bIntervals);
+    area += widthOverlap * height;
+  }
+  return area;
+}
+
+function makeFloorCeilingId(existingIds, lowerZoneId) {
+  let i = 1;
+  while (true) {
+    const id = `el_${String(lowerZoneId).replace(/[^a-zA-Z0-9]/g, '').slice(-8)}_fc_auto_${i}`;
+    if (!existingIds.has(id)) {
+      existingIds.add(id);
+      return id;
+    }
+    i += 1;
+  }
+}
+
+function canonicalizeInterlevelPair(demo, nodes) {
+  if (!Array.isArray(nodes) || nodes.length < 2) return null;
+  const zoneById = new Map((demo.zones || []).map(zone => [zone.id, zone]));
+  const z0 = zoneById.get(nodes[0]);
+  const z1 = zoneById.get(nodes[1]);
+  if (!z0 || !z1 || z0.type === 'boundary' || z1.type === 'boundary') return null;
+  const l0 = getZoneLevel(z0);
+  const l1 = getZoneLevel(z1);
+  if (Math.abs(l0 - l1) !== 1) return null;
+  return l0 < l1 ? [z0.id, z1.id] : [z1.id, z0.id];
+}
+
+export function reconcileInterlevelElementsFromPolygons(demo, changedPolygonsByZoneId) {
+  if (!demo || !Array.isArray(demo.zones) || !Array.isArray(demo.elements)) return;
+
+  const zoneById = new Map(demo.zones.map(zone => [zone.id, zone]));
+  const polygonsByZone = new Map();
+  for (const zone of demo.zones) {
+    if (!zone || zone.type === 'boundary') continue;
+    const polygon = zone?.layout?.polygon;
+    if (isValidLayoutPolygon(polygon)) {
+      polygonsByZone.set(zone.id, polygon.map(pt => ({ x: Number(pt.x), y: Number(pt.y) })));
+    }
+  }
+
+  const changedZoneIds = Object.keys(changedPolygonsByZoneId || {});
+  const affectedLevels = new Set(
+    changedZoneIds
+      .map(zoneId => zoneById.get(zoneId))
+      .filter(zone => zone && zone.type !== 'boundary')
+      .map(zone => getZoneLevel(zone))
+  );
+
+  if (affectedLevels.size === 0) {
+    for (const zoneId of polygonsByZone.keys()) {
+      const zone = zoneById.get(zoneId);
+      affectedLevels.add(getZoneLevel(zone));
+    }
+  }
+
+  const levelsToProcess = new Set();
+  affectedLevels.forEach(level => {
+    levelsToProcess.add(level - 1);
+    levelsToProcess.add(level);
+    levelsToProcess.add(level + 1);
+  });
+
+  const zonesByLevel = new Map();
+  for (const [zoneId] of polygonsByZone.entries()) {
+    const zone = zoneById.get(zoneId);
+    const level = getZoneLevel(zone);
+    if (!levelsToProcess.has(level)) continue;
+    if (!zonesByLevel.has(level)) zonesByLevel.set(level, []);
+    zonesByLevel.get(level).push(zoneId);
+  }
+
+  const desiredByPair = new Map();
+  const overlapThreshold = 0.02;
+  for (const [level, lowerZoneIds] of zonesByLevel.entries()) {
+    const upperZoneIds = zonesByLevel.get(level + 1) || [];
+    if (upperZoneIds.length === 0) continue;
+    for (const lowerZoneId of lowerZoneIds) {
+      const lowerPoly = polygonsByZone.get(lowerZoneId);
+      if (!lowerPoly) continue;
+      for (const upperZoneId of upperZoneIds) {
+        const upperPoly = polygonsByZone.get(upperZoneId);
+        if (!upperPoly) continue;
+        const overlapArea = polygonOverlapArea(lowerPoly, upperPoly);
+        if (!isFinite(overlapArea) || overlapArea <= overlapThreshold) continue;
+        desiredByPair.set(`${lowerZoneId}|${upperZoneId}`, overlapArea);
+      }
+    }
+  }
+
+  const existingIds = new Set(demo.elements.map(el => el && el.id).filter(Boolean));
+  const candidateElements = demo.elements.filter(element => String(element?.type || '').toLowerCase() === 'floor_ceiling');
+  const existingByPair = new Map();
+  const removals = new Set();
+
+  for (const element of candidateElements) {
+    const pair = canonicalizeInterlevelPair(demo, element.nodes);
+    if (!pair) continue;
+    const [lowerZoneId, upperZoneId] = pair;
+    const lowerLevel = getZoneLevel(zoneById.get(lowerZoneId));
+    if (!levelsToProcess.has(lowerLevel) && !levelsToProcess.has(lowerLevel + 1)) continue;
+    const pairKey = `${lowerZoneId}|${upperZoneId}`;
+    if (!existingByPair.has(pairKey)) existingByPair.set(pairKey, []);
+    existingByPair.get(pairKey).push(element);
+  }
+
+  const additions = [];
+  const fallbackTemplate = candidateElements.find(element => element?.build_up_template_id)?.build_up_template_id || null;
+  const fallbackBuildUp = candidateElements.find(element => Array.isArray(element?.build_up))?.build_up || null;
+
+  for (const [pairKey, area] of desiredByPair.entries()) {
+    const existing = existingByPair.get(pairKey) || [];
+    const [lowerZoneId, upperZoneId] = pairKey.split('|');
+    const areaValue = Number(area.toFixed(3));
+
+    if (existing.length > 0) {
+      const keeper = existing[0];
+      keeper.nodes = [lowerZoneId, upperZoneId];
+      keeper.x = areaValue;
+      keeper.y = 1;
+      keeper._autoLayoutLink = true;
+      for (let i = 1; i < existing.length; i++) {
+        if (existing[i]?.id) removals.add(existing[i].id);
+      }
+      continue;
+    }
+
+    const lowerZone = zoneById.get(lowerZoneId);
+    const upperZone = zoneById.get(upperZoneId);
+    const newElement = {
+      id: makeFloorCeilingId(existingIds, lowerZoneId),
+      name: `${lowerZone?.name || lowerZoneId} - ${upperZone?.name || upperZoneId} Floor/Ceiling`,
+      type: 'floor_ceiling',
+      nodes: [lowerZoneId, upperZoneId],
+      x: areaValue,
+      y: 1,
+      _autoLayoutLink: true,
+    };
+    if (fallbackTemplate) newElement.build_up_template_id = fallbackTemplate;
+    if (!fallbackTemplate && Array.isArray(fallbackBuildUp)) newElement.build_up = JSON.parse(JSON.stringify(fallbackBuildUp));
+    additions.push(newElement);
+  }
+
+  for (const [pairKey, elements] of existingByPair.entries()) {
+    if (desiredByPair.has(pairKey)) continue;
+    elements.forEach(element => {
+      if (element?._autoLayoutLink !== true) return;
+      if (element?.id) removals.add(element.id);
+    });
+  }
+
+  if (additions.length > 0) demo.elements.push(...additions);
+  if (removals.size > 0) {
+    demo.elements = demo.elements.filter(element => !element || !removals.has(element.id));
+  }
 }
 
 function edgeKeyFromPoints(p0, p1) {
