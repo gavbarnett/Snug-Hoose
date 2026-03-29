@@ -359,6 +359,26 @@ a#download:hover {
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.95));
 }
 
+.alt-radiator-line {
+  pointer-events: none;
+  stroke: #ff7f6b;
+  stroke-linecap: round;
+  opacity: 0.95;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.95));
+}
+
+.alt-radiator-label {
+  pointer-events: none;
+  fill: #ffe7dc;
+  font-size: 10px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.8);
+  stroke-width: 2px;
+}
+
 .content-right {
   display: flex;
   flex-direction: column;

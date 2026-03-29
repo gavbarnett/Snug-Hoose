@@ -929,6 +929,33 @@ function updateRenderedZoneGeometry(zoneRenderState, polygon, bounds, scale, pad
       }
     });
   });
+
+  if (Array.isArray(zoneRenderState.radiatorElements)) {
+    const radiatorSegments = computeRadiatorSegments(zoneRenderState.zone, polygon, projected);
+    zoneRenderState.radiatorElements.forEach((line, idx) => {
+      const seg = radiatorSegments[idx];
+      if (!seg) return;
+      line.setAttribute('x1', String(seg.x1));
+      line.setAttribute('y1', String(seg.y1));
+      line.setAttribute('x2', String(seg.x2));
+      line.setAttribute('y2', String(seg.y2));
+      line.setAttribute('stroke-width', String(seg.thickness));
+      line.setAttribute('title', seg.title);
+    });
+  }
+
+  if (Array.isArray(zoneRenderState.radiatorLabelElements)) {
+    const radiatorSegments = computeRadiatorSegments(zoneRenderState.zone, polygon, projected);
+    zoneRenderState.radiatorLabelElements.forEach((label, idx) => {
+      const seg = radiatorSegments[idx];
+      if (!seg) return;
+      const midX = (seg.x1 + seg.x2) / 2;
+      const midY = (seg.y1 + seg.y2) / 2;
+      label.setAttribute('x', String(midX));
+      label.setAttribute('y', String(midY - 8));
+      label.textContent = seg.radiatorType.replace(/^type_/i, '');
+    });
+  }
 }
 
 function highlightDraggedEdges(zoneRenderStateById, affectedEdges, active) {
@@ -1086,6 +1113,139 @@ function computeDoorSwingGeometry(segment, opening, swingDegrees = DOOR_SWING_DE
     openLeafEnd: { x: ox, y: oy },
     arcPath: `M ${closedLeafEnd.x} ${closedLeafEnd.y} A ${r} ${r} 0 0 1 ${ox} ${oy}`
   };
+}
+
+function getRadiatorThicknessForId(radiatorId) {
+  const id = String(radiatorId || '').toLowerCase();
+  if (id.includes('22')) return 9;
+  if (id.includes('21')) return 8;
+  if (id.includes('11')) return 6;
+  if (id.includes('10')) return 5;
+  if (id.includes('type_1') || id.endsWith('_1')) return 4;
+  return 5;
+}
+
+function getRadiatorNominalLengthMeters(radiator) {
+  const widthMm = Number(radiator?.width);
+  if (isFinite(widthMm) && widthMm > 0) {
+    return Math.max(0.3, widthMm / 1000);
+  }
+
+  const area = Number(radiator?.surface_area);
+  if (isFinite(area) && area > 0) {
+    // Heuristic: typical panel height around 0.6m.
+    return Math.max(0.3, area / 0.6);
+  }
+
+  return 0.8;
+}
+
+function chooseRadiatorEdge(polygon) {
+  if (!Array.isArray(polygon) || polygon.length < 2) return null;
+
+  let bestHorizontal = null;
+  let bestHorizontalMidY = -Infinity;
+  let fallbackLongest = null;
+  let fallbackLen = -Infinity;
+
+  for (let i = 0; i < polygon.length; i++) {
+    const p0 = polygon[i];
+    const p1 = polygon[(i + 1) % polygon.length];
+    const dx = p1.x - p0.x;
+    const dy = p1.y - p0.y;
+    const len = Math.hypot(dx, dy);
+    if (!isFinite(len) || len <= 1e-6) continue;
+
+    if (len > fallbackLen) {
+      fallbackLen = len;
+      fallbackLongest = i;
+    }
+
+    if (Math.abs(dx) < Math.abs(dy) || len < 0.35) continue;
+    const midY = (p0.y + p1.y) / 2;
+    if (midY > bestHorizontalMidY) {
+      bestHorizontalMidY = midY;
+      bestHorizontal = i;
+    }
+  }
+
+  return bestHorizontal !== null ? bestHorizontal : fallbackLongest;
+}
+
+function computeRadiatorSegments(zone, polygon, projected) {
+  const radiators = Array.isArray(zone?.radiators) ? zone.radiators : [];
+  if (!Array.isArray(polygon) || !Array.isArray(projected) || radiators.length === 0) return [];
+
+  const edgeIndex = chooseRadiatorEdge(polygon);
+  if (edgeIndex === null || edgeIndex < 0) return [];
+
+  const worldP0 = polygon[edgeIndex];
+  const worldP1 = polygon[(edgeIndex + 1) % polygon.length];
+  const screenP0 = projected[edgeIndex];
+  const screenP1 = projected[(edgeIndex + 1) % projected.length];
+
+  const worldLen = Math.hypot(worldP1.x - worldP0.x, worldP1.y - worldP0.y);
+  const screenLen = Math.hypot(screenP1.x - screenP0.x, screenP1.y - screenP0.y);
+  if (!isFinite(worldLen) || worldLen <= 1e-6 || !isFinite(screenLen) || screenLen <= 1e-6) return [];
+
+  const edgeUx = (screenP1.x - screenP0.x) / screenLen;
+  const edgeUy = (screenP1.y - screenP0.y) / screenLen;
+
+  const centroid = polygonCentroid(polygon);
+  const midX = (screenP0.x + screenP1.x) / 2;
+  const midY = (screenP0.y + screenP1.y) / 2;
+  let normalX = -edgeUy;
+  let normalY = edgeUx;
+  const toCentroidX = centroid.x - ((worldP0.x + worldP1.x) / 2);
+  const toCentroidY = centroid.y - ((worldP0.y + worldP1.y) / 2);
+  const worldEdgeLen = Math.hypot(worldP1.x - worldP0.x, worldP1.y - worldP0.y);
+  const worldEdgeUx = (worldP1.x - worldP0.x) / worldEdgeLen;
+  const worldEdgeUy = (worldP1.y - worldP0.y) / worldEdgeLen;
+  const worldNormalX = -worldEdgeUy;
+  const worldNormalY = worldEdgeUx;
+  if ((toCentroidX * worldNormalX + toCentroidY * worldNormalY) < 0) {
+    normalX *= -1;
+    normalY *= -1;
+  }
+
+  const lengths = radiators.map(r => clamp(getRadiatorNominalLengthMeters(r), 0.35, 2.2));
+  const gap = Math.max(0.12, Math.min(0.25, worldLen * 0.06));
+  const totalGaps = gap * Math.max(0, radiators.length - 1);
+  const maxFill = worldLen * 0.88;
+  const totalLength = lengths.reduce((sum, len) => sum + len, 0);
+  const scale = (totalLength + totalGaps) > maxFill ? (maxFill - totalGaps) / Math.max(totalLength, 1e-6) : 1;
+  const scaledLengths = lengths.map(len => len * clamp(scale, 0.15, 1));
+  const usedLength = scaledLengths.reduce((sum, len) => sum + len, 0) + totalGaps;
+  let cursor = (worldLen - usedLength) / 2;
+  cursor = Math.max(0, cursor);
+
+  const insetPx = 10;
+  const segments = [];
+
+  radiators.forEach((rad, idx) => {
+    const segLen = scaledLengths[idx];
+    const startT = clamp(cursor / worldLen, 0, 1);
+    const endT = clamp((cursor + segLen) / worldLen, 0, 1);
+
+    const sx = lerp(screenP0.x, screenP1.x, startT) + normalX * insetPx;
+    const sy = lerp(screenP0.y, screenP1.y, startT) + normalY * insetPx;
+    const ex = lerp(screenP0.x, screenP1.x, endT) + normalX * insetPx;
+    const ey = lerp(screenP0.y, screenP1.y, endT) + normalY * insetPx;
+
+    segments.push({
+      x1: sx,
+      y1: sy,
+      x2: ex,
+      y2: ey,
+      thickness: getRadiatorThicknessForId(rad?.radiator_id),
+      radiatorType: String(rad?.radiator_id || 'rad'),
+      title: `${rad?.radiator_id || 'radiator'} (${segLen.toFixed(2)}m)`
+    });
+
+    cursor += segLen + gap;
+  });
+
+  return segments;
 }
 
 function getEdgeWallVisualStyle(demo, edgeGroups, polygonMap, zoneId, edgeIndex) {
@@ -1551,6 +1711,32 @@ export function renderAlternativeViz(demo, opts = {}) {
 
     svg.appendChild(text);
 
+    const radiatorElements = [];
+    const radiatorLabelElements = [];
+    const radiatorSegments = computeRadiatorSegments(zone, polygon, projected);
+    radiatorSegments.forEach(seg => {
+      const radiatorLine = document.createElementNS(ns, 'line');
+      radiatorLine.setAttribute('x1', String(seg.x1));
+      radiatorLine.setAttribute('y1', String(seg.y1));
+      radiatorLine.setAttribute('x2', String(seg.x2));
+      radiatorLine.setAttribute('y2', String(seg.y2));
+      radiatorLine.setAttribute('stroke-width', String(seg.thickness));
+      radiatorLine.setAttribute('class', 'alt-radiator-line');
+      radiatorLine.setAttribute('title', seg.title);
+      radiatorElements.push(radiatorLine);
+      svg.appendChild(radiatorLine);
+
+      const radiatorLabel = document.createElementNS(ns, 'text');
+      const midX = (seg.x1 + seg.x2) / 2;
+      const midY = (seg.y1 + seg.y2) / 2;
+      radiatorLabel.setAttribute('x', String(midX));
+      radiatorLabel.setAttribute('y', String(midY - 8));
+      radiatorLabel.setAttribute('class', 'alt-radiator-label');
+      radiatorLabel.textContent = seg.radiatorType.replace(/^type_/i, '');
+      radiatorLabelElements.push(radiatorLabel);
+      svg.appendChild(radiatorLabel);
+    });
+
     const edgeElements = [];
     const edgeVisualElements = [];
     const edgeLabelElements = [];
@@ -1706,6 +1892,9 @@ export function renderAlternativeViz(demo, opts = {}) {
       edgeVisualElements,
       edgeLabelElements,
       edgeOpeningElements,
+      radiatorElements,
+      radiatorLabelElements,
+      zone,
       lineCount: lines.length
     });
   });
