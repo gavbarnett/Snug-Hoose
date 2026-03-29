@@ -215,6 +215,8 @@ async function solveAndRender(demoRaw) {
           zone.layout.polygon = polygon.map(pt => ({ x: Number(pt.x), y: Number(pt.y) }));
         }
 
+        reconcileWallElementsFromPolygons(currentDemo, polygonsByZoneId);
+
         triggerSolve();
       }
     });
@@ -234,6 +236,174 @@ async function solveAndRender(demoRaw) {
 function triggerSolve() {
   if (currentDemo) {
     solveAndRender(JSON.parse(JSON.stringify(currentDemo)));
+  }
+}
+
+function isValidLayoutPolygon(polygon) {
+  return Array.isArray(polygon) && polygon.length >= 3 && polygon.every(pt => pt && isFinite(pt.x) && isFinite(pt.y));
+}
+
+function edgeKeyFromPoints(p0, p1) {
+  const a = `${Number(p0.x).toFixed(4)},${Number(p0.y).toFixed(4)}`;
+  const b = `${Number(p1.x).toFixed(4)},${Number(p1.y).toFixed(4)}`;
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+function getEdgeOrientationFromPolygon(polygon, edgeIndex) {
+  const p0 = polygon[edgeIndex];
+  const p1 = polygon[(edgeIndex + 1) % polygon.length];
+  const midpoint = { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 };
+
+  let cx = 0;
+  let cy = 0;
+  for (const pt of polygon) {
+    cx += pt.x;
+    cy += pt.y;
+  }
+  cx /= polygon.length;
+  cy /= polygon.length;
+
+  const dx = Math.abs(p1.x - p0.x);
+  const dy = Math.abs(p1.y - p0.y);
+  if (dx >= dy) {
+    return midpoint.y < cy ? 'north' : 'south';
+  }
+  return midpoint.x < cx ? 'west' : 'east';
+}
+
+function makeWallId(existingIds, zoneId) {
+  let i = 1;
+  while (true) {
+    const id = `el_${String(zoneId).replace(/[^a-zA-Z0-9]/g, '').slice(-8)}_wall_split_${i}`;
+    if (!existingIds.has(id)) {
+      existingIds.add(id);
+      return id;
+    }
+    i += 1;
+  }
+}
+
+function cloneInheritedWall(source, newId, nodes, orientation, length, zoneName, otherName) {
+  const clone = {
+    id: newId,
+    name: `${zoneName || nodes[0]} - ${otherName || nodes[1]} Wall (split)`,
+    type: 'wall',
+    nodes,
+    orientation,
+    x: Number(length.toFixed(3)),
+    y: typeof source?.y === 'number' ? source.y : 2.4,
+  };
+
+  if (source && source.build_up_template_id) clone.build_up_template_id = source.build_up_template_id;
+  if (source && Array.isArray(source.build_up)) clone.build_up = JSON.parse(JSON.stringify(source.build_up));
+  if (source && source._templateEditMode) clone._templateEditMode = source._templateEditMode;
+
+  return clone;
+}
+
+function reconcileWallElementsFromPolygons(demo, changedPolygonsByZoneId) {
+  if (!demo || !Array.isArray(demo.zones) || !Array.isArray(demo.elements) || !changedPolygonsByZoneId) return;
+
+  const zones = demo.zones;
+  const zoneById = new Map(zones.map(z => [z.id, z]));
+  const polygonByZoneId = new Map();
+  zones.forEach(zone => {
+    const polygon = zone?.layout?.polygon;
+    if (isValidLayoutPolygon(polygon)) polygonByZoneId.set(zone.id, polygon);
+  });
+
+  const edgeRefs = new Map();
+  for (const [zoneId, polygon] of polygonByZoneId.entries()) {
+    for (let i = 0; i < polygon.length; i++) {
+      const p0 = polygon[i];
+      const p1 = polygon[(i + 1) % polygon.length];
+      const key = edgeKeyFromPoints(p0, p1);
+      if (!edgeRefs.has(key)) edgeRefs.set(key, []);
+      edgeRefs.get(key).push({ zoneId, edgeIndex: i });
+    }
+  }
+
+  const boundaryOutside = zones.find(z => z && z.type === 'boundary' && String(z.name || '').toLowerCase() === 'outside')
+    || zones.find(z => z && z.type === 'boundary');
+  const outsideId = boundaryOutside ? boundaryOutside.id : null;
+
+  const existingIds = new Set(demo.elements.map(el => el && el.id).filter(Boolean));
+  const additions = [];
+  const changedZoneIds = Object.keys(changedPolygonsByZoneId || {});
+
+  for (const zoneId of changedZoneIds) {
+    const polygon = polygonByZoneId.get(zoneId);
+    if (!polygon) continue;
+
+    const zone = zoneById.get(zoneId);
+    const zoneWalls = demo.elements.filter(el => {
+      return el && String(el.type || '').toLowerCase() === 'wall' && Array.isArray(el.nodes) && el.nodes.includes(zoneId);
+    });
+
+    const desiredBySignature = new Map();
+    for (let i = 0; i < polygon.length; i++) {
+      const p0 = polygon[i];
+      const p1 = polygon[(i + 1) % polygon.length];
+      const refs = edgeRefs.get(edgeKeyFromPoints(p0, p1)) || [];
+      const adjacentZoneId = refs.find(ref => ref.zoneId !== zoneId)?.zoneId || null;
+      const otherNodeId = adjacentZoneId || outsideId;
+      if (!otherNodeId) continue;
+
+      const orientation = getEdgeOrientationFromPolygon(polygon, i);
+      const length = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+      if (!isFinite(length) || length <= 0.05) continue;
+
+      const signature = `${otherNodeId}|${orientation}`;
+      if (!desiredBySignature.has(signature)) desiredBySignature.set(signature, []);
+      desiredBySignature.get(signature).push({ otherNodeId, orientation, length });
+    }
+
+    const existingBySignature = new Map();
+    for (const wall of zoneWalls) {
+      const otherNodeId = wall.nodes.find(id => id !== zoneId);
+      const orientation = String(wall.orientation || '').toLowerCase();
+      const signature = `${otherNodeId}|${orientation}`;
+      if (!existingBySignature.has(signature)) existingBySignature.set(signature, []);
+      existingBySignature.get(signature).push(wall);
+    }
+
+    for (const [signature, desiredSegments] of desiredBySignature.entries()) {
+      const existingWalls = existingBySignature.get(signature) || [];
+      const [otherNodeId, orientation] = signature.split('|');
+
+      for (let i = 0; i < Math.min(existingWalls.length, desiredSegments.length); i++) {
+        existingWalls[i].x = Number(desiredSegments[i].length.toFixed(3));
+      }
+
+      if (desiredSegments.length > existingWalls.length) {
+        const inheritSource = existingWalls[0]
+          || zoneWalls.find(w => {
+            const other = Array.isArray(w.nodes) ? w.nodes.find(id => id !== zoneId) : null;
+            return other === otherNodeId;
+          })
+          || zoneWalls[0]
+          || null;
+
+        for (let i = existingWalls.length; i < desiredSegments.length; i++) {
+          const seg = desiredSegments[i];
+          const newId = makeWallId(existingIds, zoneId);
+          const otherZone = zoneById.get(seg.otherNodeId);
+          additions.push(cloneInheritedWall(
+            inheritSource,
+            newId,
+            [zoneId, seg.otherNodeId],
+            orientation,
+            seg.length,
+            zone?.name,
+            otherZone?.name
+          ));
+        }
+      }
+    }
+  }
+
+  if (additions.length > 0) {
+    demo.elements.push(...additions);
   }
 }
 

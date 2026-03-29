@@ -242,6 +242,98 @@ function normalizePolygonMapForSharedWalls(polygonMap) {
   return normalized;
 }
 
+function areVectorsParallel(p0, p1, q0, q1, epsilon = 1e-6) {
+  const ax = p1.x - p0.x;
+  const ay = p1.y - p0.y;
+  const bx = q1.x - q0.x;
+  const by = q1.y - q0.y;
+  return Math.abs(ax * by - ay * bx) <= epsilon;
+}
+
+function removeConsecutiveDuplicatePoints(points, epsilon = 1e-6) {
+  if (!Array.isArray(points) || points.length === 0) return [];
+  const out = [];
+  for (const pt of points) {
+    const last = out[out.length - 1];
+    if (!last || !isSamePoint(last, pt, epsilon)) {
+      out.push(pt);
+    }
+  }
+  if (out.length > 1 && isSamePoint(out[0], out[out.length - 1], epsilon)) {
+    out.pop();
+  }
+  return out;
+}
+
+function simplifyCollinearPoints(points, epsilon = 1e-6) {
+  if (!Array.isArray(points) || points.length < 3) return points || [];
+  const out = [];
+  for (let i = 0; i < points.length; i++) {
+    const prev = points[(i - 1 + points.length) % points.length];
+    const curr = points[i];
+    const next = points[(i + 1) % points.length];
+    if (!areVectorsParallel(prev, curr, curr, next, epsilon)) {
+      out.push(curr);
+    }
+  }
+  return out.length >= 3 ? out : points;
+}
+
+function buildOrthogonalPolygonFromMovedEdges(basePolygon, movedEdgeIndices, normal, offset) {
+  if (!Array.isArray(basePolygon) || basePolygon.length < 3) return clonePolygon(basePolygon || []);
+  if (!movedEdgeIndices || movedEdgeIndices.size === 0) return clonePolygon(basePolygon);
+
+  const n = basePolygon.length;
+  const movedVertexIndices = new Set();
+  movedEdgeIndices.forEach(edgeIndex => {
+    movedVertexIndices.add(edgeIndex);
+    movedVertexIndices.add((edgeIndex + 1) % n);
+  });
+
+  const movedPointAt = (vertexIndex) => {
+    const p = basePolygon[vertexIndex];
+    if (!movedVertexIndices.has(vertexIndex)) return { x: p.x, y: p.y };
+    return {
+      x: p.x + normal.x * offset,
+      y: p.y + normal.y * offset
+    };
+  };
+
+  const result = [];
+  for (let vertexIndex = 0; vertexIndex < n; vertexIndex++) {
+    const prevEdgeIndex = (vertexIndex - 1 + n) % n;
+    const nextEdgeIndex = vertexIndex;
+    const prevMoved = movedEdgeIndices.has(prevEdgeIndex);
+    const nextMoved = movedEdgeIndices.has(nextEdgeIndex);
+    const oldPoint = basePolygon[vertexIndex];
+    const newPoint = movedPointAt(vertexIndex);
+
+    const prevEdgeStart = basePolygon[prevEdgeIndex];
+    const prevEdgeEnd = basePolygon[vertexIndex];
+    const nextEdgeStart = basePolygon[vertexIndex];
+    const nextEdgeEnd = basePolygon[(vertexIndex + 1) % n];
+    const isTJunctionSplit = prevMoved !== nextMoved
+      && !isSamePoint(oldPoint, newPoint)
+      && areVectorsParallel(prevEdgeStart, prevEdgeEnd, nextEdgeStart, nextEdgeEnd);
+
+    if (isTJunctionSplit) {
+      if (prevMoved && !nextMoved) {
+        result.push(newPoint);
+        result.push({ x: oldPoint.x, y: oldPoint.y });
+      } else {
+        result.push({ x: oldPoint.x, y: oldPoint.y });
+        result.push(newPoint);
+      }
+      continue;
+    }
+
+    result.push(newPoint);
+  }
+
+  const deduped = removeConsecutiveDuplicatePoints(result);
+  return simplifyCollinearPoints(deduped);
+}
+
 function createEdgeKey(p0, p1) {
   const a = `${Number(p0.x).toFixed(4)},${Number(p0.y).toFixed(4)}`;
   const b = `${Number(p1.x).toFixed(4)},${Number(p1.y).toFixed(4)}`;
@@ -463,6 +555,7 @@ export function renderAlternativeViz(demo, opts = {}) {
       y: worldPt.y - dragState.startWorldPoint.y
     };
     const offset = (delta.x * dragState.normal.x) + (delta.y * dragState.normal.y);
+    dragState.currentOffset = offset;
     const thresholdWorld = DRAG_START_THRESHOLD_PX / dragState.scale;
     if (!dragState.didMove && Math.abs(offset) < thresholdWorld) {
       return;
@@ -496,7 +589,7 @@ export function renderAlternativeViz(demo, opts = {}) {
 
   const finishDrag = () => {
     if (!dragState) return;
-    const { onDataChanged: onDC, zoneIds, affectedEdges, didMove } = dragState;
+    const { onDataChanged: onDC, zoneIds, affectedEdges, didMove, currentOffset = 0 } = dragState;
     if (didMove) {
       highlightDraggedEdges(zoneRenderStateById, affectedEdges, false);
     }
@@ -505,8 +598,22 @@ export function renderAlternativeViz(demo, opts = {}) {
     }
     const changedPolygons = {};
     if (didMove) {
+      const movedEdgesByZone = new Map();
+      affectedEdges.forEach(({ zoneId, edgeIndex }) => {
+        if (!movedEdgesByZone.has(zoneId)) movedEdgesByZone.set(zoneId, new Set());
+        movedEdgesByZone.get(zoneId).add(edgeIndex);
+      });
+
       zoneIds.forEach(zoneId => {
-        changedPolygons[zoneId] = clonePolygon(polygonMap.get(zoneId) || []);
+        const movedEdgeIndices = movedEdgesByZone.get(zoneId) || new Set();
+        const basePolygon = dragState.basePolygonMap.get(zoneId) || [];
+        const orthogonalized = buildOrthogonalPolygonFromMovedEdges(
+          basePolygon,
+          movedEdgeIndices,
+          dragState.normal,
+          currentOffset
+        );
+        changedPolygons[zoneId] = orthogonalized;
       });
     }
     dragState = null;
@@ -621,6 +728,7 @@ export function renderAlternativeViz(demo, opts = {}) {
             basePolygonMap: clonePolygonMap(polygonMap),
             onDataChanged,
             didMove: false,
+            currentOffset: 0,
           };
           handle.classList.remove('is-hover');
         });
