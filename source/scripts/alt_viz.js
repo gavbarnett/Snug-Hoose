@@ -1203,21 +1203,59 @@ function getRadiatorId(radiator, fallbackIndex) {
   return `radiator_${fallbackIndex}`;
 }
 
-function getWallOpeningsForRender(wall) {
+function getWallOpeningsForRender(demo, wall) {
   if (!wall) return [];
   const defaultOwnerZoneId = Array.isArray(wall.nodes) && wall.nodes.length > 0 ? wall.nodes[0] : null;
   const windows = Array.isArray(wall.windows) ? wall.windows : [];
   const doors = Array.isArray(wall.doors) ? wall.doors : [];
+
+  const getOpeningLibrary = (kind) => kind === 'window'
+    ? (Array.isArray(demo?.openings?.windows) ? demo.openings.windows : [])
+    : (Array.isArray(demo?.openings?.doors) ? demo.openings.doors : []);
+
+  const findOpeningUValue = (kind, opening) => {
+    const openingId = kind === 'window' ? opening?.glazing_id : opening?.material_id;
+    const library = getOpeningLibrary(kind);
+    const match = library.find(item => item?.id === openingId);
+    const uValue = Number(match?.u_value);
+    return isFinite(uValue) && uValue > 0 ? uValue : null;
+  };
+
+  const getOpeningThickness = (kind, opening) => {
+    const library = getOpeningLibrary(kind);
+    const rValues = library
+      .map(item => Number(item?.u_value))
+      .filter(uValue => isFinite(uValue) && uValue > 0)
+      .map(uValue => 1 / uValue)
+      .sort((a, b) => a - b);
+
+    const uValue = findOpeningUValue(kind, opening);
+    const rValue = isFinite(uValue) && uValue > 0 ? (1 / uValue) : null;
+    if (!isFinite(rValue) || rValue <= 0) {
+      return kind === 'door' ? 8 : 7;
+    }
+
+    const minR = rValues[0] ?? rValue;
+    const maxR = rValues[rValues.length - 1] ?? rValue;
+    const range = Math.max(maxR - minR, 1e-6);
+    const t = clamp((rValue - minR) / range, 0, 1);
+    const minWidth = kind === 'door' ? 7 : 4;
+    const maxWidth = kind === 'door' ? 13 : 15;
+    return Number(lerp(minWidth, maxWidth, t).toFixed(2));
+  };
+
   return [
     ...windows.map(opening => ({
       kind: 'window',
       opening,
-      ownerZoneId: opening?.zone_id || defaultOwnerZoneId
+      ownerZoneId: opening?.zone_id || defaultOwnerZoneId,
+      thickness: getOpeningThickness('window', opening)
     })),
     ...doors.map(opening => ({
       kind: 'door',
       opening,
-      ownerZoneId: opening?.zone_id || defaultOwnerZoneId
+      ownerZoneId: opening?.zone_id || defaultOwnerZoneId,
+      thickness: getOpeningThickness('door', opening)
     }))
   ];
 }
@@ -1321,14 +1359,16 @@ function findNearestWallDropTarget(demo, polygonMap, edgeGroups, zoneId, worldPo
   return best;
 }
 
-function getRadiatorThicknessForId(radiatorId) {
-  const id = String(radiatorId || '').toLowerCase();
-  if (id.includes('22')) return 9;
-  if (id.includes('21')) return 8;
-  if (id.includes('11')) return 6;
-  if (id.includes('10')) return 5;
-  if (id.includes('type_1') || id.endsWith('_1')) return 4;
-  return 5;
+function getRadiatorThicknessForId(demo, radiatorId) {
+  const radiators = Array.isArray(demo?.radiators?.radiators) ? demo.radiators.radiators : [];
+  const match = radiators.find(item => item?.id === radiatorId);
+  const coeff = Number(match?.heat_transfer_coefficient);
+  if (!isFinite(coeff) || coeff <= 0) return 5;
+
+  const minCoeff = 5;
+  const maxCoeff = 10;
+  const t = clamp((coeff - minCoeff) / (maxCoeff - minCoeff), 0, 1);
+  return Number(lerp(4, 11, t).toFixed(2));
 }
 
 function getRadiatorNominalLengthMeters(radiator) {
@@ -1397,7 +1437,7 @@ function getRadiatorPositionRatio(radiator) {
   return null;
 }
 
-function computeRadiatorSegmentForPlacement(radiator, worldP0, worldP1, screenP0, screenP1, positionRatio) {
+function computeRadiatorSegmentForPlacement(demo, radiator, worldP0, worldP1, screenP0, screenP1, positionRatio) {
   const worldLen = Math.hypot(worldP1.x - worldP0.x, worldP1.y - worldP0.y);
   const screenLen = Math.hypot(screenP1.x - screenP0.x, screenP1.y - screenP0.y);
   if (!isFinite(worldLen) || worldLen <= 1e-6 || !isFinite(screenLen) || screenLen <= 1e-6) return null;
@@ -1419,7 +1459,7 @@ function computeRadiatorSegmentForPlacement(radiator, worldP0, worldP1, screenP0
     y1: lerp(screenP0.y, screenP1.y, startT) + normalY * insetPx,
     x2: lerp(screenP0.x, screenP1.x, endT) + normalX * insetPx,
     y2: lerp(screenP0.y, screenP1.y, endT) + normalY * insetPx,
-    thickness: getRadiatorThicknessForId(radiator?.radiator_id),
+    thickness: getRadiatorThicknessForId(demo, radiator?.radiator_id),
     radiatorType: String(radiator?.radiator_id || 'rad'),
     title: `${radiator?.radiator_id || 'radiator'} (${segmentLength.toFixed(2)}m)`,
     positionRatio: centerRatio
@@ -1466,7 +1506,7 @@ function computeRadiatorSegments(demo, edgeGroups, polygonMap, zone, polygon, pr
     });
 
     explicit.forEach(entry => {
-      const segment = computeRadiatorSegmentForPlacement(entry.rad, worldP0, worldP1, screenP0, screenP1, entry.ratio);
+      const segment = computeRadiatorSegmentForPlacement(demo, entry.rad, worldP0, worldP1, screenP0, screenP1, entry.ratio);
       if (segment) {
         segment.edgeIndex = edgeIndex;
         segments[entry.radiatorIndex] = segment;
@@ -1758,6 +1798,7 @@ export function renderAlternativeViz(demo, opts = {}) {
               position_ratio: nearest.targetPositionRatio
             };
             const previewSegment = computeRadiatorSegmentForPlacement(
+              demo,
               previewRadiator,
               nearest.worldP0,
               nearest.worldP1,
@@ -2229,7 +2270,7 @@ export function renderAlternativeViz(demo, opts = {}) {
 
       const openingsOnEdge = [];
       if (shouldRenderOpeningsForWallEdge(wallElement, zone.id)) {
-        getWallOpeningsForRender(wallElement).forEach(({ kind, opening, ownerZoneId }, openingIndex) => {
+        getWallOpeningsForRender(demo, wallElement).forEach(({ kind, opening, ownerZoneId, thickness }, openingIndex) => {
         if (ownerZoneId && ownerZoneId !== zone.id) return;
         const segment = computeOpeningSegmentOnEdge(opening, worldP0, worldP1, p0, p1);
         if (!segment) return;
@@ -2239,6 +2280,7 @@ export function renderAlternativeViz(demo, opts = {}) {
         openingLine.setAttribute('x2', String(segment.x2));
         openingLine.setAttribute('y2', String(segment.y2));
         openingLine.setAttribute('class', kind === 'door' ? 'alt-opening-line alt-opening-door' : 'alt-opening-line alt-opening-window');
+        openingLine.setAttribute('stroke-width', String(thickness));
         let openingArc = null;
         let openingLeaf = null;
         if (kind === 'door') {
