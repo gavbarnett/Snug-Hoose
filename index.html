@@ -31,8 +31,17 @@
 
   <div class="content-layout">
     <div class="content-left">
-      <h4>Heating Balance by Floor</h4>
-      <div id="thermal-container"></div>
+      <h4>Visualization</h4>
+      <div class="viz-tabs">
+        <button id="heatMapTab" class="tab-button active">Heating Balance</button>
+        <button id="altVizTab" class="tab-button">Alternative View</button>
+      </div>
+      <div id="heatMapPanel" class="viz-panel active">
+        <div id="thermal-container"></div>
+      </div>
+      <div id="altVizPanel" class="viz-panel">
+        <div id="alt-viz-container" class="alt-viz-empty"></div>
+      </div>
     </div>
     <div class="content-right">
       <div class="editor-tabs">

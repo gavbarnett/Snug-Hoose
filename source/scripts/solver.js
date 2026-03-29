@@ -188,8 +188,31 @@ function triggerSolve() {
   }
 }
 
+function initVizTabs() {
+  const heatMapTab = document.getElementById('heatMapTab');
+  const altVizTab = document.getElementById('altVizTab');
+  const heatMapPanel = document.getElementById('heatMapPanel');
+  const altVizPanel = document.getElementById('altVizPanel');
+
+  if (!heatMapTab || !altVizTab || !heatMapPanel || !altVizPanel) return;
+
+  const showPanel = (panelName) => {
+    const showHeatMap = panelName === 'heat';
+
+    heatMapTab.classList.toggle('active', showHeatMap);
+    altVizTab.classList.toggle('active', !showHeatMap);
+    heatMapPanel.classList.toggle('active', showHeatMap);
+    altVizPanel.classList.toggle('active', !showHeatMap);
+  };
+
+  heatMapTab.addEventListener('click', () => showPanel('heat'));
+  altVizTab.addEventListener('click', () => showPanel('alt'));
+}
+
 // Load and initialize on page load
 window.addEventListener('load', async () => {
+  initVizTabs();
+
   appUiApi = initAppUi({
     onSolveRequested: triggerSolve,
     onUploadDemo: (uploadedDemo) => {

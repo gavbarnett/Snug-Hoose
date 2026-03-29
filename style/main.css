@@ -171,6 +171,27 @@ a#download:hover {
   flex-direction: column;
 }
 
+.viz-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1rem;
+}
+
+.viz-panel {
+  display: none;
+}
+
+.viz-panel.active {
+  display: block;
+}
+
+.alt-viz-empty {
+  min-height: 420px;
+  border: 1px dashed var(--input-border);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(0, 212, 255, 0.03) 0%, rgba(0, 0, 0, 0.08) 100%);
+}
+
 .content-right {
   display: flex;
   flex-direction: column;
