@@ -8,6 +8,17 @@
     },
     "note": "Radiator wattage calculation: Q = heat_transfer_coefficient * surface_area * (flow_temperature - indoor_temperature). Surface area is the total radiator surface area (panels + convectors)."
   },
+  "standard_widths_mm": [
+    400,
+    600,
+    800,
+    1000,
+    1200,
+    1400,
+    1600,
+    1800,
+    2000
+  ],
   "radiators": [
     {
       "id": "type_1",

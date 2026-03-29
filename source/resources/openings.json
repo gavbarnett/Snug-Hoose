@@ -4,6 +4,48 @@
 		"dimensions": "mm",
 		"area": "m²"
 	},
+	"standard_sizes": {
+		"windows": [
+			{
+				"width": 600,
+				"height": 600
+			},
+			{
+				"width": 900,
+				"height": 900
+			},
+			{
+				"width": 1200,
+				"height": 1200
+			},
+			{
+				"width": 1500,
+				"height": 1200
+			},
+			{
+				"width": 1800,
+				"height": 1200
+			}
+		],
+		"doors": [
+			{
+				"width": 762,
+				"height": 1981
+			},
+			{
+				"width": 838,
+				"height": 1981
+			},
+			{
+				"width": 915,
+				"height": 1981
+			},
+			{
+				"width": 926,
+				"height": 2040
+			}
+		]
+	},
 	"windows": [
 		{
 			"id": "window_single",

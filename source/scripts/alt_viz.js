@@ -442,22 +442,52 @@ function buildAltVizMenuSpec(context = {}) {
   const canRedo = !!context.canRedo;
   const selectedZoneId = context.selectedZoneId || null;
   const canDeleteRoom = !!selectedZoneId;
-  const windowSizes = [
-    { label: '600 x 600 mm', width: 600, height: 600 },
-    { label: '900 x 900 mm', width: 900, height: 900 },
-    { label: '1200 x 1200 mm', width: 1200, height: 1200 },
-    { label: '1500 x 1200 mm', width: 1500, height: 1200 },
-    { label: '1800 x 1200 mm', width: 1800, height: 1200 }
+  const defaultWindowSizes = [
+    { width: 600, height: 600 },
+    { width: 900, height: 900 },
+    { width: 1200, height: 1200 },
+    { width: 1500, height: 1200 },
+    { width: 1800, height: 1200 }
   ];
-
-  const doorSizes = [
-    { label: '762 x 1981 mm', width: 762, height: 1981 },
-    { label: '838 x 1981 mm', width: 838, height: 1981 },
-    { label: '915 x 1981 mm', width: 915, height: 1981 },
-    { label: '926 x 2040 mm', width: 926, height: 2040 }
+  const defaultDoorSizes = [
+    { width: 762, height: 1981 },
+    { width: 838, height: 1981 },
+    { width: 915, height: 1981 },
+    { width: 926, height: 2040 }
   ];
+  const defaultRadiatorWidths = [400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000];
 
-  const radiatorWidths = [400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000];
+  const openingsLibrary = demo?.openings || {};
+  const standardSizes = openingsLibrary?.standard_sizes || {};
+
+  const toSizeOption = (entry) => {
+    if (!entry || typeof entry !== 'object') return null;
+    const width = Number(entry.width);
+    const height = Number(entry.height);
+    if (!isFinite(width) || !isFinite(height) || width <= 0 || height <= 0) return null;
+    return {
+      label: entry.label || `${Math.round(width)} x ${Math.round(height)} mm`,
+      width: Math.round(width),
+      height: Math.round(height)
+    };
+  };
+
+  const windowSizes = (Array.isArray(standardSizes.windows) && standardSizes.windows.length > 0
+    ? standardSizes.windows
+    : defaultWindowSizes
+  ).map(toSizeOption).filter(Boolean);
+
+  const doorSizes = (Array.isArray(standardSizes.doors) && standardSizes.doors.length > 0
+    ? standardSizes.doors
+    : defaultDoorSizes
+  ).map(toSizeOption).filter(Boolean);
+
+  const radiatorWidths = (Array.isArray(demo?.radiators?.standard_widths_mm) && demo.radiators.standard_widths_mm.length > 0
+    ? demo.radiators.standard_widths_mm
+    : defaultRadiatorWidths
+  )
+    .map(value => Math.round(Number(value)))
+    .filter(value => isFinite(value) && value > 0);
 
   const mapWindowSizeItems = (glazingId) => windowSizes.map(size => ({
     label: size.label,
@@ -477,7 +507,6 @@ function buildAltVizMenuSpec(context = {}) {
     payload: { width, trvEnabled, radiatorId }
   }));
 
-  const openingsLibrary = demo?.openings || {};
   const windowLibrary = Array.isArray(openingsLibrary.windows)
     ? openingsLibrary.windows
     : [];
@@ -489,55 +518,42 @@ function buildAltVizMenuSpec(context = {}) {
     ? demo.radiators.radiators
     : [];
 
-  const radiatorTypeMenus = (radiatorLibrary.length > 0
-    ? radiatorLibrary
-    : [
-        { id: 'type_1', name: 'Type 1' },
-        { id: 'type_11', name: 'Type 11' },
-        { id: 'type_22', name: 'Type 22' },
-        { id: 'type_33', name: 'Type 33' }
-      ]
-  ).map(type => ({
-    label: type.name || type.id,
-    items: mapRadiatorSizeItems(false, type.id)
-  }));
+  const mapTypesToMenu = (types, itemMapper, emptyLabel) => {
+    if (!Array.isArray(types) || types.length === 0) {
+      return [{
+        label: emptyLabel,
+        disabled: true
+      }];
+    }
+    return types.map(type => ({
+      label: type.name || type.id,
+      items: itemMapper(type.id)
+    }));
+  };
 
-  const radiatorTypeMenusWithTrv = (radiatorLibrary.length > 0
-    ? radiatorLibrary
-    : [
-        { id: 'type_1', name: 'Type 1' },
-        { id: 'type_11', name: 'Type 11' },
-        { id: 'type_22', name: 'Type 22' },
-        { id: 'type_33', name: 'Type 33' }
-      ]
-  ).map(type => ({
-    label: type.name || type.id,
-    items: mapRadiatorSizeItems(true, type.id)
-  }));
+  const radiatorTypeMenus = mapTypesToMenu(
+    radiatorLibrary,
+    (radiatorId) => mapRadiatorSizeItems(false, radiatorId),
+    'No radiator types loaded'
+  );
 
-  const windowGlazingMenus = (windowLibrary.length > 0
-    ? windowLibrary
-    : [
-        { id: 'window_single', name: 'Single Glazing' },
-        { id: 'window_double_modern', name: 'Double Glazing (Modern)' },
-        { id: 'window_triple', name: 'Triple Glazing' }
-      ]
-  ).map(glazing => ({
-    label: glazing.name || glazing.id,
-    items: mapWindowSizeItems(glazing.id)
-  }));
+  const radiatorTypeMenusWithTrv = mapTypesToMenu(
+    radiatorLibrary,
+    (radiatorId) => mapRadiatorSizeItems(true, radiatorId),
+    'No radiator types loaded'
+  );
 
-  const doorMaterialMenus = (doorLibrary.length > 0
-    ? doorLibrary
-    : [
-        { id: 'door_pvc_insulated', name: 'PVC Insulated Door' },
-        { id: 'door_wood_solid', name: 'Solid Wood Door' },
-        { id: 'door_steel_insulated', name: 'Insulated Steel Door' }
-      ]
-  ).map(material => ({
-    label: material.name || material.id,
-    items: mapDoorSizeItems(material.id)
-  }));
+  const windowGlazingMenus = mapTypesToMenu(
+    windowLibrary,
+    (glazingId) => mapWindowSizeItems(glazingId),
+    'No window types loaded'
+  );
+
+  const doorMaterialMenus = mapTypesToMenu(
+    doorLibrary,
+    (materialId) => mapDoorSizeItems(materialId),
+    'No door types loaded'
+  );
 
   return [
     {
