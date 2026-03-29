@@ -2168,6 +2168,22 @@ export function renderAlternativeViz(demo, opts = {}) {
   const onDataChanged = typeof opts.onDataChanged === 'function' ? opts.onDataChanged : null;
   const onMenuAction = typeof opts.onMenuAction === 'function' ? opts.onMenuAction : null;
 
+  const requestAddRoomAt = (x, y, level) => {
+    if (typeof onMenuAction !== 'function') return;
+    onMenuAction(
+      'structure.add.room.at',
+      {
+        action: 'structure.add.room.at',
+        payload: { x, y, level }
+      },
+      {
+        demo,
+        selectedZoneId,
+        selectedLevel
+      }
+    );
+  };
+
   root.innerHTML = '';
 
   const rooms = getRoomZones(demo);
@@ -2222,6 +2238,36 @@ export function renderAlternativeViz(demo, opts = {}) {
 
   const levelRooms = rooms.filter(z => (typeof z.level === 'number' ? z.level : 0) === selectedLevel);
   if (levelRooms.length === 0) {
+    const emptyWrap = document.createElement('div');
+    emptyWrap.className = 'alt-viz-svg-wrap';
+
+    const emptySvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    emptySvg.setAttribute('class', 'alt-viz-svg');
+    emptySvg.setAttribute('viewBox', '0 0 1000 700');
+    emptySvg.setAttribute('role', 'img');
+    emptySvg.setAttribute('aria-label', `Empty level ${selectedLevel} floor map`);
+
+    const emptyBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    emptyBg.setAttribute('x', '0');
+    emptyBg.setAttribute('y', '0');
+    emptyBg.setAttribute('width', '1000');
+    emptyBg.setAttribute('height', '700');
+    emptyBg.setAttribute('fill', 'rgba(18, 24, 34, 0.35)');
+    emptySvg.appendChild(emptyBg);
+
+    emptySvg.addEventListener('dblclick', (e) => {
+      if (e.target !== emptySvg && e.target !== emptyBg) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const svgPt = getSVGPoint(emptySvg, e);
+      // Map empty canvas coordinates into the same rough world scale used by default polygons.
+      const worldX = Number((svgPt.x / 100).toFixed(3));
+      const worldY = Number((svgPt.y / 100).toFixed(3));
+      requestAddRoomAt(worldX, worldY, selectedLevel);
+    });
+
+    emptyWrap.appendChild(emptySvg);
+    root.appendChild(emptyWrap);
     renderEmptyMessage(root, 'No rooms on selected level.');
     return;
   }
@@ -2350,6 +2396,15 @@ export function renderAlternativeViz(demo, opts = {}) {
   svg.setAttribute('viewBox', `0 0 ${canvasW} ${canvasH}`);
   svg.setAttribute('role', 'img');
   svg.setAttribute('aria-label', `Alternative polygon room view for level ${selectedLevel}`);
+  svg.addEventListener('dblclick', (e) => {
+    if (e.target !== svg) return;
+    if (dragState || roomDragState || objectDragState) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const svgPt = getSVGPoint(svg, e);
+    const worldPt = svgPointToWorld(svgPt, bounds, scale, pad);
+    requestAddRoomAt(worldPt.x, worldPt.y, selectedLevel);
+  });
 
   let ghostGroup = null;
   if (ghostEntries.length > 0) {

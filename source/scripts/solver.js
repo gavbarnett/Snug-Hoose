@@ -184,7 +184,7 @@ function ensureRoomHorizontalElements(demo, zone, polygon) {
   }
 }
 
-function createRoomOnLevel(demo, level, namePrefix = 'Room') {
+function createRoomOnLevel(demo, level, namePrefix = 'Room', opts = {}) {
   if (!demo) return null;
   if (!Array.isArray(demo.zones)) demo.zones = [];
   if (!Array.isArray(demo.elements)) demo.elements = [];
@@ -192,6 +192,19 @@ function createRoomOnLevel(demo, level, namePrefix = 'Room') {
   const roomCount = getRoomZones(demo).length + 1;
   const zoneId = generateId('id');
   const polygon = createDefaultRoomPolygon(demo, level);
+  const centerX = Number(opts.centerX);
+  const centerY = Number(opts.centerY);
+  if (isFinite(centerX) && isFinite(centerY) && Array.isArray(polygon) && polygon.length >= 4) {
+    const bounds = polygonBounds(polygon);
+    const currentCenterX = (bounds.minX + bounds.maxX) / 2;
+    const currentCenterY = (bounds.minY + bounds.maxY) / 2;
+    const dx = centerX - currentCenterX;
+    const dy = centerY - currentCenterY;
+    polygon.forEach(pt => {
+      pt.x = Number((pt.x + dx).toFixed(3));
+      pt.y = Number((pt.y + dy).toFixed(3));
+    });
+  }
   const zone = {
     id: zoneId,
     name: `${namePrefix} ${roomCount}`,
@@ -492,6 +505,22 @@ function handleAltVizMenuAction(action, item, context = {}) {
         ? (getZoneById(currentDemo, selectedZoneId)?.level ?? selectedLevel)
         : selectedLevel;
       const zone = createRoomOnLevel(currentDemo, level, 'Room');
+      triggerSolve();
+      if (zone) {
+        lastFocusedZoneId = zone.id;
+        if (roomEditorApi?.focusZone) roomEditorApi.focusZone(zone.id);
+      }
+      return;
+    }
+    case 'structure.add.room.at': {
+      if (!currentDemo) return;
+      const level = Number.isFinite(payload.level)
+        ? payload.level
+        : (selectedZoneId ? (getZoneById(currentDemo, selectedZoneId)?.level ?? selectedLevel) : selectedLevel);
+      const zone = createRoomOnLevel(currentDemo, level, 'Room', {
+        centerX: Number(payload.x),
+        centerY: Number(payload.y)
+      });
       triggerSolve();
       if (zone) {
         lastFocusedZoneId = zone.id;
