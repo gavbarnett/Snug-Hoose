@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { findMaterial, openingUfromMaterial, computeElementU } from '../source/scripts/u_value_calculator.js';
 
 const materials = [
@@ -6,6 +7,18 @@ const materials = [
   { id: 'rockwool',       name: 'Rockwool',        thermal_conductivity: 0.04 },
   { id: 'double_glazing', name: 'Double Glazing',  u_value: 1.4               },
 ];
+
+const demoHouse = JSON.parse(
+  readFileSync(new URL('../source/resources/demo_house.json', import.meta.url), 'utf8')
+);
+const demoMaterials = JSON.parse(
+  readFileSync(new URL('../source/resources/insulation.json', import.meta.url), 'utf8')
+).materials;
+
+function totalRValueFromElement(elem) {
+  if (!elem || typeof elem.u_fabric !== 'number' || elem.u_fabric <= 0) return null;
+  return 1 / elem.u_fabric;
+}
 
 // ---------------------------------------------------------------------------
 // findMaterial
@@ -126,5 +139,123 @@ describe('computeElementU', () => {
     computeElementU(elem, materials);
     expect(elem.u_overall).toBe(0);
     expect(elem.thermal_conductance).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Total R-value resolution for stack-ups
+// ---------------------------------------------------------------------------
+describe('Total R-value resolution for stack-ups', () => {
+  it('resolves a multi-layer wall stack-up to expected total R-value', () => {
+    // R_total = 0.0125/0.21 + 0.1/0.7 + 0.0125/0.21 = 0.2619...
+    const elem = {
+      type: 'wall',
+      x: 1,
+      y: 1,
+      build_up: [
+        { material_id: 'plasterboard', thickness: 0.0125 },
+        { material_id: 'blockwork', thickness: 0.1 },
+        { material_id: 'plasterboard', thickness: 0.0125 },
+      ],
+    };
+
+    computeElementU(elem, demoMaterials);
+    const rTotal = totalRValueFromElement(elem);
+
+    expect(rTotal).not.toBeNull();
+    expect(rTotal).toBeCloseTo(0.2619, 3);
+  });
+
+  it('resolves a composite wall cavity stack-up to expected total R-value', () => {
+    // Composite layer equivalent R at 90mm using parallel heat-flow paths:
+    // R_comp = 1 / (0.15/(0.09/0.13) + 0.85/(0.09/0.022))
+    // R_total = R_plasterboard + R_comp + R_pir_50mm + R_blockwork
+    const expectedRTotal =
+      (0.0125 / 0.21) +
+      (1 / ((0.15 / (0.09 / 0.13)) + (0.85 / (0.09 / 0.022)))) +
+      (0.05 / 0.022) +
+      (0.1 / 0.7);
+
+    const elem = {
+      type: 'wall',
+      x: 1,
+      y: 1,
+      build_up: [
+        { material_id: 'plasterboard', thickness: 0.0125 },
+        {
+          type: 'composite',
+          thickness: 0.09,
+          paths: [
+            { material_id: 'stud_wood', fraction: 0.15 },
+            { material_id: 'pir', fraction: 0.85 },
+          ],
+        },
+        { material_id: 'pir', thickness: 0.05 },
+        { material_id: 'blockwork', thickness: 0.1 },
+      ],
+    };
+
+    computeElementU(elem, demoMaterials);
+    const rTotal = totalRValueFromElement(elem);
+
+    expect(rTotal).not.toBeNull();
+    expect(rTotal).toBeCloseTo(expectedRTotal, 3);
+  });
+
+  it('resolves a floor stack-up with composite joist cavity', () => {
+    // R_comp = 1 / (0.15/(0.15/0.13) + 0.85/(0.15/0.038))
+    // R_total = R_plywood + R_comp + R_xps_100mm
+    const expectedRTotal =
+      (0.018 / 0.13) +
+      (1 / ((0.15 / (0.15 / 0.13)) + (0.85 / (0.15 / 0.038)))) +
+      (0.1 / 0.029);
+
+    const elem = {
+      type: 'floor',
+      x: 1,
+      y: 1,
+      build_up: [
+        { material_id: 'plywood', thickness: 0.018 },
+        {
+          type: 'composite',
+          thickness: 0.15,
+          paths: [
+            { material_id: 'joist_wood', fraction: 0.15 },
+            { material_id: 'rockwool', fraction: 0.85 },
+          ],
+        },
+        { material_id: 'xps', thickness: 0.1 },
+      ],
+    };
+
+    computeElementU(elem, demoMaterials);
+    const rTotal = totalRValueFromElement(elem);
+
+    expect(rTotal).not.toBeNull();
+    expect(rTotal).toBeCloseTo(expectedRTotal, 2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Demo Hoose validation
+// ---------------------------------------------------------------------------
+describe('Demo Hoose wall/floor/ceiling R-value coverage', () => {
+  it('resolves total R-value for all walls, floors and ceilings in demo_house', () => {
+    const templates = demoHouse.meta?.build_up_templates || {};
+    const candidates = (demoHouse.elements || []).filter(e =>
+      e && ['wall', 'floor', 'ceiling', 'floor_ceiling'].includes(e.type)
+    );
+
+    expect(candidates.length).toBeGreaterThan(0);
+
+    for (const srcElem of candidates) {
+      const elem = JSON.parse(JSON.stringify(srcElem));
+      expect(() => computeElementU(elem, demoMaterials, templates)).not.toThrow();
+
+      const rTotal = totalRValueFromElement(elem);
+      expect(rTotal).not.toBeNull();
+      expect(Number.isFinite(rTotal)).toBe(true);
+      expect(rTotal).toBeGreaterThan(0);
+    }
   });
 });

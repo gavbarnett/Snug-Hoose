@@ -1857,7 +1857,19 @@ export function initRoomEditor(opts) {
 
   function formatElementRDisplay(element) {
     const materialLookup = getBuildUpMaterialLookup();
-    const buildUp = Array.isArray(element.build_up) ? element.build_up : [];
+    let buildUp = Array.isArray(element.build_up) ? element.build_up : [];
+
+    if (buildUp.length === 0 && element && element.build_up_template_id) {
+      const demo = getDemo ? getDemo() : null;
+      const templates = demo && demo.meta && demo.meta.build_up_templates
+        ? demo.meta.build_up_templates
+        : null;
+      const template = templates ? templates[element.build_up_template_id] : null;
+      if (template && Array.isArray(template.build_up)) {
+        buildUp = template.build_up;
+      }
+    }
+
     if (buildUp.length === 0) return null;
 
     let totalR = 0;
