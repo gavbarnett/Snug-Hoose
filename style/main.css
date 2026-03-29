@@ -202,6 +202,48 @@ a#download:hover {
   z-index: 10;
 }
 
+.alt-viz-project-summary {
+  border: 1px solid rgba(0, 212, 255, 0.35);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.12), rgba(0, 212, 255, 0.05));
+  margin-bottom: 0.65rem;
+  padding: 0.55rem 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.alt-viz-project-name {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--text-light);
+}
+
+.alt-viz-project-epc {
+  min-width: 220px;
+}
+
+.alt-viz-project-epc-summary {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-light);
+  margin-bottom: 0.2rem;
+  text-align: left;
+}
+
+.alt-viz-project-epc-scale {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.14rem;
+}
+
+.alt-viz-project-epc-scale .epc-chip {
+  font-size: 0.58rem;
+  padding: 0.11rem 0;
+}
+
 .alt-env-strip {
   border: 1px solid var(--input-border);
   border-radius: 8px;
@@ -403,6 +445,35 @@ a#download:hover {
   font-size: 0.72rem;
   color: var(--text-muted);
   text-align: left;
+}
+
+.alt-viz-level-mini-epc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.alt-viz-level-mini-epc-summary {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-light);
+  text-align: left;
+}
+
+.alt-viz-level-mini-epc-scale {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.12rem;
+}
+
+.alt-viz-level-mini-epc-scale .epc-chip {
+  font-size: 0.52rem;
+  padding: 0.1rem 0;
+}
+
+.alt-viz-level-mini-epc-scale .epc-chip.active {
+  font-size: 0.62rem;
+  padding: 0.14rem 0;
 }
 
 @media (max-width: 860px) {

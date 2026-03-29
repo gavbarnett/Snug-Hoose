@@ -123,6 +123,141 @@ function renderLegend(container) {
   container.appendChild(legend);
 }
 
+function getEpcBand(intensityKwhM2Yr) {
+  if (typeof intensityKwhM2Yr !== 'number' || !isFinite(intensityKwhM2Yr)) return 'N/A';
+  if (intensityKwhM2Yr <= 50) return 'A';
+  if (intensityKwhM2Yr <= 90) return 'B';
+  if (intensityKwhM2Yr <= 150) return 'C';
+  if (intensityKwhM2Yr <= 230) return 'D';
+  if (intensityKwhM2Yr <= 330) return 'E';
+  if (intensityKwhM2Yr <= 450) return 'F';
+  return 'G';
+}
+
+function computeZoneEpcEstimate(zone) {
+  const deliveredPerM2 = typeof zone?.delivered_heat_per_unit_area === 'number'
+    ? zone.delivered_heat_per_unit_area
+    : (typeof zone?.heat_loss_per_unit_area === 'number' ? zone.heat_loss_per_unit_area : null);
+
+  if (deliveredPerM2 === null || !isFinite(deliveredPerM2)) {
+    return { letter: 'N/A', intensityKwhM2Yr: null };
+  }
+
+  const intensityKwhM2Yr = Math.max(0, (deliveredPerM2 * 24 * 365) / 1000);
+  return {
+    letter: getEpcBand(intensityKwhM2Yr),
+    intensityKwhM2Yr
+  };
+}
+
+function computeWholeHouseEpcEstimate(rooms) {
+  const conditioned = (Array.isArray(rooms) ? rooms : []).filter(zone => zone && zone.is_unheated !== true);
+  if (conditioned.length === 0) {
+    return {
+      letter: 'N/A',
+      intensityKwhM2Yr: null,
+      annualHeatingDemandKwhYr: null
+    };
+  }
+
+  const totalDeliveredHeatW = conditioned.reduce((sum, zone) => {
+    const deliveredHeat = typeof zone.delivered_heat === 'number'
+      ? zone.delivered_heat
+      : (typeof zone.heat_loss === 'number' ? zone.heat_loss : 0);
+    return sum + deliveredHeat;
+  }, 0);
+
+  const totalFloorArea = conditioned.reduce((sum, zone) => {
+    const area = typeof zone.floor_area === 'number' && zone.floor_area > 0 ? zone.floor_area : 0;
+    return sum + area;
+  }, 0);
+
+  const annualHeatingDemand = Math.max(0, (totalDeliveredHeatW * 24 * 365) / 1000);
+  const intensityKwhM2Yr = totalFloorArea > 0 ? (annualHeatingDemand / totalFloorArea) : null;
+
+  return {
+    letter: getEpcBand(intensityKwhM2Yr),
+    intensityKwhM2Yr,
+    annualHeatingDemandKwhYr: annualHeatingDemand
+  };
+}
+
+function createProjectSummaryStrip(demo, rooms) {
+  const summary = document.createElement('div');
+  summary.className = 'alt-viz-project-summary';
+
+  const name = document.createElement('div');
+  name.className = 'alt-viz-project-name';
+  name.textContent = (demo?.meta?.name && String(demo.meta.name).trim())
+    ? String(demo.meta.name)
+    : 'Unnamed Project';
+
+  const epc = computeWholeHouseEpcEstimate(rooms);
+  const epcWrap = document.createElement('div');
+  epcWrap.className = 'alt-viz-project-epc';
+
+  const epcSummary = document.createElement('div');
+  epcSummary.className = 'alt-viz-project-epc-summary';
+  const epcValue = epc.intensityKwhM2Yr === null ? 'n/a' : `${epc.intensityKwhM2Yr.toFixed(0)}`;
+  const annualDemand = epc.annualHeatingDemandKwhYr === null
+    ? 'n/a'
+    : `${epc.annualHeatingDemandKwhYr.toFixed(0)} kWh/yr`;
+  epcSummary.textContent = `Overall EPC ${epc.letter} (${epcValue}) · Annual demand ${annualDemand}`;
+
+  const epcScale = document.createElement('div');
+  epcScale.className = 'alt-viz-project-epc-scale';
+  ['A', 'B', 'C', 'D', 'E', 'F', 'G'].forEach(letter => {
+    const chip = document.createElement('span');
+    chip.className = `epc-chip epc-${letter}${letter === epc.letter ? ' active' : ''}`;
+    chip.textContent = letter;
+    epcScale.appendChild(chip);
+  });
+
+  epcWrap.appendChild(epcSummary);
+  epcWrap.appendChild(epcScale);
+  summary.appendChild(name);
+  summary.appendChild(epcWrap);
+  return summary;
+}
+
+function computeLevelEpcEstimate(levelRooms) {
+  const conditioned = (Array.isArray(levelRooms) ? levelRooms : []).filter(zone => zone && zone.is_unheated !== true);
+  if (conditioned.length === 0) return { letter: 'N/A', intensityKwhM2Yr: null };
+
+  let weightedAnnual = 0;
+  let weightedArea = 0;
+  let fallbackAnnualTotal = 0;
+  let fallbackCount = 0;
+
+  conditioned.forEach(zone => {
+    const deliveredPerM2 = typeof zone.delivered_heat_per_unit_area === 'number'
+      ? zone.delivered_heat_per_unit_area
+      : (typeof zone.heat_loss_per_unit_area === 'number' ? zone.heat_loss_per_unit_area : null);
+
+    if (deliveredPerM2 === null || !isFinite(deliveredPerM2)) return;
+
+    const annualIntensity = Math.max(0, (deliveredPerM2 * 24 * 365) / 1000);
+    const area = typeof zone.floor_area === 'number' && zone.floor_area > 0 ? zone.floor_area : null;
+
+    if (area !== null) {
+      weightedAnnual += annualIntensity * area;
+      weightedArea += area;
+    } else {
+      fallbackAnnualTotal += annualIntensity;
+      fallbackCount += 1;
+    }
+  });
+
+  const intensityKwhM2Yr = weightedArea > 0
+    ? (weightedAnnual / weightedArea)
+    : (fallbackCount > 0 ? (fallbackAnnualTotal / fallbackCount) : null);
+
+  return {
+    letter: getEpcBand(intensityKwhM2Yr),
+    intensityKwhM2Yr
+  };
+}
+
 function createLevelMiniViews(rooms, levels, activeLevel, onSelectLevel) {
   const wrap = document.createElement('div');
   wrap.className = 'alt-viz-level-miniviews';
@@ -189,6 +324,27 @@ function createLevelMiniViews(rooms, levels, activeLevel, onSelectLevel) {
     meta.className = 'alt-viz-level-mini-meta';
     meta.textContent = `${levelRooms.length} room${levelRooms.length === 1 ? '' : 's'}`;
 
+    const epc = computeLevelEpcEstimate(levelRooms);
+    const epcWrap = document.createElement('div');
+    epcWrap.className = 'alt-viz-level-mini-epc';
+
+    const epcSummary = document.createElement('div');
+    epcSummary.className = 'alt-viz-level-mini-epc-summary';
+    const epcValue = epc.intensityKwhM2Yr === null ? 'n/a' : `${epc.intensityKwhM2Yr.toFixed(0)}`;
+    epcSummary.textContent = `EPC ${epc.letter} (${epcValue})`;
+
+    const epcScale = document.createElement('div');
+    epcScale.className = 'alt-viz-level-mini-epc-scale';
+    ['A', 'B', 'C', 'D', 'E', 'F', 'G'].forEach(letter => {
+      const chip = document.createElement('span');
+      chip.className = `epc-chip epc-${letter}${letter === epc.letter ? ' active' : ''}`;
+      chip.textContent = letter;
+      epcScale.appendChild(chip);
+    });
+
+    epcWrap.appendChild(epcSummary);
+    epcWrap.appendChild(epcScale);
+
     button.addEventListener('click', () => {
       if (typeof onSelectLevel === 'function') onSelectLevel(level);
     });
@@ -196,6 +352,7 @@ function createLevelMiniViews(rooms, levels, activeLevel, onSelectLevel) {
     button.appendChild(header);
     button.appendChild(content);
     button.appendChild(meta);
+    button.appendChild(epcWrap);
     wrap.appendChild(button);
   });
 
@@ -1969,6 +2126,14 @@ export function renderAlternativeViz(demo, opts = {}) {
 
   root.innerHTML = '';
 
+  const rooms = getRoomZones(demo);
+  if (rooms.length === 0) {
+    renderEmptyMessage(root, 'No rooms available for floor-plan view.');
+    return;
+  }
+
+  root.appendChild(createProjectSummaryStrip(demo, rooms));
+
   const menuBar = createAltVizMenuBar(onMenuAction, () => ({
     demo,
     selectedZoneId,
@@ -1982,12 +2147,6 @@ export function renderAlternativeViz(demo, opts = {}) {
     selectedLevel
   }));
   root.appendChild(envStrip);
-
-  const rooms = getRoomZones(demo);
-  if (rooms.length === 0) {
-    renderEmptyMessage(root, 'No rooms available for floor-plan view.');
-    return;
-  }
 
   const levels = [...new Set(rooms.map(z => (typeof z.level === 'number' ? z.level : 0)))].sort((a, b) => a - b);
   ensureSelectedLevel(levels);
@@ -2547,6 +2706,12 @@ export function renderAlternativeViz(demo, opts = {}) {
 
     const savingsText = getZoneSavingsText(zone);
     if (savingsText) lines.push(savingsText);
+
+    if (zone.is_unheated !== true) {
+      const epc = computeZoneEpcEstimate(zone);
+      const epcValue = epc.intensityKwhM2Yr === null ? 'n/a' : epc.intensityKwhM2Yr.toFixed(0);
+      lines.push(`EPC ${epc.letter} (${epcValue})`);
+    }
 
     const text = document.createElementNS(ns, 'text');
     text.setAttribute('x', String(centroid.x));

@@ -2,7 +2,6 @@
 
 import { computeElementU } from './u_value_calculator.js';
 import { computeRoomHeatRequirements } from './heat_calculator.js';
-import { renderThermalViz } from './visualizer.js';
 import { renderAlternativeViz } from './alt_viz.js';
 import { initRoomEditor } from './room_editor.js';
 import { initAppUi } from './app_ui.js';
@@ -698,8 +697,6 @@ async function solveAndRender(demoRaw) {
       }
     }
 
-    // Generate thermal visualization
-    renderThermalViz(demoRaw, radiators);
     renderAlternativeViz({
       ...demoRaw,
       openings: currentOpenings,
@@ -1588,34 +1585,8 @@ export function reconcileWallElementsFromPolygons(demo, changedPolygonsByZoneId)
   applyDynamicNamesToWalls(demo, zoneById, polygonByZoneId, boundaryIds);
 }
 
-function initVizTabs() {
-  const heatMapTab = document.getElementById('heatMapTab');
-  const altVizTab = document.getElementById('altVizTab');
-  const heatMapPanel = document.getElementById('heatMapPanel');
-  const altVizPanel = document.getElementById('altVizPanel');
-
-  if (!heatMapTab || !altVizTab || !heatMapPanel || !altVizPanel) return;
-
-  const showPanel = (panelName) => {
-    const showHeatMap = panelName === 'heat';
-
-    heatMapTab.classList.toggle('active', showHeatMap);
-    altVizTab.classList.toggle('active', !showHeatMap);
-    heatMapPanel.classList.toggle('active', showHeatMap);
-    altVizPanel.classList.toggle('active', !showHeatMap);
-  };
-
-  heatMapTab.addEventListener('click', () => showPanel('heat'));
-  altVizTab.addEventListener('click', () => showPanel('alt'));
-
-  // Default to the new alternative visualization on startup.
-  showPanel('alt');
-}
-
 // Load and initialize on page load
 if (typeof window !== 'undefined') window.addEventListener('load', async () => {
-  initVizTabs();
-
   appUiApi = initAppUi({
     onSolveRequested: triggerSolve,
     onUploadDemo: (uploadedDemo) => {
@@ -1640,9 +1611,6 @@ if (typeof window !== 'undefined') window.addEventListener('load', async () => {
       getMaterialsData: () => currentMaterials,
       getOpeningsData: () => currentOpenings,
       onDataChanged: triggerSolve,
-      onAddRoom: () => {
-        alert('Add room (not implemented yet)');
-      }
     });
     
     triggerSolve();

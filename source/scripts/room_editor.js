@@ -58,15 +58,10 @@ export function initRoomEditor(opts) {
   const onDataChanged = opts.onDataChanged;
   const onAddRoom = opts.onAddRoom;
 
-  const jsonTab = document.getElementById('jsonTab');
   const editorTab = document.getElementById('editorTab');
-  const templatesTab = document.getElementById('templatesTab');
-  const jsonPanel = document.getElementById('jsonPanel');
   const roomEditorPanel = document.getElementById('roomEditorPanel');
-  const templatesPanel = document.getElementById('templatesPanel');
-  const templatesList = document.getElementById('templatesList');
   const contentLayout = document.querySelector('.content-layout');
-  const thermalContainer = document.getElementById('thermal-container');
+  const editorShell = document.querySelector('.content-right');
 
   const roomSelector = document.getElementById('roomSelector');
   const roomEditor = document.getElementById('roomEditor');
@@ -82,78 +77,37 @@ export function initRoomEditor(opts) {
 
   let selectedZoneId = null;
   let pendingFocusState = null;
+  let suppressOutsideHideUntil = 0;
 
   function ensureEditorVisible() {
+    suppressOutsideHideUntil = Date.now() + 150;
+
     if (contentLayout) {
       contentLayout.classList.remove('sidebar-hidden');
     }
 
-    if (editorTab && jsonTab && templatesTab && roomEditorPanel && jsonPanel && templatesPanel) {
+    if (editorTab && roomEditorPanel) {
       editorTab.classList.add('active');
-      jsonTab.classList.remove('active');
-      templatesTab.classList.remove('active');
       roomEditorPanel.classList.add('active');
-      jsonPanel.classList.remove('active');
-      templatesPanel.classList.remove('active');
     }
   }
 
-  if (jsonTab && editorTab && templatesTab && jsonPanel && roomEditorPanel && templatesPanel) {
-    jsonTab.addEventListener('click', () => {
-      jsonTab.classList.add('active');
-      editorTab.classList.remove('active');
-      templatesTab.classList.remove('active');
-      jsonPanel.classList.add('active');
-      roomEditorPanel.classList.remove('active');
-      templatesPanel.classList.remove('active');
-    });
-
+  if (editorTab && roomEditorPanel) {
     editorTab.addEventListener('click', () => {
       editorTab.classList.add('active');
-      jsonTab.classList.remove('active');
-      templatesTab.classList.remove('active');
       roomEditorPanel.classList.add('active');
-      jsonPanel.classList.remove('active');
-      templatesPanel.classList.remove('active');
-    });
-
-    templatesTab.addEventListener('click', () => {
-      templatesTab.classList.add('active');
-      jsonTab.classList.remove('active');
-      editorTab.classList.remove('active');
-      templatesPanel.classList.add('active');
-      jsonPanel.classList.remove('active');
-      roomEditorPanel.classList.remove('active');
-      populateTemplatesPanel();
     });
   }
 
-  // Click on zone to select and open panel
   document.addEventListener('click', (e) => {
-    const clickedInThermal = !!e.target.closest('#thermal-container');
-    const zoneCell = e.target.closest('.thermal-zone-cell');
-    if (!zoneCell) {
-      // Only close when clicking in thermal view but not on a zone cell.
-      // This avoids accidental closes when editor actions trigger re-renders.
-      if (clickedInThermal) {
-        if (contentLayout && !contentLayout.classList.contains('sidebar-hidden')) {
-          contentLayout.classList.add('sidebar-hidden');
-        }
-      }
-      return;
-    }
-    const zoneId = zoneCell.getAttribute('data-zone-id');
-    if (zoneId) {
-      selectZone(zoneId);
-      // Open the panel
-      if (contentLayout) contentLayout.classList.remove('sidebar-hidden');
-      // Switch to editor tab
-      if (editorTab && jsonTab && roomEditorPanel && jsonPanel) {
-        editorTab.classList.add('active');
-        jsonTab.classList.remove('active');
-        roomEditorPanel.classList.add('active');
-        jsonPanel.classList.remove('active');
-      }
+    if (!contentLayout || !editorShell) return;
+    if (Date.now() < suppressOutsideHideUntil) return;
+
+    const clickedInsideEditor = !!e.target.closest('.content-right');
+    if (clickedInsideEditor) return;
+
+    if (!contentLayout.classList.contains('sidebar-hidden')) {
+      contentLayout.classList.add('sidebar-hidden');
     }
   });
 
