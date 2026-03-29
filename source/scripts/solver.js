@@ -51,19 +51,156 @@ function getNextLevel(demo) {
   return maxLevel + 1;
 }
 
+function getBoundaryZoneId(demo, role) {
+  const zones = Array.isArray(demo?.zones) ? demo.zones : [];
+  const normalizedRole = String(role || '').trim().toLowerCase();
+  const byName = zones.find(zone => {
+    if (!zone || zone.type !== 'boundary') return false;
+    const name = String(zone.name || '').trim().toLowerCase();
+    return name === normalizedRole;
+  });
+  if (byName?.id) return byName.id;
+
+  const byId = zones.find(zone => {
+    if (!zone || zone.type !== 'boundary') return false;
+    return String(zone.id || '').trim().toLowerCase() === normalizedRole;
+  });
+  return byId?.id || null;
+}
+
+function polygonArea(polygon) {
+  if (!Array.isArray(polygon) || polygon.length < 3) return 0;
+  let twiceArea = 0;
+  for (let i = 0; i < polygon.length; i++) {
+    const p0 = polygon[i];
+    const p1 = polygon[(i + 1) % polygon.length];
+    twiceArea += Number(p0.x) * Number(p1.y) - Number(p1.x) * Number(p0.y);
+  }
+  return Math.abs(twiceArea) / 2;
+}
+
+function polygonBounds(polygon) {
+  if (!Array.isArray(polygon) || polygon.length === 0) {
+    return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+  }
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  polygon.forEach(pt => {
+    const x = Number(pt?.x);
+    const y = Number(pt?.y);
+    if (!isFinite(x) || !isFinite(y)) return;
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  });
+  if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
+    return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+  }
+  return { minX, maxX, minY, maxY };
+}
+
+function createDefaultRoomPolygon(demo, level) {
+  const zones = getRoomZones(demo).filter(zone => (Number.isFinite(zone?.level) ? zone.level : 0) === level);
+  const existingPolygons = zones
+    .map(zone => zone?.layout?.polygon)
+    .filter(poly => Array.isArray(poly) && poly.length >= 3);
+
+  const width = 4;
+  const height = 4;
+
+  let originX = 0;
+  let originY = 0;
+  if (existingPolygons.length > 0) {
+    const bounds = existingPolygons
+      .map(poly => polygonBounds(poly))
+      .reduce((acc, b) => ({
+        minX: Math.min(acc.minX, b.minX),
+        maxX: Math.max(acc.maxX, b.maxX),
+        minY: Math.min(acc.minY, b.minY),
+        maxY: Math.max(acc.maxY, b.maxY)
+      }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+
+    originX = isFinite(bounds.maxX) ? bounds.maxX + 1 : 0;
+    originY = isFinite(bounds.minY) ? bounds.minY : 0;
+  }
+
+  return [
+    { x: originX, y: originY },
+    { x: originX + width, y: originY },
+    { x: originX + width, y: originY + height },
+    { x: originX, y: originY + height }
+  ];
+}
+
+function ensureRoomHorizontalElements(demo, zone, polygon) {
+  if (!demo || !zone) return;
+  if (!Array.isArray(demo.elements)) demo.elements = [];
+
+  const groundId = getBoundaryZoneId(demo, 'ground');
+  const loftId = getBoundaryZoneId(demo, 'loft');
+  const bounds = polygonBounds(polygon);
+  const spanX = Math.max(0.5, Number((bounds.maxX - bounds.minX).toFixed(3)));
+  const spanY = Math.max(0.5, Number((bounds.maxY - bounds.minY).toFixed(3)));
+
+  if (groundId) {
+    const existingFloor = demo.elements.find(element => {
+      if (!element || String(element.type || '').toLowerCase() !== 'floor') return false;
+      const nodes = Array.isArray(element.nodes) ? element.nodes : [];
+      return nodes.includes(zone.id) && nodes.includes(groundId);
+    });
+    if (!existingFloor) {
+      demo.elements.push({
+        id: generateId('el'),
+        name: `${zone.name || zone.id} - Ground Floor`,
+        type: 'floor',
+        nodes: [zone.id, groundId],
+        x: spanX,
+        y: spanY
+      });
+    }
+  }
+
+  if (loftId) {
+    const existingCeiling = demo.elements.find(element => {
+      if (!element) return false;
+      const type = String(element.type || '').toLowerCase();
+      if (type !== 'ceiling' && type !== 'floor_ceiling') return false;
+      const nodes = Array.isArray(element.nodes) ? element.nodes : [];
+      return nodes.includes(zone.id) && nodes.includes(loftId);
+    });
+    if (!existingCeiling) {
+      demo.elements.push({
+        id: generateId('el'),
+        name: `${zone.name || zone.id} - Ceiling`,
+        type: 'ceiling',
+        nodes: [zone.id, loftId],
+        x: spanX,
+        y: spanY
+      });
+    }
+  }
+}
+
 function createRoomOnLevel(demo, level, namePrefix = 'Room') {
   if (!demo) return null;
   if (!Array.isArray(demo.zones)) demo.zones = [];
+  if (!Array.isArray(demo.elements)) demo.elements = [];
 
   const roomCount = getRoomZones(demo).length + 1;
   const zoneId = generateId('id');
+  const polygon = createDefaultRoomPolygon(demo, level);
   const zone = {
     id: zoneId,
     name: `${namePrefix} ${roomCount}`,
     level,
+    layout: { polygon: polygon.map(pt => ({ x: Number(pt.x), y: Number(pt.y) })) },
     radiators: []
   };
   demo.zones.push(zone);
+  ensureRoomHorizontalElements(demo, zone, polygon);
   return zone;
 }
 
