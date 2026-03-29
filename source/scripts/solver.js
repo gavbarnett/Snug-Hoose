@@ -14,6 +14,7 @@ let currentOpenings = null;
 let roomEditorApi = null;
 let appUiApi = null;
 let defaultDemoTemplate = null;
+let lastFocusedZoneId = null;
 
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -67,13 +68,33 @@ function createRoomOnLevel(demo, level, namePrefix = 'Room') {
   return zone;
 }
 
-function pickPreferredWallForZone(demo, zoneId) {
+function countOpeningsForZoneOnWall(wall, zoneId, kind) {
+  const list = kind === 'door'
+    ? (Array.isArray(wall?.doors) ? wall.doors : [])
+    : (Array.isArray(wall?.windows) ? wall.windows : []);
+
+  const ownerZoneId = Array.isArray(wall?.nodes) && wall.nodes.length > 0 ? wall.nodes[0] : null;
+  return list.filter(opening => {
+    const openingZone = opening?.zone_id || ownerZoneId;
+    return openingZone === zoneId;
+  }).length;
+}
+
+function pickPreferredWallForZone(demo, zoneId, purpose = 'generic') {
   const elements = Array.isArray(demo?.elements) ? demo.elements : [];
   const boundaryIds = new Set(
     (Array.isArray(demo?.zones) ? demo.zones : [])
       .filter(zone => zone?.type === 'boundary')
       .map(zone => zone.id)
   );
+  const zone = getZoneById(demo, zoneId);
+  const zoneRadiators = Array.isArray(zone?.radiators) ? zone.radiators : [];
+  const radiatorCountByWallId = new Map();
+  zoneRadiators.forEach(radiator => {
+    const wallId = radiator?.wall_element_id;
+    if (!wallId) return;
+    radiatorCountByWallId.set(wallId, (radiatorCountByWallId.get(wallId) || 0) + 1);
+  });
 
   const wallElements = elements.filter(element => {
     if (!element || String(element.type || '').toLowerCase() !== 'wall') return false;
@@ -82,12 +103,56 @@ function pickPreferredWallForZone(demo, zoneId) {
   });
   if (wallElements.length === 0) return null;
 
-  const externalFirst = wallElements.find(el => el.nodes.some(nodeId => boundaryIds.has(nodeId)));
-  return externalFirst || wallElements[0];
+  const scored = wallElements.map(wall => {
+    const windowsCount = countOpeningsForZoneOnWall(wall, zoneId, 'window');
+    const doorsCount = countOpeningsForZoneOnWall(wall, zoneId, 'door');
+    const radiatorCount = radiatorCountByWallId.get(wall.id) || 0;
+    const openingOccupancy = windowsCount + doorsCount;
+    const occupancy = openingOccupancy + radiatorCount;
+    const isExternal = wall.nodes.some(nodeId => boundaryIds.has(nodeId));
+    const hasWindow = windowsCount > 0;
+    const hasDoor = doorsCount > 0;
+    return { wall, occupancy, openingOccupancy, radiatorCount, isExternal, hasWindow, hasDoor };
+  });
+
+  if (purpose === 'window') {
+    scored.sort((a, b) => {
+      if (a.openingOccupancy !== b.openingOccupancy) return a.openingOccupancy - b.openingOccupancy;
+      if (a.isExternal !== b.isExternal) return a.isExternal ? -1 : 1;
+      const aHasRadiator = a.radiatorCount > 0;
+      const bHasRadiator = b.radiatorCount > 0;
+      if (aHasRadiator !== bHasRadiator) return aHasRadiator ? -1 : 1;
+      if (a.radiatorCount !== b.radiatorCount) return b.radiatorCount - a.radiatorCount;
+      return 0;
+    });
+  } else if (purpose === 'door') {
+    scored.sort((a, b) => {
+      if (a.isExternal !== b.isExternal) return a.isExternal ? 1 : -1;
+      if (a.openingOccupancy !== b.openingOccupancy) return a.openingOccupancy - b.openingOccupancy;
+      if (a.radiatorCount !== b.radiatorCount) return a.radiatorCount - b.radiatorCount;
+      return 0;
+    });
+  } else if (purpose === 'radiator') {
+    scored.sort((a, b) => {
+      if (a.hasWindow !== b.hasWindow) return a.hasWindow ? -1 : 1;
+      if (a.radiatorCount !== b.radiatorCount) return a.radiatorCount - b.radiatorCount;
+      if (a.isExternal !== b.isExternal) return a.isExternal ? -1 : 1;
+      if (a.openingOccupancy !== b.openingOccupancy) return a.openingOccupancy - b.openingOccupancy;
+      return 0;
+    });
+  } else {
+    scored.sort((a, b) => {
+      if (a.occupancy !== b.occupancy) return a.occupancy - b.occupancy;
+      if (a.isExternal !== b.isExternal) return a.isExternal ? -1 : 1;
+      return 0;
+    });
+  }
+
+  return scored[0]?.wall || null;
 }
 
 function addWindowToZoneWall(demo, openingsData, zoneId, opts = {}) {
-  const wall = pickPreferredWallForZone(demo, zoneId);
+  const wall = pickPreferredWallForZone(demo, zoneId, 'window');
   if (!wall) return false;
   if (!Array.isArray(wall.windows)) wall.windows = [];
 
@@ -113,7 +178,7 @@ function addWindowToZoneWall(demo, openingsData, zoneId, opts = {}) {
 }
 
 function addDoorToZoneWall(demo, openingsData, zoneId, opts = {}) {
-  const wall = pickPreferredWallForZone(demo, zoneId);
+  const wall = pickPreferredWallForZone(demo, zoneId, 'door');
   if (!wall) return false;
   if (!Array.isArray(wall.doors)) wall.doors = [];
 
@@ -143,6 +208,8 @@ function addRadiatorToZone(demo, radiatorsData, zoneId, trvEnabled, opts = {}) {
   const zone = getZoneById(demo, zoneId);
   if (!zone) return false;
   if (!Array.isArray(zone.radiators)) zone.radiators = [];
+  const wall = pickPreferredWallForZone(demo, zoneId, 'radiator');
+  if (!wall) return false;
 
   const defaultType = Array.isArray(radiatorsData?.radiators) && radiatorsData.radiators.length > 0
     ? radiatorsData.radiators[0].id
@@ -154,6 +221,7 @@ function addRadiatorToZone(demo, radiatorsData, zoneId, trvEnabled, opts = {}) {
   zone.radiators.push({
     id: generateId('id'),
     radiator_id: opts.radiatorId || defaultType,
+    wall_element_id: wall.id,
     width,
     height,
     surface_area: Number(((width / 1000) * (height / 1000)).toFixed(3)),
@@ -161,6 +229,12 @@ function addRadiatorToZone(demo, radiatorsData, zoneId, trvEnabled, opts = {}) {
     position_ratio: 0.5
   });
   return true;
+}
+
+function getTargetZoneId(context = {}) {
+  const selectedZoneId = context.selectedZoneId || null;
+  if (selectedZoneId) return selectedZoneId;
+  return lastFocusedZoneId || null;
 }
 
 function saveCurrentProject() {
@@ -230,7 +304,7 @@ function createNewProjectFromTemplate() {
 function handleAltVizMenuAction(action, item, context = {}) {
   if (!action) return;
 
-  const selectedZoneId = context.selectedZoneId || null;
+  const selectedZoneId = getTargetZoneId(context);
   const selectedLevel = Number.isFinite(context.selectedLevel) ? context.selectedLevel : 0;
   const payload = item?.payload || {};
 
@@ -256,7 +330,10 @@ function handleAltVizMenuAction(action, item, context = {}) {
         : selectedLevel;
       const zone = createRoomOnLevel(currentDemo, level, 'Room');
       triggerSolve();
-      if (zone && roomEditorApi?.focusZone) roomEditorApi.focusZone(zone.id);
+      if (zone) {
+        lastFocusedZoneId = zone.id;
+        if (roomEditorApi?.focusZone) roomEditorApi.focusZone(zone.id);
+      }
       return;
     }
     case 'structure.add.floor': {
@@ -264,7 +341,10 @@ function handleAltVizMenuAction(action, item, context = {}) {
       const level = getNextLevel(currentDemo);
       const zone = createRoomOnLevel(currentDemo, level, `Floor ${level} Room`);
       triggerSolve();
-      if (zone && roomEditorApi?.focusZone) roomEditorApi.focusZone(zone.id);
+      if (zone) {
+        lastFocusedZoneId = zone.id;
+        if (roomEditorApi?.focusZone) roomEditorApi.focusZone(zone.id);
+      }
       return;
     }
     case 'openings.windows.add':
@@ -275,6 +355,7 @@ function handleAltVizMenuAction(action, item, context = {}) {
         height: Number(payload.height),
         glazingId: payload.glazingId
       })) {
+        lastFocusedZoneId = selectedZoneId;
         triggerSolve();
         if (roomEditorApi?.focusZone) roomEditorApi.focusZone(selectedZoneId);
       }
@@ -288,6 +369,7 @@ function handleAltVizMenuAction(action, item, context = {}) {
         height: Number(payload.height),
         materialId: payload.materialId
       })) {
+        lastFocusedZoneId = selectedZoneId;
         triggerSolve();
         if (roomEditorApi?.focusZone) roomEditorApi.focusZone(selectedZoneId);
       }
@@ -303,6 +385,7 @@ function handleAltVizMenuAction(action, item, context = {}) {
         height: Number(payload.height),
         radiatorId: payload.radiatorId
       })) {
+        lastFocusedZoneId = selectedZoneId;
         triggerSolve();
         if (roomEditorApi?.focusZone) roomEditorApi.focusZone(selectedZoneId);
       }
@@ -314,6 +397,7 @@ function handleAltVizMenuAction(action, item, context = {}) {
       if (!zone) return;
       zone.is_boiler_control = true;
       delete zone.is_unheated;
+      lastFocusedZoneId = selectedZoneId;
       triggerSolve();
       if (roomEditorApi?.focusZone) roomEditorApi.focusZone(selectedZoneId);
       return;
@@ -590,11 +674,13 @@ async function solveAndRender(demoRaw) {
     }, {
       onMenuAction: handleAltVizMenuAction,
       onZoneSelected: (zoneId) => {
+        lastFocusedZoneId = zoneId;
         if (roomEditorApi && typeof roomEditorApi.focusZone === 'function') {
           roomEditorApi.focusZone(zoneId);
         }
       },
       onWallSelected: (zoneId, elementId) => {
+        lastFocusedZoneId = zoneId;
         if (roomEditorApi && typeof roomEditorApi.focusElement === 'function') {
           roomEditorApi.focusElement(zoneId, elementId);
           return;
@@ -604,6 +690,7 @@ async function solveAndRender(demoRaw) {
         }
       },
       onOpeningSelected: (zoneId, elementId, kind, openingId) => {
+        lastFocusedZoneId = zoneId;
         if (roomEditorApi && typeof roomEditorApi.focusOpening === 'function') {
           roomEditorApi.focusOpening(zoneId, elementId, kind, openingId);
           return;
@@ -617,6 +704,7 @@ async function solveAndRender(demoRaw) {
         }
       },
       onRadiatorSelected: (zoneId, radiatorId) => {
+        lastFocusedZoneId = zoneId;
         if (roomEditorApi && typeof roomEditorApi.focusRadiator === 'function') {
           roomEditorApi.focusRadiator(zoneId, radiatorId);
           return;
