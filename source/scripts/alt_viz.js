@@ -1939,23 +1939,6 @@ export function renderAlternativeViz(demo, opts = {}) {
   levelLabel.appendChild(levelSelect);
   toolbar.appendChild(levelLabel);
 
-  const seedBtn = document.createElement('button');
-  seedBtn.type = 'button';
-  seedBtn.className = 'alt-viz-seed-btn';
-  seedBtn.textContent = 'Seed Level Polygons';
-  seedBtn.title = 'Create default polygons for rooms on this level.';
-  seedBtn.addEventListener('click', () => {
-    if (!onSeedLevelPolygons) return;
-    const levelRooms = rooms.filter(z => (typeof z.level === 'number' ? z.level : 0) === selectedLevel);
-    const seed = buildSeedPolygons(levelRooms);
-    const payload = {};
-    for (const [zoneId, polygon] of seed.entries()) {
-      payload[zoneId] = polygon;
-    }
-    onSeedLevelPolygons(selectedLevel, payload);
-  });
-  toolbar.appendChild(seedBtn);
-
   root.appendChild(toolbar);
 
   const hint = document.createElement('div');
