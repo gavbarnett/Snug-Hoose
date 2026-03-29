@@ -259,7 +259,7 @@ function computeLevelEpcEstimate(levelRooms) {
 }
 
 function createLevelMiniViews(rooms, levels, activeLevel, onSelectLevel, extraOpts = {}) {
-  const { globalTargetTemp = 21, onSetpointChanged } = extraOpts;
+  const { globalTargetTemp = 21, onSetpointChanged, onRoomHeatingChanged } = extraOpts;
   const wrap = document.createElement('div');
   wrap.className = 'alt-viz-level-miniviews';
 
@@ -344,13 +344,12 @@ function createLevelMiniViews(rooms, levels, activeLevel, onSelectLevel, extraOp
     clickZone.appendChild(meta);
     card.appendChild(clickZone);
 
-    // Per-room setpoint sliders
-    const heatedRooms = levelRooms.filter(z => z.is_unheated !== true);
-    if (heatedRooms.length > 0 && typeof onSetpointChanged === 'function') {
+    // Per-room controls
+    if (levelRooms.length > 0 && typeof onSetpointChanged === 'function') {
       const roomsSection = document.createElement('div');
       roomsSection.className = 'alt-viz-level-mini-rooms';
 
-      heatedRooms.forEach(zone => {
+      levelRooms.forEach(zone => {
         const row = document.createElement('div');
         row.className = 'alt-viz-level-mini-room-row';
 
@@ -368,12 +367,27 @@ function createLevelMiniViews(rooms, levels, activeLevel, onSelectLevel, extraOp
         slider.max = '25';
         slider.step = '1';
         slider.value = String(typeof zone.setpoint_temperature === 'number' ? zone.setpoint_temperature : globalTargetTemp);
+        slider.disabled = zone.is_unheated === true;
 
         const valueDisplay = document.createElement('span');
         valueDisplay.className = 'alt-env-value';
-        valueDisplay.textContent = typeof zone.setpoint_temperature === 'number'
-          ? `${zone.setpoint_temperature}°C`
-          : `${globalTargetTemp}°C`;
+        valueDisplay.textContent = zone.is_unheated === true
+          ? 'Unheated'
+          : (typeof zone.setpoint_temperature === 'number'
+              ? `${zone.setpoint_temperature}°C`
+              : `${globalTargetTemp}°C`);
+
+        const unheatedToggle = document.createElement('label');
+        unheatedToggle.className = 'alt-viz-level-mini-room-toggle';
+
+        const unheatedCheckbox = document.createElement('input');
+        unheatedCheckbox.type = 'checkbox';
+        unheatedCheckbox.checked = zone.is_unheated === true;
+
+        const unheatedText = document.createElement('span');
+        unheatedText.textContent = 'Unheated';
+        unheatedToggle.appendChild(unheatedCheckbox);
+        unheatedToggle.appendChild(unheatedText);
 
         slider.addEventListener('input', () => {
           valueDisplay.textContent = `${slider.value}°C`;
@@ -383,10 +397,22 @@ function createLevelMiniViews(rooms, levels, activeLevel, onSelectLevel, extraOp
           onSetpointChanged(zone, Number(slider.value));
         });
 
+        unheatedCheckbox.addEventListener('change', () => {
+          const isUnheated = unheatedCheckbox.checked;
+          slider.disabled = isUnheated;
+          valueDisplay.textContent = isUnheated
+            ? 'Unheated'
+            : `${slider.value}°C`;
+          if (typeof onRoomHeatingChanged === 'function') {
+            onRoomHeatingChanged(zone, isUnheated);
+          }
+        });
+
         sliderWrap.appendChild(slider);
         sliderWrap.appendChild(valueDisplay);
         row.appendChild(nameSpan);
         row.appendChild(sliderWrap);
+        row.appendChild(unheatedToggle);
         roomsSection.appendChild(row);
       });
 
@@ -2234,7 +2260,40 @@ export function renderAlternativeViz(demo, opts = {}) {
   }, {
     globalTargetTemp,
     onSetpointChanged: (zone, value) => {
+      if (typeof onMenuAction === 'function') {
+        onMenuAction('zones.setpoint', {
+          action: 'zones.setpoint',
+          payload: { zoneId: zone.id, value }
+        }, {
+          demo,
+          selectedZoneId,
+          selectedLevel
+        });
+        return;
+      }
       zone.setpoint_temperature = value;
+      if (onDataChanged) onDataChanged({});
+      renderAlternativeViz(demo, opts);
+    },
+    onRoomHeatingChanged: (zone, isUnheated) => {
+      if (typeof onMenuAction === 'function') {
+        onMenuAction('zones.heating', {
+          action: 'zones.heating',
+          payload: { zoneId: zone.id, isUnheated }
+        }, {
+          demo,
+          selectedZoneId,
+          selectedLevel
+        });
+        return;
+      }
+      if (isUnheated) {
+        zone.is_unheated = true;
+        delete zone.setpoint_temperature;
+        zone.is_boiler_control = false;
+      } else {
+        delete zone.is_unheated;
+      }
       if (onDataChanged) onDataChanged({});
       renderAlternativeViz(demo, opts);
     }

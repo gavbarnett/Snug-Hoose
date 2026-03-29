@@ -500,7 +500,25 @@ a#download:hover {
 
 .alt-viz-level-mini-room-slider-wrap .alt-env-slider {
   flex: 1;
+  width: 100%;
   min-width: 0;
+}
+
+.alt-viz-level-mini-room-slider-wrap .alt-env-value {
+  font-size: 0.68rem;
+}
+
+.alt-viz-level-mini-room-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  white-space: normal;
+}
+
+.alt-viz-level-mini-room-toggle input {
+  margin: 0;
 }
 
 @media (max-width: 860px) {

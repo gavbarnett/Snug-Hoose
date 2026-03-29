@@ -677,6 +677,42 @@ function handleAltVizMenuAction(action, item, context = {}) {
       if (roomEditorApi?.focusZone) roomEditorApi.focusZone(zoneId);
       return;
     }
+    case 'zones.setpoint': {
+      if (!currentDemo) return;
+      const zoneId = payload.zoneId || selectedZoneId;
+      if (!zoneId) return;
+      const zone = getZoneById(currentDemo, zoneId);
+      if (!zone) return;
+      const value = Number(payload.value);
+      if (!Number.isFinite(value)) return;
+      pushUndoSnapshot(deepClone(currentDemo));
+      zone.setpoint_temperature = value;
+      delete zone.is_unheated;
+      lastFocusedZoneId = zoneId;
+      triggerSolve();
+      if (roomEditorApi?.focusZone) roomEditorApi.focusZone(zoneId);
+      return;
+    }
+    case 'zones.heating': {
+      if (!currentDemo) return;
+      const zoneId = payload.zoneId || selectedZoneId;
+      if (!zoneId) return;
+      const zone = getZoneById(currentDemo, zoneId);
+      if (!zone) return;
+      pushUndoSnapshot(deepClone(currentDemo));
+      const isUnheated = !!payload.isUnheated;
+      if (isUnheated) {
+        zone.is_unheated = true;
+        delete zone.setpoint_temperature;
+        zone.is_boiler_control = false;
+      } else {
+        delete zone.is_unheated;
+      }
+      lastFocusedZoneId = zoneId;
+      triggerSolve();
+      if (roomEditorApi?.focusZone) roomEditorApi.focusZone(zoneId);
+      return;
+    }
     default:
       console.info(`[alt-viz menu] action selected: ${action}`);
   }
