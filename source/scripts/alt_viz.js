@@ -7,6 +7,44 @@ let selectedZoneId = null;
 let dragState = null;
 let suppressWallSelectionUntil = 0;
 const DRAG_START_THRESHOLD_PX = 6;
+const DRAG_SNAP_STEP_M = 0.1;
+const DRAG_NEAR_SNAP_THRESHOLD_M = 0.18;
+
+function snapOffsetMeters(offset, step) {
+  if (!isFinite(offset)) return 0;
+  if (!isFinite(step) || step <= 0) return offset;
+  return Math.round(offset / step) * step;
+}
+
+function dotPointNormal(point, normal) {
+  return (point.x * normal.x) + (point.y * normal.y);
+}
+
+function snapOffsetToGridAndTargets(rawOffset, baseCoord, targetCoords, step, nearThreshold) {
+  if (!isFinite(rawOffset)) return 0;
+  const absoluteCoord = baseCoord + rawOffset;
+
+  let snappedCoord = absoluteCoord;
+  if (isFinite(step) && step > 0) {
+    snappedCoord = Math.round(absoluteCoord / step) * step;
+  }
+
+  let bestCoord = snappedCoord;
+  let bestDist = Math.abs(snappedCoord - absoluteCoord);
+
+  if (Array.isArray(targetCoords)) {
+    for (const target of targetCoords) {
+      if (!isFinite(target)) continue;
+      const dist = Math.abs(target - absoluteCoord);
+      if (dist <= nearThreshold && dist < bestDist) {
+        bestDist = dist;
+        bestCoord = target;
+      }
+    }
+  }
+
+  return bestCoord - baseCoord;
+}
 
 function getSVGPoint(svg, e) {
   const rect = svg.getBoundingClientRect();
@@ -279,6 +317,63 @@ function simplifyCollinearPoints(points, epsilon = 1e-6) {
   return out.length >= 3 ? out : points;
 }
 
+function pointKey(pt, precision = 4) {
+  return `${Number(pt.x).toFixed(precision)},${Number(pt.y).toFixed(precision)}`;
+}
+
+function polygonAreaAbs(points) {
+  if (!Array.isArray(points) || points.length < 3) return 0;
+  let area2 = 0;
+  for (let i = 0; i < points.length; i++) {
+    const p0 = points[i];
+    const p1 = points[(i + 1) % points.length];
+    area2 += (p0.x * p1.y) - (p1.x * p0.y);
+  }
+  return Math.abs(area2 / 2);
+}
+
+function extractClosedLoops(points) {
+  if (!Array.isArray(points) || points.length < 3) return [];
+  const seq = [];
+  const lastSeen = new Map();
+  const loops = [];
+
+  const walk = points.concat([points[0]]);
+  for (const pt of walk) {
+    const key = pointKey(pt);
+    if (lastSeen.has(key)) {
+      const start = lastSeen.get(key);
+      const loop = seq.slice(start).concat([{ x: pt.x, y: pt.y }]);
+      const deduped = removeConsecutiveDuplicatePoints(loop);
+      if (deduped.length >= 3) loops.push(deduped);
+    }
+    seq.push({ x: pt.x, y: pt.y });
+    lastSeen.set(key, seq.length - 1);
+  }
+
+  return loops;
+}
+
+function cleanupDisconnectedAreas(points) {
+  const base = simplifyCollinearPoints(removeConsecutiveDuplicatePoints(points));
+  if (!Array.isArray(base) || base.length < 3) return base;
+
+  const candidates = [base, ...extractClosedLoops(base).map(loop => simplifyCollinearPoints(removeConsecutiveDuplicatePoints(loop)))];
+  let best = base;
+  let bestArea = polygonAreaAbs(base);
+
+  for (const candidate of candidates) {
+    if (!Array.isArray(candidate) || candidate.length < 3) continue;
+    const area = polygonAreaAbs(candidate);
+    if (area > bestArea) {
+      bestArea = area;
+      best = candidate;
+    }
+  }
+
+  return best;
+}
+
 function buildOrthogonalPolygonFromMovedEdges(basePolygon, movedEdgeIndices, normal, offset) {
   if (!Array.isArray(basePolygon) || basePolygon.length < 3) return clonePolygon(basePolygon || []);
   if (!movedEdgeIndices || movedEdgeIndices.size === 0) return clonePolygon(basePolygon);
@@ -331,7 +426,8 @@ function buildOrthogonalPolygonFromMovedEdges(basePolygon, movedEdgeIndices, nor
   }
 
   const deduped = removeConsecutiveDuplicatePoints(result);
-  return simplifyCollinearPoints(deduped);
+  const simplified = simplifyCollinearPoints(deduped);
+  return cleanupDisconnectedAreas(simplified);
 }
 
 function createEdgeKey(p0, p1) {
@@ -354,6 +450,23 @@ function buildSharedEdgeGroups(polygonMap) {
   }
 
   return groups;
+}
+
+function collectParallelSnapTargets(polygonMap, dragP0, dragP1, normal, excludeEdgeKey) {
+  const targets = [];
+
+  for (const polygon of polygonMap.values()) {
+    for (let i = 0; i < polygon.length; i++) {
+      const p0 = polygon[i];
+      const p1 = polygon[(i + 1) % polygon.length];
+      const key = createEdgeKey(p0, p1);
+      if (key === excludeEdgeKey) continue;
+      if (!areVectorsParallel(dragP0, dragP1, p0, p1)) continue;
+      targets.push(dotPointNormal(p0, normal));
+    }
+  }
+
+  return targets;
 }
 
 function getEdgeCursor(p0, p1) {
@@ -554,7 +667,14 @@ export function renderAlternativeViz(demo, opts = {}) {
       x: worldPt.x - dragState.startWorldPoint.x,
       y: worldPt.y - dragState.startWorldPoint.y
     };
-    const offset = (delta.x * dragState.normal.x) + (delta.y * dragState.normal.y);
+    const rawOffset = (delta.x * dragState.normal.x) + (delta.y * dragState.normal.y);
+    const offset = snapOffsetToGridAndTargets(
+      rawOffset,
+      dragState.snapBaseCoord,
+      dragState.snapTargets,
+      DRAG_SNAP_STEP_M,
+      DRAG_NEAR_SNAP_THRESHOLD_M
+    );
     dragState.currentOffset = offset;
     const thresholdWorld = DRAG_START_THRESHOLD_PX / dragState.scale;
     if (!dragState.didMove && Math.abs(offset) < thresholdWorld) {
@@ -717,6 +837,9 @@ export function renderAlternativeViz(demo, opts = {}) {
           const startWorldPoint = svgPointToWorld(getSVGPoint(svg, e), bounds, scale, pad);
           const affectedEdges = edgeGroups.get(createEdgeKey(baseP0, baseP1)) || [{ zoneId: zone.id, edgeIndex: idx }];
           const zoneIds = [...new Set(affectedEdges.map(ref => ref.zoneId))];
+          const edgeKey = createEdgeKey(baseP0, baseP1);
+          const snapBaseCoord = dotPointNormal(baseP0, normal);
+          const snapTargets = collectParallelSnapTargets(polygonMap, baseP0, baseP1, normal, edgeKey);
           dragState = {
             bounds,
             scale,
@@ -729,6 +852,8 @@ export function renderAlternativeViz(demo, opts = {}) {
             onDataChanged,
             didMove: false,
             currentOffset: 0,
+            snapBaseCoord,
+            snapTargets,
           };
           handle.classList.remove('is-hover');
         });

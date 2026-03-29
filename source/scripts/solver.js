@@ -301,6 +301,40 @@ function cloneInheritedWall(source, newId, nodes, orientation, length, zoneName,
   return clone;
 }
 
+function mergeWallDetails(target, source) {
+  if (!target || !source) return;
+
+  if (source.build_up_template_id && !target.build_up_template_id && !Array.isArray(target.build_up)) {
+    target.build_up_template_id = source.build_up_template_id;
+  }
+  if (Array.isArray(source.build_up)) {
+    if (!Array.isArray(target.build_up)) target.build_up = [];
+    target.build_up.push(...JSON.parse(JSON.stringify(source.build_up)));
+    delete target.build_up_template_id;
+  }
+
+  if (Array.isArray(source.windows) && source.windows.length > 0) {
+    if (!Array.isArray(target.windows)) target.windows = [];
+    target.windows.push(...JSON.parse(JSON.stringify(source.windows)));
+  }
+  if (Array.isArray(source.doors) && source.doors.length > 0) {
+    if (!Array.isArray(target.doors)) target.doors = [];
+    target.doors.push(...JSON.parse(JSON.stringify(source.doors)));
+  }
+  if ((!target.name || String(target.name).trim() === '') && source.name) {
+    target.name = source.name;
+  }
+}
+
+function parseWallSignature(signature) {
+  const idx = signature.lastIndexOf('|');
+  if (idx === -1) return { otherNodeId: signature, orientation: '' };
+  return {
+    otherNodeId: signature.slice(0, idx),
+    orientation: signature.slice(idx + 1)
+  };
+}
+
 function reconcileWallElementsFromPolygons(demo, changedPolygonsByZoneId) {
   if (!demo || !Array.isArray(demo.zones) || !Array.isArray(demo.elements) || !changedPolygonsByZoneId) return;
 
@@ -329,6 +363,7 @@ function reconcileWallElementsFromPolygons(demo, changedPolygonsByZoneId) {
 
   const existingIds = new Set(demo.elements.map(el => el && el.id).filter(Boolean));
   const additions = [];
+  const removals = new Set();
   const changedZoneIds = Object.keys(changedPolygonsByZoneId || {});
 
   for (const zoneId of changedZoneIds) {
@@ -369,10 +404,22 @@ function reconcileWallElementsFromPolygons(demo, changedPolygonsByZoneId) {
 
     for (const [signature, desiredSegments] of desiredBySignature.entries()) {
       const existingWalls = existingBySignature.get(signature) || [];
-      const [otherNodeId, orientation] = signature.split('|');
+      const { otherNodeId, orientation } = parseWallSignature(signature);
 
       for (let i = 0; i < Math.min(existingWalls.length, desiredSegments.length); i++) {
         existingWalls[i].x = Number(desiredSegments[i].length.toFixed(3));
+      }
+
+      if (desiredSegments.length < existingWalls.length) {
+        const keeperCount = Math.max(1, desiredSegments.length);
+        for (let i = keeperCount; i < existingWalls.length; i++) {
+          const wallToRemove = existingWalls[i];
+          const keeper = existingWalls[keeperCount - 1] || existingWalls[0];
+          if (keeper && wallToRemove && keeper !== wallToRemove) {
+            mergeWallDetails(keeper, wallToRemove);
+          }
+          if (wallToRemove && wallToRemove.id) removals.add(wallToRemove.id);
+        }
       }
 
       if (desiredSegments.length > existingWalls.length) {
@@ -400,10 +447,34 @@ function reconcileWallElementsFromPolygons(demo, changedPolygonsByZoneId) {
         }
       }
     }
+
+    for (const [signature, existingWalls] of existingBySignature.entries()) {
+      if (desiredBySignature.has(signature) || existingWalls.length === 0) continue;
+
+      const { otherNodeId } = parseWallSignature(signature);
+      const fallbackTarget = demo.elements.find(el => {
+        if (!el || removals.has(el.id)) return false;
+        if (String(el.type || '').toLowerCase() !== 'wall') return false;
+        if (!Array.isArray(el.nodes) || !el.nodes.includes(zoneId)) return false;
+        const other = el.nodes.find(id => id !== zoneId);
+        return other === otherNodeId;
+      });
+
+      existingWalls.forEach(staleWall => {
+        if (!staleWall || !staleWall.id) return;
+        if (fallbackTarget && fallbackTarget !== staleWall) {
+          mergeWallDetails(fallbackTarget, staleWall);
+        }
+        removals.add(staleWall.id);
+      });
+    }
   }
 
   if (additions.length > 0) {
     demo.elements.push(...additions);
+  }
+  if (removals.size > 0) {
+    demo.elements = demo.elements.filter(el => !el || !removals.has(el.id));
   }
 }
 
