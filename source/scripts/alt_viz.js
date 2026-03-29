@@ -474,12 +474,226 @@ function collectParallelSnapTargets(polygonMap, dragP0, dragP1, normal, excludeE
   return targets;
 }
 
+function formatLengthLabel(length) {
+  if (!isFinite(length) || length <= 0) return '-';
+  return `${length.toFixed(2)}m`;
+}
+
 function getEdgeCursor(p0, p1) {
   const dx = Math.abs(p1.x - p0.x);
   const dy = Math.abs(p1.y - p0.y);
   if (dx >= dy * 2) return 'ns-resize';
   if (dy >= dx * 2) return 'ew-resize';
   return 'move';
+}
+
+function scoreBoundaryEdge(edgeGroups, polygon, edgeIndex) {
+  const p0 = polygon[edgeIndex];
+  const p1 = polygon[(edgeIndex + 1) % polygon.length];
+  const refs = edgeGroups.get(createEdgeKey(p0, p1)) || [];
+  const sharedCount = refs.length;
+  return sharedCount <= 1 ? 0 : sharedCount;
+}
+
+function chooseBoundaryForLengthEdit(edgeGroups, polygon, edgeIndex) {
+  const n = polygon.length;
+  const startBoundaryIndex = (edgeIndex - 1 + n) % n;
+  const endBoundaryIndex = (edgeIndex + 1) % n;
+  const p0 = polygon[edgeIndex];
+  const p1 = polygon[(edgeIndex + 1) % n];
+  const horizontalEdit = Math.abs(p1.x - p0.x) >= Math.abs(p1.y - p0.y);
+
+  if (horizontalEdit) {
+    const startBoundary = polygon[startBoundaryIndex];
+    const endBoundary = polygon[endBoundaryIndex];
+    return startBoundary.x > endBoundary.x
+      ? { boundaryEdgeIndex: startBoundaryIndex, moveSign: 1 }
+      : { boundaryEdgeIndex: endBoundaryIndex, moveSign: 1 };
+  }
+
+  const startBoundary = polygon[startBoundaryIndex];
+  const endBoundary = polygon[endBoundaryIndex];
+  return startBoundary.y > endBoundary.y
+    ? { boundaryEdgeIndex: startBoundaryIndex, moveSign: 1 }
+    : { boundaryEdgeIndex: endBoundaryIndex, moveSign: 1 };
+}
+
+function isPolygonOnMovedBoundarySide(polygon, axis, boundaryCoord, epsilon = 1e-6) {
+  if (!Array.isArray(polygon) || polygon.length < 3) return false;
+  const values = polygon.map(pt => axis === 'x' ? pt.x : pt.y);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+
+  // Polygons crossing the movement plane need dedicated edge handling, not rigid translation.
+  if (minValue < boundaryCoord - epsilon && maxValue > boundaryCoord + epsilon) {
+    return false;
+  }
+
+  return minValue >= boundaryCoord - epsilon;
+}
+
+function translatePolygon(polygon, axis, delta) {
+  return polygon.map(pt => axis === 'x'
+    ? { x: pt.x + delta, y: pt.y }
+    : { x: pt.x, y: pt.y + delta });
+}
+
+function edgeLiesOnBoundaryPlane(p0, p1, axis, boundaryCoord, epsilon = 1e-6) {
+  if (axis === 'x') {
+    return Math.abs(p0.x - boundaryCoord) < epsilon && Math.abs(p1.x - boundaryCoord) < epsilon;
+  }
+  return Math.abs(p0.y - boundaryCoord) < epsilon && Math.abs(p1.y - boundaryCoord) < epsilon;
+}
+
+export function hasOnlyAxisAlignedEdges(polygon, epsilon = 1e-6) {
+  if (!Array.isArray(polygon) || polygon.length < 3) return false;
+  for (let i = 0; i < polygon.length; i++) {
+    const p0 = polygon[i];
+    const p1 = polygon[(i + 1) % polygon.length];
+    const dx = Math.abs(p1.x - p0.x);
+    const dy = Math.abs(p1.y - p0.y);
+    if (dx > epsilon && dy > epsilon) return false;
+  }
+  return true;
+}
+
+export function applyWallLengthEditToPolygonMap(rawPolygonMap, zoneId, edgeIndex, nextLengthRaw) {
+  const nextLength = Number(nextLengthRaw);
+  if (!isFinite(nextLength) || nextLength <= 0.05) return {};
+
+  const sourceMap = rawPolygonMap instanceof Map
+    ? rawPolygonMap
+    : new Map(Object.entries(rawPolygonMap || {}));
+  const polygonMap = normalizePolygonMapForSharedWalls(clonePolygonMap(sourceMap));
+  const polygon = polygonMap.get(zoneId);
+  if (!polygon || polygon.length < 2) return {};
+
+  const p0 = polygon[edgeIndex];
+  const p1 = polygon[(edgeIndex + 1) % polygon.length];
+  const edgeKey = createEdgeKey(p0, p1);
+  const edgeGroups = buildSharedEdgeGroups(polygonMap);
+  const affectedEdges = edgeGroups.get(edgeKey) || [{ zoneId, edgeIndex }];
+  const changedMap = new Map();
+  const eps = 1e-6;
+
+  let propagation = null;
+  const targetDx = p1.x - p0.x;
+  const targetDy = p1.y - p0.y;
+  const targetLen = Math.hypot(targetDx, targetDy);
+  if (isFinite(targetLen) && targetLen >= 1e-6) {
+    const targetDeltaLen = nextLength - targetLen;
+    if (Math.abs(targetDeltaLen) >= 1e-6) {
+      const targetBoundary = chooseBoundaryForLengthEdit(edgeGroups, polygon, edgeIndex);
+      const targetB0 = polygon[targetBoundary.boundaryEdgeIndex];
+      const targetB1 = polygon[(targetBoundary.boundaryEdgeIndex + 1) % polygon.length];
+      const targetBoundaryIsVertical = Math.abs(targetB0.x - targetB1.x) < eps;
+      const targetBoundaryIsHorizontal = Math.abs(targetB0.y - targetB1.y) < eps;
+
+      if (Math.abs(targetDx) >= Math.abs(targetDy) && targetBoundaryIsVertical) {
+        propagation = {
+          axis: 'x',
+          boundaryCoord: targetB0.x,
+          delta: targetBoundary.moveSign * targetDeltaLen,
+          movedBoundaryKey: createEdgeKey(targetB0, targetB1),
+          normal: { x: 1, y: 0 },
+        };
+      } else if (Math.abs(targetDy) > Math.abs(targetDx) && targetBoundaryIsHorizontal) {
+        propagation = {
+          axis: 'y',
+          boundaryCoord: targetB0.y,
+          delta: targetBoundary.moveSign * targetDeltaLen,
+          movedBoundaryKey: createEdgeKey(targetB0, targetB1),
+          normal: { x: 0, y: 1 },
+        };
+      }
+    }
+  }
+
+  affectedEdges.forEach(ref => {
+    const basePoly = polygonMap.get(ref.zoneId);
+    if (!basePoly || basePoly.length < 2) return;
+
+    const i = ref.edgeIndex;
+    const j = (i + 1) % basePoly.length;
+    const a = basePoly[i];
+    const b = basePoly[j];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const currLen = Math.hypot(dx, dy);
+    if (!isFinite(currLen) || currLen < 1e-6) return;
+
+    const deltaLen = nextLength - currLen;
+    if (Math.abs(deltaLen) < 1e-6) return;
+
+    const { boundaryEdgeIndex, moveSign } = chooseBoundaryForLengthEdit(edgeGroups, basePoly, i);
+    const b0 = basePoly[boundaryEdgeIndex];
+    const b1 = basePoly[(boundaryEdgeIndex + 1) % basePoly.length];
+    const nextPoly = clonePolygon(basePoly);
+
+    const boundaryIsVertical = Math.abs(b0.x - b1.x) < eps;
+    const boundaryIsHorizontal = Math.abs(b0.y - b1.y) < eps;
+
+    if (Math.abs(dx) >= Math.abs(dy) && boundaryIsVertical) {
+      const oldX = b0.x;
+      const newX = oldX + moveSign * deltaLen;
+      for (let vi = 0; vi < basePoly.length; vi++) {
+        if (Math.abs(basePoly[vi].x - oldX) < eps) {
+          nextPoly[vi] = { x: newX, y: basePoly[vi].y };
+        }
+      }
+    } else if (Math.abs(dy) > Math.abs(dx) && boundaryIsHorizontal) {
+      const oldY = b0.y;
+      const newY = oldY + moveSign * deltaLen;
+      for (let vi = 0; vi < basePoly.length; vi++) {
+        if (Math.abs(basePoly[vi].y - oldY) < eps) {
+          nextPoly[vi] = { x: basePoly[vi].x, y: newY };
+        }
+      }
+    } else {
+      return;
+    }
+
+    const cleaned = cleanupDisconnectedAreas(nextPoly);
+    changedMap.set(ref.zoneId, cleaned);
+  });
+
+  if (propagation && Math.abs(propagation.delta) >= 1e-6) {
+    for (const [otherZoneId, otherPoly] of polygonMap.entries()) {
+      if (otherZoneId === zoneId || changedMap.has(otherZoneId)) continue;
+      if (!isPolygonOnMovedBoundarySide(otherPoly, propagation.axis, propagation.boundaryCoord, eps)) continue;
+
+      const boundaryEdgeIndices = [];
+      const movedBoundaryEdgeIndices = [];
+      for (let i = 0; i < otherPoly.length; i++) {
+        const pA = otherPoly[i];
+        const pB = otherPoly[(i + 1) % otherPoly.length];
+        if (!edgeLiesOnBoundaryPlane(pA, pB, propagation.axis, propagation.boundaryCoord, eps)) continue;
+        boundaryEdgeIndices.push(i);
+        if (createEdgeKey(pA, pB) === propagation.movedBoundaryKey) {
+          movedBoundaryEdgeIndices.push(i);
+        }
+      }
+
+      const hasAnchoredBoundaryEdges = boundaryEdgeIndices.some(i => !movedBoundaryEdgeIndices.includes(i));
+      if (hasAnchoredBoundaryEdges && movedBoundaryEdgeIndices.length > 0) {
+        const movedSet = new Set(movedBoundaryEdgeIndices);
+        const reshaped = buildOrthogonalPolygonFromMovedEdges(otherPoly, movedSet, propagation.normal, propagation.delta);
+        changedMap.set(otherZoneId, reshaped);
+      } else {
+        changedMap.set(otherZoneId, translatePolygon(otherPoly, propagation.axis, propagation.delta));
+      }
+    }
+  }
+
+  const changedPolygons = {};
+  for (const [zid, cleaned] of changedMap.entries()) {
+    const basePoly = polygonMap.get(zid) || [];
+    if (JSON.stringify(cleaned) !== JSON.stringify(basePoly)) {
+      changedPolygons[zid] = cleaned;
+    }
+  }
+
+  return changedPolygons;
 }
 
 function updateRenderedZoneGeometry(zoneRenderState, polygon, bounds, scale, pad) {
@@ -503,6 +717,19 @@ function updateRenderedZoneGeometry(zoneRenderState, polygon, bounds, scale, pad
     line.setAttribute('y1', String(p0.y));
     line.setAttribute('x2', String(p1.x));
     line.setAttribute('y2', String(p1.y));
+  });
+
+  zoneRenderState.edgeLabelElements?.forEach((label, idx) => {
+    const p0 = projected[idx];
+    const p1 = projected[(idx + 1) % projected.length];
+    const midX = (p0.x + p1.x) / 2;
+    const midY = (p0.y + p1.y) / 2;
+    const worldP0 = polygon[idx];
+    const worldP1 = polygon[(idx + 1) % polygon.length];
+    const len = Math.hypot(worldP1.x - worldP0.x, worldP1.y - worldP0.y);
+    label.setAttribute('x', String(midX));
+    label.setAttribute('y', String(midY));
+    label.textContent = formatLengthLabel(len);
   });
 }
 
@@ -657,12 +884,82 @@ export function renderAlternativeViz(demo, opts = {}) {
   const polygonMap = normalizePolygonMapForSharedWalls(rawPolygonMap);
   const edgeGroups = buildSharedEdgeGroups(polygonMap);
   const zoneRenderStateById = new Map();
+  let activeLengthEditor = null;
 
   const svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('class', 'alt-viz-svg');
   svg.setAttribute('viewBox', `0 0 ${canvasW} ${canvasH}`);
   svg.setAttribute('role', 'img');
   svg.setAttribute('aria-label', `Alternative polygon room view for level ${selectedLevel}`);
+
+  const closeLengthEditor = () => {
+    if (activeLengthEditor && activeLengthEditor.parentNode) {
+      activeLengthEditor.parentNode.removeChild(activeLengthEditor);
+    }
+    activeLengthEditor = null;
+  };
+
+  const applyEdgeLength = (zoneId, edgeIndex, nextLengthRaw) => {
+    const changedPolygons = applyWallLengthEditToPolygonMap(polygonMap, zoneId, edgeIndex, nextLengthRaw);
+
+    suppressWallSelectionUntil = Date.now() + 250;
+    closeLengthEditor();
+    if (Object.keys(changedPolygons).length > 0 && onDataChanged) onDataChanged(changedPolygons);
+  };
+
+  const openLengthEditor = (zoneId, edgeIndex) => {
+    closeLengthEditor();
+    const polygon = polygonMap.get(zoneId);
+    if (!polygon || polygon.length < 2) return;
+
+    const p0 = polygon[edgeIndex];
+    const p1 = polygon[(edgeIndex + 1) % polygon.length];
+    const len = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+    const proj0 = projectPoint(p0, bounds, scale, pad);
+    const proj1 = projectPoint(p1, bounds, scale, pad);
+    const mx = (proj0.x + proj1.x) / 2;
+    const my = (proj0.y + proj1.y) / 2;
+
+    const editor = document.createElementNS(ns, 'foreignObject');
+    editor.setAttribute('class', 'alt-wall-length-editor');
+    editor.setAttribute('x', String(mx - 42));
+    editor.setAttribute('y', String(my - 14));
+    editor.setAttribute('width', '84');
+    editor.setAttribute('height', '28');
+
+    const input = document.createElementNS('http://www.w3.org/1999/xhtml', 'input');
+    input.setAttribute('type', 'number');
+    input.setAttribute('step', '0.05');
+    input.setAttribute('min', '0.05');
+    input.setAttribute('class', 'alt-wall-length-input');
+    input.value = len.toFixed(2);
+
+    input.addEventListener('mousedown', (e) => e.stopPropagation());
+    input.addEventListener('click', (e) => e.stopPropagation());
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        applyEdgeLength(zoneId, edgeIndex, input.value);
+      } else if (e.key === 'Escape') {
+        closeLengthEditor();
+      }
+    });
+    input.addEventListener('blur', () => {
+      applyEdgeLength(zoneId, edgeIndex, input.value);
+    });
+
+    editor.appendChild(input);
+    svg.appendChild(editor);
+    activeLengthEditor = editor;
+
+    setTimeout(() => {
+      try {
+        input.focus();
+        input.select();
+      } catch (_) {
+        // no-op
+      }
+    }, 0);
+  };
 
   svg.addEventListener('mousemove', (e) => {
     if (!dragState) return;
@@ -681,6 +978,7 @@ export function renderAlternativeViz(demo, opts = {}) {
       DRAG_NEAR_SNAP_THRESHOLD_M
     );
     dragState.currentOffset = offset;
+
     const thresholdWorld = DRAG_START_THRESHOLD_PX / dragState.scale;
     if (!dragState.didMove && Math.abs(offset) < thresholdWorld) {
       return;
@@ -689,8 +987,8 @@ export function renderAlternativeViz(demo, opts = {}) {
       dragState.didMove = true;
       highlightDraggedEdges(zoneRenderStateById, dragState.affectedEdges, true);
     }
-    const nextPolygonMap = clonePolygonMap(dragState.basePolygonMap);
 
+    const nextPolygonMap = clonePolygonMap(dragState.basePolygonMap);
     dragState.affectedEdges.forEach(({ zoneId, edgeIndex }) => {
       const basePolygon = dragState.basePolygonMap.get(zoneId);
       const nextPolygon = nextPolygonMap.get(zoneId);
@@ -746,6 +1044,9 @@ export function renderAlternativeViz(demo, opts = {}) {
   };
   svg.addEventListener('mouseup', finishDrag);
   svg.addEventListener('mouseleave', finishDrag);
+  svg.addEventListener('mousedown', () => {
+    if (!dragState) closeLengthEditor();
+  });
 
   polygonEntries.forEach(({ zone }) => {
     const polygon = polygonMap.get(zone.id);
@@ -807,6 +1108,7 @@ export function renderAlternativeViz(demo, opts = {}) {
     svg.appendChild(text);
 
     const edgeElements = [];
+    const edgeLabelElements = [];
     if (onDataChanged) {
       for (let idx = 0; idx < projected.length; idx++) {
         const p0 = projected[idx];
@@ -874,6 +1176,27 @@ export function renderAlternativeViz(demo, opts = {}) {
         });
         edgeElements.push(handle);
         svg.appendChild(handle);
+
+        const midX = (p0.x + p1.x) / 2;
+        const midY = (p0.y + p1.y) / 2;
+        const wallLen = Math.hypot(worldP1.x - worldP0.x, worldP1.y - worldP0.y);
+        const label = document.createElementNS(ns, 'text');
+        label.setAttribute('x', String(midX));
+        label.setAttribute('y', String(midY));
+        label.setAttribute('class', 'alt-wall-length-label');
+        label.textContent = formatLengthLabel(wallLen);
+        label.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        });
+        label.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (dragState) return;
+          openLengthEditor(zone.id, idx);
+        });
+        edgeLabelElements.push(label);
+        svg.appendChild(label);
       }
     }
 
@@ -882,6 +1205,7 @@ export function renderAlternativeViz(demo, opts = {}) {
       textElement: text,
       tspans: Array.from(text.querySelectorAll('tspan')),
       edgeElements,
+      edgeLabelElements,
       lineCount: lines.length
     });
   });
