@@ -123,6 +123,201 @@ function renderLegend(container) {
   container.appendChild(legend);
 }
 
+function buildAltVizMenuSpec(demo) {
+  const windowSizes = [
+    { label: '600 x 600', width: 600, height: 600 },
+    { label: '900 x 900', width: 900, height: 900 },
+    { label: '1200 x 1200', width: 1200, height: 1200 },
+    { label: '1500 x 1200', width: 1500, height: 1200 },
+    { label: '1800 x 1200', width: 1800, height: 1200 }
+  ];
+
+  const doorSizes = [
+    { label: '762 x 1981', width: 762, height: 1981 },
+    { label: '838 x 1981', width: 838, height: 1981 },
+    { label: '915 x 1981', width: 915, height: 1981 },
+    { label: '926 x 2040', width: 926, height: 2040 }
+  ];
+
+  const radiatorWidths = [400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000];
+
+  const mapWindowSizeItems = () => windowSizes.map(size => ({
+    label: size.label,
+    action: 'openings.windows.add',
+    payload: { width: size.width, height: size.height }
+  }));
+
+  const mapDoorSizeItems = () => doorSizes.map(size => ({
+    label: size.label,
+    action: 'openings.doors.add',
+    payload: { width: size.width, height: size.height }
+  }));
+
+  const mapRadiatorSizeItems = (trvEnabled, radiatorId) => radiatorWidths.map(width => ({
+    label: `${width}`,
+    action: 'hvac.radiators.add',
+    payload: { width, trvEnabled, radiatorId }
+  }));
+
+  const radiatorLibrary = Array.isArray(demo?.radiators?.radiators)
+    ? demo.radiators.radiators
+    : [];
+
+  const radiatorTypeMenus = (radiatorLibrary.length > 0
+    ? radiatorLibrary
+    : [
+        { id: 'type_1', name: 'Type 1' },
+        { id: 'type_11', name: 'Type 11' },
+        { id: 'type_22', name: 'Type 22' },
+        { id: 'type_33', name: 'Type 33' }
+      ]
+  ).map(type => ({
+    label: type.name || type.id,
+    items: [
+      {
+        label: 'Standard Sizes',
+        items: [
+          {
+            label: 'TRV',
+            items: mapRadiatorSizeItems(true, type.id)
+          },
+          {
+            label: 'No TRV',
+            items: mapRadiatorSizeItems(false, type.id)
+          }
+        ]
+      }
+    ]
+  }));
+
+  return [
+    {
+      label: 'File',
+      items: [
+        {
+          label: 'New Project',
+          items: [
+            { label: 'From Template', action: 'file.new.from_template' },
+            { label: 'Blank', action: 'file.new.blank' }
+          ]
+        },
+        { label: 'Save Project', action: 'file.save_project' },
+        { label: 'Load Project', action: 'file.load_project' }
+      ]
+    },
+    {
+      label: 'Edit',
+      items: [
+        { label: 'Undo (Not Yet Implemented)', action: 'edit.undo', disabled: true },
+        { label: 'Redo (Not Yet Implemented)', action: 'edit.redo', disabled: true }
+      ]
+    },
+    {
+      label: 'Add Structure',
+      items: [
+        { label: 'Floor', action: 'structure.add.floor' },
+        { label: 'Room', action: 'structure.add.room' }
+      ]
+    },
+    {
+      label: 'Openings',
+      items: [
+        {
+          label: 'Windows',
+          items: [
+            {
+              label: 'Window Types',
+              items: [
+                {
+                  label: 'Standard Sizes',
+                  items: mapWindowSizeItems()
+                }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Doors',
+          items: [
+            {
+              label: 'Door Types',
+              items: [
+                {
+                  label: 'Standard Sizes',
+                  items: mapDoorSizeItems()
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      label: 'HVAC',
+      items: [
+        {
+          label: 'Radiators',
+          items: [
+            {
+              label: 'Radiator Type',
+              items: radiatorTypeMenus
+            }
+          ]
+        },
+        { label: 'Boiler Thermostat', action: 'hvac.boiler_thermostat' }
+      ]
+    }
+  ];
+}
+
+function createAltVizMenuBar(onMenuAction, getContext) {
+  const bar = document.createElement('div');
+  bar.className = 'alt-viz-menubar';
+
+  const context = typeof getContext === 'function' ? getContext() : {};
+  const menuSpec = buildAltVizMenuSpec(context.demo);
+
+  const renderMenuItems = (items, level = 0) => {
+    const list = document.createElement('ul');
+    list.className = level === 0 ? 'alt-viz-menu-list' : 'alt-viz-submenu-list';
+
+    items.forEach(item => {
+      const li = document.createElement('li');
+      li.className = 'alt-viz-menu-item';
+      if (item.disabled) li.classList.add('is-disabled');
+
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = level === 0 ? 'alt-viz-menu-trigger' : 'alt-viz-submenu-trigger';
+      trigger.textContent = item.label;
+      trigger.setAttribute('aria-haspopup', item.items ? 'menu' : 'false');
+      trigger.disabled = !!item.disabled;
+
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (item.disabled) return;
+        if (!item.items && item.action && typeof onMenuAction === 'function') {
+          onMenuAction(item.action, item, typeof getContext === 'function' ? getContext() : {});
+        }
+      });
+
+      li.appendChild(trigger);
+
+      if (Array.isArray(item.items) && item.items.length > 0) {
+        li.classList.add('has-submenu');
+        li.appendChild(renderMenuItems(item.items, level + 1));
+      }
+
+      list.appendChild(li);
+    });
+
+    return list;
+  };
+
+  bar.appendChild(renderMenuItems(menuSpec, 0));
+  return bar;
+}
+
 function renderEmptyMessage(container, message) {
   const empty = document.createElement('div');
   empty.className = 'alt-viz-message';
@@ -1540,8 +1735,16 @@ export function renderAlternativeViz(demo, opts = {}) {
   const onObjectMoved = typeof opts.onObjectMoved === 'function' ? opts.onObjectMoved : null;
   const onSeedLevelPolygons = typeof opts.onSeedLevelPolygons === 'function' ? opts.onSeedLevelPolygons : null;
   const onDataChanged = typeof opts.onDataChanged === 'function' ? opts.onDataChanged : null;
+  const onMenuAction = typeof opts.onMenuAction === 'function' ? opts.onMenuAction : null;
 
   root.innerHTML = '';
+
+  const menuBar = createAltVizMenuBar(onMenuAction, () => ({
+    demo,
+    selectedZoneId,
+    selectedLevel
+  }));
+  root.appendChild(menuBar);
 
   const rooms = getRoomZones(demo);
   if (rooms.length === 0) {

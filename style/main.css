@@ -193,6 +193,94 @@ a#download:hover {
   padding: 0.9rem;
 }
 
+.alt-viz-menubar {
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.26) 0%, rgba(0, 0, 0, 0.16) 100%);
+  margin-bottom: 0.65rem;
+  position: relative;
+  z-index: 10;
+}
+
+.alt-viz-menu-list,
+.alt-viz-submenu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.alt-viz-menu-list {
+  display: flex;
+  align-items: stretch;
+}
+
+.alt-viz-menu-item {
+  position: relative;
+}
+
+.alt-viz-menu-trigger,
+.alt-viz-submenu-trigger {
+  border: none;
+  border-radius: 0;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  color: var(--text-light);
+  font-size: 0.86rem;
+  line-height: 1.2;
+  cursor: pointer;
+  box-shadow: none;
+  transform: none;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.alt-viz-menu-trigger:hover,
+.alt-viz-submenu-trigger:hover {
+  background: rgba(0, 212, 255, 0.14);
+  color: #ffffff;
+  box-shadow: none;
+  transform: none;
+}
+
+.alt-viz-menu-item.is-disabled > .alt-viz-menu-trigger,
+.alt-viz-menu-item.is-disabled > .alt-viz-submenu-trigger,
+.alt-viz-menu-item.is-disabled > .alt-viz-menu-trigger:hover,
+.alt-viz-menu-item.is-disabled > .alt-viz-submenu-trigger:hover {
+  color: #8a8f97;
+  background: transparent;
+  cursor: not-allowed;
+}
+
+.alt-viz-submenu-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 210px;
+  background: #13171d;
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+  display: none;
+  padding: 0.25rem;
+  z-index: 50;
+}
+
+.alt-viz-submenu-list .alt-viz-submenu-list {
+  top: -0.25rem;
+  left: calc(100% - 2px);
+}
+
+.alt-viz-menu-item.has-submenu:hover > .alt-viz-submenu-list {
+  display: block;
+}
+
+.alt-viz-menu-item.has-submenu > .alt-viz-submenu-trigger::after {
+  content: '▸';
+  float: right;
+  margin-left: 0.5rem;
+  opacity: 0.9;
+}
+
 .alt-viz-toolbar {
   display: flex;
   align-items: center;
