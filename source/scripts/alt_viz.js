@@ -507,19 +507,19 @@ function buildAltVizMenuSpec(context = {}) {
         {
           label: 'New Project',
           items: [
-            { label: 'From Template', action: 'file.new.from_template' },
-            { label: 'Blank', action: 'file.new.blank' }
+            { label: 'From Template', action: 'file.new.from_template', shortcut: 'Ctrl+Shift+N' },
+            { label: 'Blank', action: 'file.new.blank', shortcut: 'Ctrl+N' }
           ]
         },
-        { label: 'Save Project', action: 'file.save_project' },
-        { label: 'Load Project', action: 'file.load_project' }
+        { label: 'Save Project', action: 'file.save_project', shortcut: 'Ctrl+S' },
+        { label: 'Load Project', action: 'file.load_project', shortcut: 'Ctrl+O' }
       ]
     },
     {
       label: 'Edit',
       items: [
-        { label: 'Undo', action: 'edit.undo', disabled: !canUndo },
-        { label: 'Redo', action: 'edit.redo', disabled: !canRedo }
+        { label: 'Undo', action: 'edit.undo', disabled: !canUndo, shortcut: 'Ctrl+Z' },
+        { label: 'Redo', action: 'edit.redo', disabled: !canRedo, shortcut: 'Ctrl+Y' }
       ]
     },
     {
@@ -634,6 +634,13 @@ function createAltVizMenuBar(onMenuAction, getContext) {
       trigger.type = 'button';
       trigger.className = level === 0 ? 'alt-viz-menu-trigger' : 'alt-viz-submenu-trigger';
       trigger.textContent = item.label;
+      if (item.shortcut) {
+        trigger.classList.add('has-shortcut');
+        const shortcut = document.createElement('span');
+        shortcut.className = 'alt-viz-menu-shortcut';
+        shortcut.textContent = item.shortcut;
+        trigger.appendChild(shortcut);
+      }
       trigger.setAttribute('aria-haspopup', item.items ? 'menu' : 'false');
       trigger.disabled = !!item.disabled;
 

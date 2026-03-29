@@ -682,6 +682,55 @@ function handleAltVizMenuAction(action, item, context = {}) {
   }
 }
 
+function isEditableEventTarget(target) {
+  if (!target || typeof target.closest !== 'function') return false;
+  if (target.closest('input, textarea, select')) return true;
+  if (target.closest('[contenteditable=""], [contenteditable="true"]')) return true;
+  return false;
+}
+
+function handleGlobalShortcut(event) {
+  if (!event) return;
+  if (!(event.ctrlKey || event.metaKey)) return;
+  if (event.altKey) return;
+  if (isEditableEventTarget(event.target)) return;
+
+  const key = String(event.key || '').toLowerCase();
+
+  // Undo / Redo
+  if (key === 'z' && !event.shiftKey) {
+    event.preventDefault();
+    handleAltVizMenuAction('edit.undo', { action: 'edit.undo' }, {});
+    return;
+  }
+  if (key === 'y' || (key === 'z' && event.shiftKey)) {
+    event.preventDefault();
+    handleAltVizMenuAction('edit.redo', { action: 'edit.redo' }, {});
+    return;
+  }
+
+  // File shortcuts
+  if (key === 's') {
+    event.preventDefault();
+    handleAltVizMenuAction('file.save_project', { action: 'file.save_project' }, {});
+    return;
+  }
+  if (key === 'o') {
+    event.preventDefault();
+    handleAltVizMenuAction('file.load_project', { action: 'file.load_project' }, {});
+    return;
+  }
+  if (key === 'n' && !event.shiftKey) {
+    event.preventDefault();
+    handleAltVizMenuAction('file.new.blank', { action: 'file.new.blank' }, {});
+    return;
+  }
+  if (key === 'n' && event.shiftKey) {
+    event.preventDefault();
+    handleAltVizMenuAction('file.new.from_template', { action: 'file.new.from_template' }, {});
+  }
+}
+
 async function tryFetchJson(url) {
   try {
     const r = await fetch(url);
@@ -1842,6 +1891,8 @@ export function reconcileWallElementsFromPolygons(demo, changedPolygonsByZoneId)
 
 // Load and initialize on page load
 if (typeof window !== 'undefined') window.addEventListener('load', async () => {
+  window.addEventListener('keydown', handleGlobalShortcut);
+
   appUiApi = initAppUi({
     onSolveRequested: triggerSolve,
     onUploadDemo: (uploadedDemo) => {

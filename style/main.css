@@ -319,6 +319,21 @@ a#download:hover {
   text-align: left;
 }
 
+.alt-viz-menu-trigger.has-shortcut,
+.alt-viz-submenu-trigger.has-shortcut {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.alt-viz-menu-shortcut {
+  margin-left: auto;
+  color: var(--text-muted);
+  opacity: 0.78;
+  font-size: 0.76rem;
+}
+
 .alt-viz-menu-trigger:hover,
 .alt-viz-submenu-trigger:hover {
   background: rgba(0, 212, 255, 0.14);
