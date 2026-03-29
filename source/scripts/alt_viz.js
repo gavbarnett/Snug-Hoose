@@ -8,7 +8,7 @@ let dragState = null;
 let suppressWallSelectionUntil = 0;
 const DRAG_START_THRESHOLD_PX = 6;
 const DRAG_SNAP_STEP_M = 0.1;
-const DRAG_NEAR_SNAP_THRESHOLD_M = 0.18;
+const DRAG_NEAR_SNAP_THRESHOLD_M = 0.6;
 
 function snapOffsetMeters(offset, step) {
   if (!isFinite(offset)) return 0;
@@ -24,26 +24,31 @@ function snapOffsetToGridAndTargets(rawOffset, baseCoord, targetCoords, step, ne
   if (!isFinite(rawOffset)) return 0;
   const absoluteCoord = baseCoord + rawOffset;
 
-  let snappedCoord = absoluteCoord;
-  if (isFinite(step) && step > 0) {
-    snappedCoord = Math.round(absoluteCoord / step) * step;
-  }
-
-  let bestCoord = snappedCoord;
-  let bestDist = Math.abs(snappedCoord - absoluteCoord);
+  let closestTargetCoord = null;
+  let closestTargetDist = Infinity;
 
   if (Array.isArray(targetCoords)) {
     for (const target of targetCoords) {
       if (!isFinite(target)) continue;
       const dist = Math.abs(target - absoluteCoord);
-      if (dist <= nearThreshold && dist < bestDist) {
-        bestDist = dist;
-        bestCoord = target;
+      if (dist <= nearThreshold && dist < closestTargetDist) {
+        closestTargetDist = dist;
+        closestTargetCoord = target;
       }
     }
   }
 
-  return bestCoord - baseCoord;
+  // Prefer nearby wall alignment over grid snap when available.
+  if (closestTargetCoord !== null) {
+    return closestTargetCoord - baseCoord;
+  }
+
+  let snappedCoord = absoluteCoord;
+  if (isFinite(step) && step > 0) {
+    snappedCoord = Math.round(absoluteCoord / step) * step;
+  }
+
+  return snappedCoord - baseCoord;
 }
 
 function getSVGPoint(svg, e) {
