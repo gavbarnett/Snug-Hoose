@@ -713,6 +713,55 @@ function getZoneLevel(zone) {
   return typeof zone?.level === 'number' ? zone.level : 0;
 }
 
+function getPolygonCentroidX(polygon) {
+  if (!Array.isArray(polygon) || polygon.length === 0) return null;
+  let sumX = 0;
+  let count = 0;
+  for (const pt of polygon) {
+    const x = Number(pt?.x);
+    if (!isFinite(x)) continue;
+    sumX += x;
+    count += 1;
+  }
+  if (count === 0) return null;
+  return sumX / count;
+}
+
+function getZoneLabel(zoneById, zoneId) {
+  return zoneById.get(zoneId)?.name || zoneId || 'Unknown';
+}
+
+function orderWallNodesForDisplay(nodes, zoneById, polygonByZoneId, boundaryIds) {
+  if (!Array.isArray(nodes) || nodes.length < 2) return Array.isArray(nodes) ? nodes.slice(0, 2) : [];
+
+  const leftId = nodes[0];
+  const rightId = nodes[1];
+  const leftIsBoundary = boundaryIds.has(leftId);
+  const rightIsBoundary = boundaryIds.has(rightId);
+
+  if (leftIsBoundary && !rightIsBoundary) return [rightId, leftId];
+  if (!leftIsBoundary && rightIsBoundary) return [leftId, rightId];
+
+  const leftX = getPolygonCentroidX(polygonByZoneId.get(leftId));
+  const rightX = getPolygonCentroidX(polygonByZoneId.get(rightId));
+
+  if (isFinite(leftX) && isFinite(rightX) && Math.abs(leftX - rightX) > 1e-6) {
+    return leftX <= rightX ? [leftId, rightId] : [rightId, leftId];
+  }
+
+  const leftName = String(getZoneLabel(zoneById, leftId));
+  const rightName = String(getZoneLabel(zoneById, rightId));
+  return leftName.localeCompare(rightName) <= 0 ? [leftId, rightId] : [rightId, leftId];
+}
+
+function buildDynamicWallName(nodes, zoneById, polygonByZoneId, boundaryIds) {
+  const ordered = orderWallNodesForDisplay(nodes, zoneById, polygonByZoneId, boundaryIds);
+  if (ordered.length < 2) return 'Wall';
+  const leftName = getZoneLabel(zoneById, ordered[0]);
+  const rightName = getZoneLabel(zoneById, ordered[1]);
+  return `${leftName} - ${rightName} Wall`;
+}
+
 function getOppositeOrientation(orientation) {
   const normalized = String(orientation || '').toLowerCase();
   if (normalized === 'north') return 'south';
@@ -754,6 +803,15 @@ function canonicalizeWallRecord(nodes, orientation, boundaryIds) {
     nodes: [left, right],
     orientation: normalizedOrientation
   };
+}
+
+function applyDynamicNamesToWalls(demo, zoneById, polygonByZoneId, boundaryIds) {
+  if (!Array.isArray(demo?.elements)) return;
+  for (const element of demo.elements) {
+    if (!element || String(element.type || '').toLowerCase() !== 'wall') continue;
+    if (!Array.isArray(element.nodes) || element.nodes.length < 2) continue;
+    element.name = buildDynamicWallName(element.nodes, zoneById, polygonByZoneId, boundaryIds);
+  }
 }
 
 export function reconcileWallElementsFromPolygons(demo, changedPolygonsByZoneId) {
@@ -953,6 +1011,8 @@ export function reconcileWallElementsFromPolygons(demo, changedPolygonsByZoneId)
   if (removals.size > 0) {
     demo.elements = demo.elements.filter(el => !el || !removals.has(el.id));
   }
+
+  applyDynamicNamesToWalls(demo, zoneById, polygonByZoneId, boundaryIds);
 }
 
 function initVizTabs() {

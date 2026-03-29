@@ -518,6 +518,54 @@ function getEdgeCursor(p0, p1) {
   return 'move';
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function lerpColorHex(hexA, hexB, t) {
+  const parse = (hex) => {
+    const normalized = String(hex || '#000000').replace('#', '');
+    return {
+      r: parseInt(normalized.slice(0, 2), 16),
+      g: parseInt(normalized.slice(2, 4), 16),
+      b: parseInt(normalized.slice(4, 6), 16),
+    };
+  };
+
+  const a = parse(hexA);
+  const b = parse(hexB);
+  const tt = clamp(t, 0, 1);
+  const toHex = (v) => Math.round(clamp(v, 0, 255)).toString(16).padStart(2, '0');
+  return `#${toHex(lerp(a.r, b.r, tt))}${toHex(lerp(a.g, b.g, tt))}${toHex(lerp(a.b, b.b, tt))}`;
+}
+
+export function getWallStackRValue(element) {
+  if (!element) return null;
+  const uFabric = Number(element.u_fabric);
+  if (isFinite(uFabric) && uFabric > 0) return 1 / uFabric;
+  return null;
+}
+
+export function mapRValueToWallVisual(rValue, isExternal = false) {
+  if (!isFinite(rValue) || rValue <= 0) {
+    return {
+      color: isExternal ? '#7ab2e6' : '#8b9aa8',
+      width: isExternal ? 3.1 : 2.0,
+    };
+  }
+
+  const minR = 0.5;
+  const maxR = 6.0;
+  const t = clamp((rValue - minR) / (maxR - minR), 0, 1);
+  const color = lerpColorHex('#c46b6b', '#63c0ef', t);
+  const width = lerp(1.6, 5.6, t) + (isExternal ? 0.5 : 0);
+  return { color, width };
+}
+
 function scoreBoundaryEdge(edgeGroups, polygon, edgeIndex) {
   const p0 = polygon[edgeIndex];
   const p1 = polygon[(edgeIndex + 1) % polygon.length];
@@ -750,6 +798,15 @@ function updateRenderedZoneGeometry(zoneRenderState, polygon, bounds, scale, pad
     line.setAttribute('y2', String(p1.y));
   });
 
+  zoneRenderState.edgeVisualElements?.forEach((line, idx) => {
+    const p0 = projected[idx];
+    const p1 = projected[(idx + 1) % projected.length];
+    line.setAttribute('x1', String(p0.x));
+    line.setAttribute('y1', String(p0.y));
+    line.setAttribute('x2', String(p1.x));
+    line.setAttribute('y2', String(p1.y));
+  });
+
   zoneRenderState.edgeLabelElements?.forEach((label, idx) => {
     const p0 = projected[idx];
     const p1 = projected[(idx + 1) % projected.length];
@@ -789,6 +846,9 @@ function getEdgeOrientation(polygon, edgeIndex) {
 
 function findWallElementForEdge(demo, edgeGroups, polygonMap, zoneId, edgeIndex) {
   const elements = Array.isArray(demo?.elements) ? demo.elements : [];
+  const boundaryIds = new Set((Array.isArray(demo?.zones) ? demo.zones : [])
+    .filter(zone => zone && zone.type === 'boundary')
+    .map(zone => zone.id));
   const polygon = polygonMap.get(zoneId);
   if (!polygon) return null;
 
@@ -796,14 +856,20 @@ function findWallElementForEdge(demo, edgeGroups, polygonMap, zoneId, edgeIndex)
   const p1 = polygon[(edgeIndex + 1) % polygon.length];
   const sharedRefs = edgeGroups.get(createEdgeKey(p0, p1)) || [];
   const adjacentZoneId = sharedRefs.find(ref => ref.zoneId !== zoneId)?.zoneId || null;
-  const zoneNodeIds = adjacentZoneId ? [zoneId, adjacentZoneId] : [zoneId];
   const orientation = getEdgeOrientation(polygon, edgeIndex);
+  const edgeLength = Math.hypot(p1.x - p0.x, p1.y - p0.y);
 
   let candidates = elements.filter(element => {
     if (!element || String(element.type || '').toLowerCase() !== 'wall') return false;
-    if (!Array.isArray(element.nodes) || !element.nodes.includes(zoneId)) return false;
-    if (adjacentZoneId) return element.nodes.includes(adjacentZoneId);
-    return element.nodes.some(nodeId => !zoneNodeIds.includes(nodeId));
+    if (!Array.isArray(element.nodes) || element.nodes.length < 2 || !element.nodes.includes(zoneId)) return false;
+
+    const otherNodeIds = element.nodes.filter(nodeId => nodeId !== zoneId);
+    if (adjacentZoneId) {
+      return otherNodeIds.includes(adjacentZoneId);
+    }
+
+    // External edges should only bind to wall elements connected to a boundary node.
+    return otherNodeIds.some(nodeId => boundaryIds.has(nodeId));
   });
 
   if (candidates.length > 1) {
@@ -811,7 +877,29 @@ function findWallElementForEdge(demo, edgeGroups, polygonMap, zoneId, edgeIndex)
     if (orientationMatches.length > 0) candidates = orientationMatches;
   }
 
+  if (candidates.length > 1 && isFinite(edgeLength) && edgeLength > 0) {
+    candidates = candidates
+      .slice()
+      .sort((a, b) => {
+        const lenA = Math.abs((Number(a?.x) || 0) - edgeLength);
+        const lenB = Math.abs((Number(b?.x) || 0) - edgeLength);
+        return lenA - lenB;
+      });
+  }
+
   return candidates[0] || null;
+}
+
+function getEdgeWallVisualStyle(demo, edgeGroups, polygonMap, zoneId, edgeIndex) {
+  const wall = findWallElementForEdge(demo, edgeGroups, polygonMap, zoneId, edgeIndex);
+  if (!wall) return mapRValueToWallVisual(null, false);
+
+  const boundaryIds = new Set((Array.isArray(demo?.zones) ? demo.zones : [])
+    .filter(zone => zone && zone.type === 'boundary')
+    .map(zone => zone.id));
+  const isExternal = Array.isArray(wall.nodes) && wall.nodes.some(nodeId => boundaryIds.has(nodeId));
+  const rValue = getWallStackRValue(wall);
+  return mapRValueToWallVisual(rValue, isExternal);
 }
 
 export function renderAlternativeViz(demo, opts = {}) {
@@ -1179,13 +1267,27 @@ export function renderAlternativeViz(demo, opts = {}) {
     svg.appendChild(text);
 
     const edgeElements = [];
+    const edgeVisualElements = [];
     const edgeLabelElements = [];
-    if (onDataChanged) {
-      for (let idx = 0; idx < projected.length; idx++) {
-        const p0 = projected[idx];
-        const p1 = projected[(idx + 1) % projected.length];
-        const worldP0 = polygonMap.get(zone.id)[idx];
-        const worldP1 = polygonMap.get(zone.id)[(idx + 1) % polygonMap.get(zone.id).length];
+    for (let idx = 0; idx < projected.length; idx++) {
+      const p0 = projected[idx];
+      const p1 = projected[(idx + 1) % projected.length];
+      const worldP0 = polygonMap.get(zone.id)[idx];
+      const worldP1 = polygonMap.get(zone.id)[(idx + 1) % polygonMap.get(zone.id).length];
+      const wallVisual = getEdgeWallVisualStyle(demo, edgeGroups, polygonMap, zone.id, idx);
+
+      const visibleWall = document.createElementNS(ns, 'line');
+      visibleWall.setAttribute('x1', String(p0.x));
+      visibleWall.setAttribute('y1', String(p0.y));
+      visibleWall.setAttribute('x2', String(p1.x));
+      visibleWall.setAttribute('y2', String(p1.y));
+      visibleWall.setAttribute('class', 'alt-wall-active-line');
+      visibleWall.setAttribute('stroke', wallVisual.color);
+      visibleWall.setAttribute('stroke-width', String(wallVisual.width));
+      edgeVisualElements.push(visibleWall);
+      svg.appendChild(visibleWall);
+
+      if (onDataChanged) {
         const handle = document.createElementNS(ns, 'line');
         handle.setAttribute('x1', String(p0.x));
         handle.setAttribute('y1', String(p0.y));
@@ -1278,6 +1380,7 @@ export function renderAlternativeViz(demo, opts = {}) {
       textElement: text,
       tspans: Array.from(text.querySelectorAll('tspan')),
       edgeElements,
+      edgeVisualElements,
       edgeLabelElements,
       lineCount: lines.length
     });

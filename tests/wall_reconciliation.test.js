@@ -334,4 +334,65 @@ describe('floor-wide wall reconciliation', () => {
     expect(roomAWalls.length).toBe(4);
     expect(roomBWalls.length).toBe(4);
   });
+
+  it('names shared walls using adjacent room names with left-most room first', () => {
+    const demo = {
+      zones: [
+        {
+          id: 'right_room',
+          name: 'Right Room',
+          level: 0,
+          layout: {
+            polygon: [
+              { x: 5, y: 0 },
+              { x: 9, y: 0 },
+              { x: 9, y: 4 },
+              { x: 5, y: 4 },
+            ]
+          }
+        },
+        {
+          id: 'left_room',
+          name: 'Left Room',
+          level: 0,
+          layout: {
+            polygon: [
+              { x: 0, y: 0 },
+              { x: 5, y: 0 },
+              { x: 5, y: 4 },
+              { x: 0, y: 4 },
+            ]
+          }
+        },
+        { id: 'outside', name: 'Outside', type: 'boundary' },
+      ],
+      elements: [
+        {
+          id: 'existing_shared_wall',
+          type: 'wall',
+          nodes: ['right_room', 'left_room'],
+          orientation: 'west',
+          x: 4,
+          y: 2.4,
+          name: 'old static wall name',
+        }
+      ],
+    };
+
+    reconcileWallElementsFromPolygons(demo, {
+      right_room: demo.zones[0].layout.polygon,
+      left_room: demo.zones[1].layout.polygon,
+    });
+
+    const shared = (demo.elements || []).find(element => {
+      if (String(element?.type || '').toLowerCase() !== 'wall') return false;
+      if (!Array.isArray(element.nodes) || element.nodes.length !== 2) return false;
+      const hasLeft = element.nodes.includes('left_room');
+      const hasRight = element.nodes.includes('right_room');
+      return hasLeft && hasRight;
+    });
+
+    expect(shared).toBeDefined();
+    expect(shared.name).toBe('Left Room - Right Room Wall');
+  });
 });

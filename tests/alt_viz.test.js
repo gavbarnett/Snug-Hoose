@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { applyWallLengthEditToPolygonMap, hasOnlyAxisAlignedEdges } from '../source/scripts/alt_viz.js';
+import {
+  applyWallLengthEditToPolygonMap,
+  getWallStackRValue,
+  hasOnlyAxisAlignedEdges,
+  mapRValueToWallVisual,
+} from '../source/scripts/alt_viz.js';
 
 const demoHouse = JSON.parse(
   readFileSync(new URL('../source/resources/demo_house.json', import.meta.url), 'utf8')
@@ -161,6 +166,36 @@ function assertNoOverlaps(mapByZoneId, epsilon = 1e-6) {
     }
   }
 }
+
+describe('active wall visual mapping', () => {
+  it('extracts stack-only wall R from u_fabric', () => {
+    expect(getWallStackRValue({ u_fabric: 0.25 })).toBeCloseTo(4, 6);
+    expect(getWallStackRValue({ u_fabric: 2 })).toBeCloseTo(0.5, 6);
+    expect(getWallStackRValue({ u_fabric: 0 })).toBeNull();
+    expect(getWallStackRValue({ u_fabric: 'not-a-number' })).toBeNull();
+    expect(getWallStackRValue(null)).toBeNull();
+  });
+
+  it('maps higher R-values to thicker walls', () => {
+    const low = mapRValueToWallVisual(0.6, false);
+    const high = mapRValueToWallVisual(5.2, false);
+    expect(high.width).toBeGreaterThan(low.width);
+  });
+
+  it('applies an external wall thickness premium at same R-value', () => {
+    const internal = mapRValueToWallVisual(3, false);
+    const external = mapRValueToWallVisual(3, true);
+    expect(external.width).toBeGreaterThan(internal.width);
+    expect(external.color).toBe(internal.color);
+  });
+
+  it('returns deterministic fallback style for invalid R-values', () => {
+    const fallbackInternal = mapRValueToWallVisual(null, false);
+    const fallbackExternal = mapRValueToWallVisual(undefined, true);
+    expect(fallbackInternal).toEqual({ color: '#8b9aa8', width: 2.0 });
+    expect(fallbackExternal).toEqual({ color: '#7ab2e6', width: 3.1 });
+  });
+});
 
 describe('wall length text input geometry', () => {
   it('resolves horizontal length edits by moving the right side only', () => {

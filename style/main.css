@@ -264,6 +264,13 @@ a#download:hover {
   stroke-dasharray: 5 4;
 }
 
+.alt-wall-active-line {
+  pointer-events: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke-width 0.12s ease, stroke 0.12s ease;
+}
+
 .alt-room-rect {
   transition: filter 0.15s ease, transform 0.15s ease;
 }
