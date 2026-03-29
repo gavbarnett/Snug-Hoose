@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeRoomHeatRequirements } from '../source/scripts/heat_calculator.js';
+import { normalizeElementNodesForAttachment } from '../source/scripts/room_editor.js';
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -163,6 +164,59 @@ describe('Savings eligibility for rooms without radiators', () => {
     expect(noRadZone.radiator_surface_area).toBe(0);
     expect(noRadZone.heat_savings).toBe(0);
     expect(noRadZone.delivered_heat_savings).toBe(0);
+  });
+});
+
+describe('Attaching a new room to existing external fabric', () => {
+  it('normalizes reused external wall nodes into an internal partition', () => {
+    const demo = {
+      zones: [
+        { id: 'z_a', name: 'Existing Room' },
+        { id: 'z_b', name: 'New Room' },
+        outside,
+      ],
+    };
+    const element = {
+      id: 'el_reused_wall',
+      type: 'wall',
+      nodes: ['z_a', 'z_outside'],
+    };
+
+    expect(normalizeElementNodesForAttachment(demo, element, 'z_b')).toEqual(['z_a', 'z_b']);
+  });
+
+  it('stops treating a reused external wall as outside-connected after attachment', () => {
+    const demo = {
+      zones: [
+        {
+          id: 'z_a', name: 'Existing Room', is_unheated: false,
+          setpoint_temperature: 21,
+          radiators: [{ radiator_id: 'rad_std', surface_area: 1.0, trv_enabled: true }],
+        },
+        { id: 'z_b', name: 'New Room', is_unheated: true },
+        outside,
+      ],
+      elements: [
+        {
+          id: 'el_a_out', type: 'wall',
+          nodes: ['z_a', 'z_outside'],
+          thermal_conductance: 10,
+        },
+        {
+          id: 'el_reused_wall', type: 'wall',
+          nodes: ['z_a', 'z_outside'],
+          thermal_conductance: 5,
+        },
+      ],
+    };
+
+    demo.elements[1].nodes = normalizeElementNodesForAttachment(demo, demo.elements[1], 'z_b');
+    const result = computeRoomHeatRequirements(demo, radiators, OPTS);
+    const newRoom = result.rooms.find(r => r.zoneId === 'z_b');
+
+    expect(demo.elements[1].nodes).toEqual(['z_a', 'z_b']);
+    expect(newRoom.delivered_indoor_temperature).toBeCloseTo(21, 0);
+    expect(newRoom.heat_loss).toBeCloseTo(0, 6);
   });
 });
 

@@ -1,5 +1,55 @@
 // Room editor UI module: tabs, room selection, radiator editing, and fabric rendering.
 
+function getAttachmentBoundaryRole(type) {
+  const normalizedType = String(type || '').trim().toLowerCase();
+  if (normalizedType === 'wall' || normalizedType === 'roof') return 'outside';
+  if (normalizedType === 'floor') return 'ground';
+  if (normalizedType === 'ceiling' || normalizedType === 'floor_ceiling') return 'loft';
+  return null;
+}
+
+export function normalizeElementNodesForAttachment(demo, element, zoneId) {
+  const uniqueNodes = [...new Set(Array.isArray(element?.nodes) ? element.nodes.filter(Boolean) : [])];
+  if (!zoneId) return uniqueNodes;
+  if (uniqueNodes.includes(zoneId)) return uniqueNodes;
+
+  const boundaryRole = getAttachmentBoundaryRole(element?.type);
+  if (!boundaryRole || !demo || !Array.isArray(demo.zones)) {
+    return [...uniqueNodes, zoneId];
+  }
+
+  const boundaryZoneIds = new Set(
+    demo.zones
+      .filter(zone => zone?.type === 'boundary')
+      .map(zone => zone.id)
+  );
+  const boundaryNameById = new Map(
+    demo.zones
+      .filter(zone => zone?.type === 'boundary' && zone?.id)
+      .map(zone => [zone.id, String(zone.name || '').trim().toLowerCase()])
+  );
+
+  const matchingBoundaryNodes = uniqueNodes.filter(nodeId => {
+    if (!boundaryZoneIds.has(nodeId) && String(nodeId).trim().toLowerCase() !== boundaryRole) {
+      return false;
+    }
+    const boundaryName = boundaryNameById.get(nodeId);
+    return !boundaryName || boundaryName === boundaryRole || String(nodeId).trim().toLowerCase() === boundaryRole;
+  });
+
+  if (matchingBoundaryNodes.length === 0) {
+    return [...uniqueNodes, zoneId];
+  }
+
+  const nonMatchingBoundaryNodes = uniqueNodes.filter(nodeId => {
+    return boundaryZoneIds.has(nodeId) && !matchingBoundaryNodes.includes(nodeId);
+  });
+  const roomNodes = uniqueNodes.filter(nodeId => !boundaryZoneIds.has(nodeId));
+  const normalizedRoomNodes = [...new Set([...roomNodes, zoneId])];
+
+  return [...normalizedRoomNodes, ...nonMatchingBoundaryNodes];
+}
+
 export function initRoomEditor(opts) {
   const getDemo = opts.getDemo;
   const getRadiatorsData = opts.getRadiatorsData;
@@ -2024,8 +2074,7 @@ export function initRoomEditor(opts) {
       return;
     }
 
-    if (!Array.isArray(element.nodes)) element.nodes = [];
-    if (!element.nodes.includes(zoneId)) element.nodes.push(zoneId);
+    element.nodes = normalizeElementNodesForAttachment(demo, element, zoneId);
     onDataChanged();
     refreshFabricTargetOptions();
     refreshSelectedZone();

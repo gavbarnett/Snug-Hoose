@@ -235,12 +235,176 @@ async function solveAndRender(demoRaw) {
 
 function triggerSolve() {
   if (currentDemo) {
+    const polygonsByZoneId = collectLayoutPolygonsByZoneId(currentDemo);
+    if (Object.keys(polygonsByZoneId).length > 0) {
+      reconcileWallElementsFromPolygons(currentDemo, polygonsByZoneId);
+    }
     solveAndRender(JSON.parse(JSON.stringify(currentDemo)));
   }
 }
 
 function isValidLayoutPolygon(polygon) {
   return Array.isArray(polygon) && polygon.length >= 3 && polygon.every(pt => pt && isFinite(pt.x) && isFinite(pt.y));
+}
+
+function isSamePoint(a, b, epsilon = 1e-6) {
+  return Math.abs(a.x - b.x) <= epsilon && Math.abs(a.y - b.y) <= epsilon;
+}
+
+function getPointParam(point, p0, p1) {
+  const dx = p1.x - p0.x;
+  const dy = p1.y - p0.y;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq < 1e-12) return 0;
+  return ((point.x - p0.x) * dx + (point.y - p0.y) * dy) / lenSq;
+}
+
+function pointLiesOnSegment(point, p0, p1, epsilon = 1e-6) {
+  const dx1 = p1.x - p0.x;
+  const dy1 = p1.y - p0.y;
+  const dx2 = point.x - p0.x;
+  const dy2 = point.y - p0.y;
+  const cross = dx1 * dy2 - dy1 * dx2;
+  if (Math.abs(cross) > epsilon) return false;
+  const t = getPointParam(point, p0, p1);
+  return t > epsilon && t < 1 - epsilon;
+}
+
+function splitPolygonBySharedVertices(polygon, allVertices) {
+  const nextPolygon = [];
+
+  for (let index = 0; index < polygon.length; index++) {
+    const p0 = polygon[index];
+    const p1 = polygon[(index + 1) % polygon.length];
+    nextPolygon.push({ x: p0.x, y: p0.y });
+
+    const splits = allVertices
+      .filter(point => !isSamePoint(point, p0) && !isSamePoint(point, p1) && pointLiesOnSegment(point, p0, p1))
+      .map(point => ({ point, t: getPointParam(point, p0, p1) }))
+      .sort((a, b) => a.t - b.t);
+
+    for (const split of splits) {
+      const last = nextPolygon[nextPolygon.length - 1];
+      if (!isSamePoint(last, split.point)) {
+        nextPolygon.push({ x: split.point.x, y: split.point.y });
+      }
+    }
+  }
+
+  return nextPolygon;
+}
+
+function pointKey(pt, precision = 6) {
+  return `${Number(pt.x).toFixed(precision)},${Number(pt.y).toFixed(precision)}`;
+}
+
+function isCollinear(prev, curr, next, epsilon = 1e-6) {
+  const ax = curr.x - prev.x;
+  const ay = curr.y - prev.y;
+  const bx = next.x - curr.x;
+  const by = next.y - curr.y;
+  return Math.abs(ax * by - ay * bx) <= epsilon;
+}
+
+function simplifyPolygonPreservingSharedVertices(polygon, sharedPointKeys) {
+  if (!Array.isArray(polygon) || polygon.length < 4) return polygon || [];
+
+  let out = polygon.map(pt => ({ x: pt.x, y: pt.y }));
+  let changed = true;
+  while (changed && out.length > 3) {
+    changed = false;
+    const next = [];
+    const n = out.length;
+    for (let i = 0; i < n; i++) {
+      const prev = out[(i - 1 + n) % n];
+      const curr = out[i];
+      const after = out[(i + 1) % n];
+
+      const keepForShared = sharedPointKeys.has(pointKey(curr));
+      if (!keepForShared && isCollinear(prev, curr, after)) {
+        changed = true;
+        continue;
+      }
+      next.push(curr);
+    }
+    out = next;
+  }
+
+  return out;
+}
+
+function edgeAxis(p0, p1, epsilon = 1e-6) {
+  const dx = Math.abs(p1.x - p0.x);
+  const dy = Math.abs(p1.y - p0.y);
+  if (dx <= epsilon && dy <= epsilon) return null;
+  if (dy <= epsilon) return 'h';
+  if (dx <= epsilon) return 'v';
+  return 'o';
+}
+
+function normalizePolygonEntriesForSharedWalls(entries) {
+  const allVertices = [];
+  for (const polygon of entries.values()) {
+    polygon.forEach(point => allVertices.push(point));
+  }
+
+  const splitMap = new Map();
+  for (const [zoneId, polygon] of entries.entries()) {
+    splitMap.set(zoneId, splitPolygonBySharedVertices(polygon, allVertices));
+  }
+
+  const zoneIdsByPointKey = new Map();
+  const axesByPointKey = new Map();
+  for (const [zoneId, polygon] of splitMap.entries()) {
+    const seen = new Set();
+    for (let i = 0; i < polygon.length; i++) {
+      const pt = polygon[i];
+      const prev = polygon[(i - 1 + polygon.length) % polygon.length];
+      const next = polygon[(i + 1) % polygon.length];
+      const key = pointKey(pt);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (!zoneIdsByPointKey.has(key)) zoneIdsByPointKey.set(key, new Set());
+      zoneIdsByPointKey.get(key).add(zoneId);
+
+      if (!axesByPointKey.has(key)) axesByPointKey.set(key, new Set());
+      const prevAxis = edgeAxis(prev, pt);
+      const nextAxis = edgeAxis(pt, next);
+      if (prevAxis) axesByPointKey.get(key).add(prevAxis);
+      if (nextAxis) axesByPointKey.get(key).add(nextAxis);
+    }
+  }
+
+  const junctionPointKeys = new Set(
+    Array.from(zoneIdsByPointKey.entries())
+      .filter(([key, zoneIds]) => {
+        if (zoneIds.size <= 1) return false;
+        const axes = axesByPointKey.get(key) || new Set();
+        // Keep a collinear split only when it is an actual junction (T/cross), not a straight shared run.
+        return axes.has('h') && axes.has('v');
+      })
+      .map(([key]) => key)
+  );
+
+  const normalized = new Map();
+  for (const [zoneId, polygon] of splitMap.entries()) {
+    normalized.set(zoneId, simplifyPolygonPreservingSharedVertices(polygon, junctionPointKeys));
+  }
+
+  return normalized;
+}
+
+function collectLayoutPolygonsByZoneId(demo) {
+  const polygonsByZoneId = {};
+  if (!demo || !Array.isArray(demo.zones)) return polygonsByZoneId;
+
+  for (const zone of demo.zones) {
+    const polygon = zone?.layout?.polygon;
+    if (!isValidLayoutPolygon(polygon)) continue;
+    polygonsByZoneId[zone.id] = polygon.map(pt => ({ x: Number(pt.x), y: Number(pt.y) }));
+  }
+
+  return polygonsByZoneId;
 }
 
 function edgeKeyFromPoints(p0, p1) {
@@ -335,139 +499,242 @@ function parseWallSignature(signature) {
   };
 }
 
-function reconcileWallElementsFromPolygons(demo, changedPolygonsByZoneId) {
+function getZoneLevel(zone) {
+  return typeof zone?.level === 'number' ? zone.level : 0;
+}
+
+function getOppositeOrientation(orientation) {
+  const normalized = String(orientation || '').toLowerCase();
+  if (normalized === 'north') return 'south';
+  if (normalized === 'south') return 'north';
+  if (normalized === 'east') return 'west';
+  if (normalized === 'west') return 'east';
+  return normalized;
+}
+
+function canonicalizeWallRecord(nodes, orientation, boundaryIds) {
+  if (!Array.isArray(nodes) || nodes.length < 2) {
+    return {
+      nodes: Array.isArray(nodes) ? nodes.slice(0, 2) : [],
+      orientation: String(orientation || '').toLowerCase()
+    };
+  }
+
+  const left = nodes[0];
+  const right = nodes[1];
+  const leftIsBoundary = boundaryIds.has(left);
+  const rightIsBoundary = boundaryIds.has(right);
+  const normalizedOrientation = String(orientation || '').toLowerCase();
+
+  if (leftIsBoundary && !rightIsBoundary) {
+    return {
+      nodes: [right, left],
+      orientation: getOppositeOrientation(normalizedOrientation)
+    };
+  }
+
+  if (!leftIsBoundary && !rightIsBoundary && String(left).localeCompare(String(right)) > 0) {
+    return {
+      nodes: [right, left],
+      orientation: getOppositeOrientation(normalizedOrientation)
+    };
+  }
+
+  return {
+    nodes: [left, right],
+    orientation: normalizedOrientation
+  };
+}
+
+export function reconcileWallElementsFromPolygons(demo, changedPolygonsByZoneId) {
   if (!demo || !Array.isArray(demo.zones) || !Array.isArray(demo.elements) || !changedPolygonsByZoneId) return;
 
   const zones = demo.zones;
   const zoneById = new Map(zones.map(z => [z.id, z]));
   const polygonByZoneId = new Map();
-  zones.forEach(zone => {
-    const polygon = zone?.layout?.polygon;
-    if (isValidLayoutPolygon(polygon)) polygonByZoneId.set(zone.id, polygon);
-  });
-
-  const edgeRefs = new Map();
-  for (const [zoneId, polygon] of polygonByZoneId.entries()) {
-    for (let i = 0; i < polygon.length; i++) {
-      const p0 = polygon[i];
-      const p1 = polygon[(i + 1) % polygon.length];
-      const key = edgeKeyFromPoints(p0, p1);
-      if (!edgeRefs.has(key)) edgeRefs.set(key, []);
-      edgeRefs.get(key).push({ zoneId, edgeIndex: i });
-    }
-  }
 
   const boundaryOutside = zones.find(z => z && z.type === 'boundary' && String(z.name || '').toLowerCase() === 'outside')
     || zones.find(z => z && z.type === 'boundary');
   const outsideId = boundaryOutside ? boundaryOutside.id : null;
+  const boundaryIds = new Set(zones.filter(z => z?.type === 'boundary').map(z => z.id));
 
   const existingIds = new Set(demo.elements.map(el => el && el.id).filter(Boolean));
   const additions = [];
   const removals = new Set();
   const changedZoneIds = Object.keys(changedPolygonsByZoneId || {});
+  const affectedLevels = new Set(
+    changedZoneIds
+      .map(zoneId => zoneById.get(zoneId))
+      .filter(zone => zone && zone.type !== 'boundary')
+      .map(zone => (typeof zone.level === 'number' ? zone.level : 0))
+  );
+  const zonesToReconcile = zones
+    .filter(zone => zone && zone.type !== 'boundary')
+    .filter(zone => affectedLevels.has(typeof zone.level === 'number' ? zone.level : 0))
+    .map(zone => zone.id);
 
-  for (const zoneId of changedZoneIds) {
-    const polygon = polygonByZoneId.get(zoneId);
-    if (!polygon) continue;
+  const normalizedPolygonsByZoneId = new Map();
+  for (const level of affectedLevels) {
+    const levelEntries = new Map();
+    zones
+      .filter(zone => zone && zone.type !== 'boundary' && getZoneLevel(zone) === level)
+      .forEach(zone => {
+        const polygon = zone?.layout?.polygon;
+        if (isValidLayoutPolygon(polygon)) {
+          levelEntries.set(zone.id, polygon.map(pt => ({ x: Number(pt.x), y: Number(pt.y) })));
+        }
+      });
 
+    const normalizedLevelEntries = normalizePolygonEntriesForSharedWalls(levelEntries);
+    for (const [zoneId, polygon] of normalizedLevelEntries.entries()) {
+      normalizedPolygonsByZoneId.set(zoneId, polygon);
+      const zone = zoneById.get(zoneId);
+      if (zone) {
+        zone.layout = zone.layout || {};
+        zone.layout.polygon = polygon.map(pt => ({ x: pt.x, y: pt.y }));
+      }
+    }
+  }
+
+  zones.forEach(zone => {
+    if (normalizedPolygonsByZoneId.has(zone.id)) {
+      polygonByZoneId.set(zone.id, normalizedPolygonsByZoneId.get(zone.id));
+      return;
+    }
+    const polygon = zone?.layout?.polygon;
+    if (isValidLayoutPolygon(polygon)) polygonByZoneId.set(zone.id, polygon);
+  });
+
+  const affectedZoneIdSet = new Set(zonesToReconcile);
+  const edgeRefs = new Map();
+  for (const [zoneId, polygon] of polygonByZoneId.entries()) {
     const zone = zoneById.get(zoneId);
-    const zoneWalls = demo.elements.filter(el => {
-      return el && String(el.type || '').toLowerCase() === 'wall' && Array.isArray(el.nodes) && el.nodes.includes(zoneId);
-    });
-
-    const desiredBySignature = new Map();
+    const level = getZoneLevel(zone);
+    if (!affectedLevels.has(level)) continue;
     for (let i = 0; i < polygon.length; i++) {
       const p0 = polygon[i];
       const p1 = polygon[(i + 1) % polygon.length];
-      const refs = edgeRefs.get(edgeKeyFromPoints(p0, p1)) || [];
-      const adjacentZoneId = refs.find(ref => ref.zoneId !== zoneId)?.zoneId || null;
-      const otherNodeId = adjacentZoneId || outsideId;
-      if (!otherNodeId) continue;
+      const key = `${level}::${edgeKeyFromPoints(p0, p1)}`;
+      if (!edgeRefs.has(key)) edgeRefs.set(key, []);
+      edgeRefs.get(key).push({ zoneId, edgeIndex: i, level });
+    }
+  }
 
-      const orientation = getEdgeOrientationFromPolygon(polygon, i);
-      const length = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-      if (!isFinite(length) || length <= 0.05) continue;
+  const desiredBySignature = new Map();
+  for (const refs of edgeRefs.values()) {
+    if (!Array.isArray(refs) || refs.length === 0) continue;
+    const relevantRefs = refs.filter(ref => affectedZoneIdSet.has(ref.zoneId));
+    if (relevantRefs.length === 0) continue;
 
-      const signature = `${otherNodeId}|${orientation}`;
-      if (!desiredBySignature.has(signature)) desiredBySignature.set(signature, []);
-      desiredBySignature.get(signature).push({ otherNodeId, orientation, length });
+    const sortedRefs = refs.slice().sort((a, b) => String(a.zoneId).localeCompare(String(b.zoneId)));
+    const primaryRef = sortedRefs[0];
+    const primaryPolygon = polygonByZoneId.get(primaryRef.zoneId);
+    const primaryZone = zoneById.get(primaryRef.zoneId);
+    if (!primaryPolygon || !primaryZone) continue;
+
+    const p0 = primaryPolygon[primaryRef.edgeIndex];
+    const p1 = primaryPolygon[(primaryRef.edgeIndex + 1) % primaryPolygon.length];
+    const length = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+    if (!isFinite(length) || length <= 0.05) continue;
+
+    const adjacentZoneId = sortedRefs[1]?.zoneId || outsideId;
+    if (!adjacentZoneId) continue;
+
+    const canonical = canonicalizeWallRecord([primaryRef.zoneId, adjacentZoneId], getEdgeOrientationFromPolygon(primaryPolygon, primaryRef.edgeIndex), boundaryIds);
+    const signature = `${canonical.nodes[0]}|${canonical.nodes[1]}|${canonical.orientation}`;
+    if (!desiredBySignature.has(signature)) desiredBySignature.set(signature, []);
+    desiredBySignature.get(signature).push({
+      nodes: canonical.nodes,
+      orientation: canonical.orientation,
+      length,
+      zoneName: zoneById.get(canonical.nodes[0])?.name,
+      otherName: zoneById.get(canonical.nodes[1])?.name,
+    });
+  }
+
+  const existingWalls = demo.elements.filter(el => {
+    return el
+      && String(el.type || '').toLowerCase() === 'wall'
+      && Array.isArray(el.nodes)
+      && el.nodes.some(nodeId => affectedZoneIdSet.has(nodeId));
+  });
+
+  const existingBySignature = new Map();
+  for (const wall of existingWalls) {
+    const canonical = canonicalizeWallRecord(wall.nodes, wall.orientation, boundaryIds);
+    if (!Array.isArray(canonical.nodes) || canonical.nodes.length < 2) {
+      if (wall?.id) removals.add(wall.id);
+      continue;
+    }
+    const signature = `${canonical.nodes[0]}|${canonical.nodes[1]}|${canonical.orientation}`;
+    if (!existingBySignature.has(signature)) existingBySignature.set(signature, []);
+    existingBySignature.get(signature).push(wall);
+  }
+
+  for (const [signature, desiredSegments] of desiredBySignature.entries()) {
+    const existingForSignature = existingBySignature.get(signature) || [];
+    const [zoneId, otherNodeId, orientation] = signature.split('|');
+
+    for (let i = 0; i < Math.min(existingForSignature.length, desiredSegments.length); i++) {
+      existingForSignature[i].nodes = [zoneId, otherNodeId];
+      existingForSignature[i].orientation = orientation;
+      existingForSignature[i].x = Number(desiredSegments[i].length.toFixed(3));
     }
 
-    const existingBySignature = new Map();
-    for (const wall of zoneWalls) {
-      const otherNodeId = wall.nodes.find(id => id !== zoneId);
-      const orientation = String(wall.orientation || '').toLowerCase();
-      const signature = `${otherNodeId}|${orientation}`;
-      if (!existingBySignature.has(signature)) existingBySignature.set(signature, []);
-      existingBySignature.get(signature).push(wall);
-    }
-
-    for (const [signature, desiredSegments] of desiredBySignature.entries()) {
-      const existingWalls = existingBySignature.get(signature) || [];
-      const { otherNodeId, orientation } = parseWallSignature(signature);
-
-      for (let i = 0; i < Math.min(existingWalls.length, desiredSegments.length); i++) {
-        existingWalls[i].x = Number(desiredSegments[i].length.toFixed(3));
-      }
-
-      if (desiredSegments.length < existingWalls.length) {
-        const keeperCount = Math.max(1, desiredSegments.length);
-        for (let i = keeperCount; i < existingWalls.length; i++) {
-          const wallToRemove = existingWalls[i];
-          const keeper = existingWalls[keeperCount - 1] || existingWalls[0];
-          if (keeper && wallToRemove && keeper !== wallToRemove) {
-            mergeWallDetails(keeper, wallToRemove);
-          }
-          if (wallToRemove && wallToRemove.id) removals.add(wallToRemove.id);
+    if (desiredSegments.length < existingForSignature.length) {
+      const keeperCount = Math.max(1, desiredSegments.length);
+      for (let i = keeperCount; i < existingForSignature.length; i++) {
+        const wallToRemove = existingForSignature[i];
+        const keeper = existingForSignature[keeperCount - 1] || existingForSignature[0];
+        if (keeper && wallToRemove && keeper !== wallToRemove) {
+          mergeWallDetails(keeper, wallToRemove);
         }
-      }
-
-      if (desiredSegments.length > existingWalls.length) {
-        const inheritSource = existingWalls[0]
-          || zoneWalls.find(w => {
-            const other = Array.isArray(w.nodes) ? w.nodes.find(id => id !== zoneId) : null;
-            return other === otherNodeId;
-          })
-          || zoneWalls[0]
-          || null;
-
-        for (let i = existingWalls.length; i < desiredSegments.length; i++) {
-          const seg = desiredSegments[i];
-          const newId = makeWallId(existingIds, zoneId);
-          const otherZone = zoneById.get(seg.otherNodeId);
-          additions.push(cloneInheritedWall(
-            inheritSource,
-            newId,
-            [zoneId, seg.otherNodeId],
-            orientation,
-            seg.length,
-            zone?.name,
-            otherZone?.name
-          ));
-        }
+        if (wallToRemove?.id) removals.add(wallToRemove.id);
       }
     }
 
-    for (const [signature, existingWalls] of existingBySignature.entries()) {
-      if (desiredBySignature.has(signature) || existingWalls.length === 0) continue;
+    if (desiredSegments.length > existingForSignature.length) {
+      const desired = desiredSegments[0];
+      const inheritSource = existingForSignature[0]
+        || existingWalls.find(wall => {
+          const canonical = canonicalizeWallRecord(wall.nodes, wall.orientation, boundaryIds);
+          return canonical.nodes[0] === zoneId || canonical.nodes[1] === zoneId;
+        })
+        || null;
 
-      const { otherNodeId } = parseWallSignature(signature);
-      const fallbackTarget = demo.elements.find(el => {
-        if (!el || removals.has(el.id)) return false;
-        if (String(el.type || '').toLowerCase() !== 'wall') return false;
-        if (!Array.isArray(el.nodes) || !el.nodes.includes(zoneId)) return false;
-        const other = el.nodes.find(id => id !== zoneId);
-        return other === otherNodeId;
-      });
-
-      existingWalls.forEach(staleWall => {
-        if (!staleWall || !staleWall.id) return;
-        if (fallbackTarget && fallbackTarget !== staleWall) {
-          mergeWallDetails(fallbackTarget, staleWall);
-        }
-        removals.add(staleWall.id);
-      });
+      for (let i = existingForSignature.length; i < desiredSegments.length; i++) {
+        const seg = desiredSegments[i];
+        const newId = makeWallId(existingIds, zoneId);
+        additions.push(cloneInheritedWall(
+          inheritSource,
+          newId,
+          [zoneId, otherNodeId],
+          orientation,
+          seg.length,
+          desired.zoneName,
+          desired.otherName
+        ));
+      }
     }
+  }
+
+  for (const [signature, staleWalls] of existingBySignature.entries()) {
+    if (desiredBySignature.has(signature) || staleWalls.length === 0) continue;
+    const keeper = demo.elements.find(el => {
+      if (!el || removals.has(el.id)) return false;
+      if (String(el.type || '').toLowerCase() !== 'wall') return false;
+      const canonical = canonicalizeWallRecord(el.nodes, el.orientation, boundaryIds);
+      const existingSignature = `${canonical.nodes[0]}|${canonical.nodes[1]}|${canonical.orientation}`;
+      return existingSignature === signature && !staleWalls.includes(el);
+    });
+
+    staleWalls.forEach(staleWall => {
+      if (!staleWall?.id) return;
+      if (keeper && keeper !== staleWall) {
+        mergeWallDetails(keeper, staleWall);
+      }
+      removals.add(staleWall.id);
+    });
   }
 
   if (additions.length > 0) {
@@ -500,7 +767,7 @@ function initVizTabs() {
 }
 
 // Load and initialize on page load
-window.addEventListener('load', async () => {
+if (typeof window !== 'undefined') window.addEventListener('load', async () => {
   initVizTabs();
 
   appUiApi = initAppUi({
