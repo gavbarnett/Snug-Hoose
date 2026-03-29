@@ -327,3 +327,135 @@ describe('Control room consistency check', () => {
     expect(capacityPct).toBeGreaterThanOrEqual(95); // Allow small rounding margin
   });
 });
+
+// ---------------------------------------------------------------------------
+// ACH ventilation heat loss — zone with volume and ach
+// ---------------------------------------------------------------------------
+describe('Ventilation heat loss via ACH', () => {
+  it('adds ventilation conductance to boundary and increases total heat loss', () => {
+    // Wall conductance: 10 W/K
+    // ACH = 1.0, volume = 100 m³
+    // C_vent = 1.0 × 100 × 0.33 = 33 W/K
+    // Total boundary conductance = 10 + 33 = 43 W/K
+    // Heat loss at ΔT=18K: 43 × 18 = 774 W
+    const demo = {
+      zones: [
+        {
+          id: 'z_a', name: 'Ventilated Room', is_unheated: false,
+          setpoint_temperature: 21,
+          volume_m3: 100,
+          ach: 1.0,
+          radiators: [{ radiator_id: 'rad_std', surface_area: 2.0, trv_enabled: true }],
+        },
+        outside,
+      ],
+      elements: [{
+        id: 'el_wall', type: 'wall',
+        nodes: ['z_a', 'z_outside'],
+        thermal_conductance: 10,
+      }],
+    };
+
+    const result = computeRoomHeatRequirements(demo, radiators, OPTS);
+    const zone = result.rooms.find(r => r.zoneId === 'z_a');
+
+    // Temperature held at setpoint (TRV clamped)
+    expect(zone.delivered_indoor_temperature).toBeCloseTo(21, 0);
+    // Total conductance = C_wall + C_vent = 10 + 33 = 43 W/K
+    expect(zone.total_conductance).toBeCloseTo(43, 0);
+    // Heat loss = 43 × 18 = 774 W
+    expect(zone.heat_loss).toBeCloseTo(774, 0);
+    // Ventilation conductance is reported
+    expect(zone.ventilation_conductance).toBeCloseTo(33, 0);
+    // Ventilation heat loss = 33 × 18 = 594 W
+    expect(zone.ventilation_heat_loss).toBeCloseTo(594, 0);
+  });
+
+  it('zone with no ach or volume has zero ventilation heat loss', () => {
+    const demo = {
+      zones: [
+        {
+          id: 'z_a', name: 'No ACH Room', is_unheated: false,
+          setpoint_temperature: 21,
+          radiators: [{ radiator_id: 'rad_std', surface_area: 1.0, trv_enabled: true }],
+        },
+        outside,
+      ],
+      elements: [{
+        id: 'el_wall', type: 'wall',
+        nodes: ['z_a', 'z_outside'],
+        thermal_conductance: 10,
+      }],
+    };
+
+    const result = computeRoomHeatRequirements(demo, radiators, OPTS);
+    const zone = result.rooms.find(r => r.zoneId === 'z_a');
+
+    expect(zone.ventilation_conductance).toBe(0);
+    expect(zone.ventilation_heat_loss).toBe(0);
+    // Heat loss unchanged from wall-only: 10 × 18 = 180 W
+    expect(zone.heat_loss).toBeCloseTo(180, 0);
+  });
+
+  it('zone with volume derived from floor_area_m2 and ceiling_height_m computes correctly', () => {
+    // floor 50 m² × 2.5 m ceiling = 125 m³
+    // C_vent = 0.5 × 125 × 0.33 = 20.625 W/K
+    // Total = 10 + 20.625 = 30.625 W/K
+    const demo = {
+      zones: [
+        {
+          id: 'z_a', name: 'Derived Volume Room', is_unheated: false,
+          setpoint_temperature: 21,
+          floor_area_m2: 50,
+          ceiling_height_m: 2.5,
+          ach: 0.5,
+          radiators: [{ radiator_id: 'rad_std', surface_area: 2.0, trv_enabled: true }],
+        },
+        outside,
+      ],
+      elements: [{
+        id: 'el_wall', type: 'wall',
+        nodes: ['z_a', 'z_outside'],
+        thermal_conductance: 10,
+      }],
+    };
+
+    const result = computeRoomHeatRequirements(demo, radiators, OPTS);
+    const zone = result.rooms.find(r => r.zoneId === 'z_a');
+
+    expect(zone.ventilation_conductance).toBeCloseTo(20.625, 1);
+    expect(zone.total_conductance).toBeCloseTo(30.625, 1);
+  });
+
+  it('MVHR heat recovery reduces ventilation heat loss proportionally', () => {
+    // ACH=1.0, volume=100 m³, η=0.80 MVHR
+    // C_vent = 1.0 × 100 × 0.33 × (1 − 0.8) = 6.6 W/K
+    // Compare with no-recovery: 33 W/K — 80% reduction
+    const demoMvhr = {
+      zones: [
+        {
+          id: 'z_a', name: 'MVHR Room', is_unheated: false,
+          setpoint_temperature: 21,
+          volume_m3: 100,
+          ach: 1.0,
+          heat_recovery_efficiency: 0.80,
+          radiators: [{ radiator_id: 'rad_std', surface_area: 2.0, trv_enabled: true }],
+        },
+        outside,
+      ],
+      elements: [{
+        id: 'el_wall', type: 'wall',
+        nodes: ['z_a', 'z_outside'],
+        thermal_conductance: 10,
+      }],
+    };
+
+    const result = computeRoomHeatRequirements(demoMvhr, radiators, OPTS);
+    const zone = result.rooms.find(r => r.zoneId === 'z_a');
+
+    // C_vent = 33 × (1 − 0.8) = 6.6 W/K
+    expect(zone.ventilation_conductance).toBeCloseTo(6.6, 1);
+    // Total = 10 + 6.6 = 16.6 W/K → heat loss = 16.6 × 18 = 298.8 W
+    expect(zone.heat_loss).toBeCloseTo(298.8, 0);
+  });
+});

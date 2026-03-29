@@ -157,6 +157,43 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
     }
   }
 
+  // Ventilation / infiltration heat loss
+  // Q_vent [W] = ACH × Volume_m³ × 0.33 × (1 − η) × ΔT
+  // where 0.33 Wh/(m³·K) = ρ_air × Cp_air / 3600 ≈ 1.205 × 1005 / 3600
+  const AIR_VOLUMETRIC_HEAT_CAPACITY = 0.33;
+  const ventilationCondByZone = new Map();
+
+  for (const id of zoneIds) {
+    const z = zoneMap.get(id);
+    if (!z) continue;
+    const ach = typeof z.ach === 'number' && z.ach > 0 ? z.ach : 0;
+    if (ach <= 0) continue;
+
+    let volume = null;
+    if (typeof z.volume_m3 === 'number' && z.volume_m3 > 0) {
+      volume = z.volume_m3;
+    } else if (typeof z.floor_area_m2 === 'number' && z.floor_area_m2 > 0 &&
+               typeof z.ceiling_height_m === 'number' && z.ceiling_height_m > 0) {
+      volume = z.floor_area_m2 * z.ceiling_height_m;
+    }
+    if (!volume) continue;
+
+    const hrEff = typeof z.heat_recovery_efficiency === 'number' &&
+                  z.heat_recovery_efficiency >= 0 && z.heat_recovery_efficiency < 1
+      ? z.heat_recovery_efficiency : 0;
+
+    const cVent = ach * volume * AIR_VOLUMETRIC_HEAT_CAPACITY * (1 - hrEff);
+    if (cVent <= 0) continue;
+
+    ventilationCondByZone.set(id, cVent);
+    boundaryCondByZone.set(id, (boundaryCondByZone.get(id) || 0) + cVent);
+    const acc = roomAcc.get(id);
+    if (acc) {
+      acc.conductance += cVent;
+      acc.contributions.push({ id: 'ventilation', c: cVent });
+    }
+  }
+
   const radiatorCoeffByZone = new Map();
   const radiatorSurfaceByZone = new Map();
   const zoneSetpointById = new Map();
@@ -419,6 +456,10 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
     const perM2 = area ? heatLoss / area : null;
     const deliveredPerM2 = area ? deliveredHeat / area : null;
 
+    const ventCond = ventilationCondByZone.get(id) || 0;
+    const operationalTi = (typeof temp === 'number' && isFinite(temp)) ? temp : externalTemp;
+    const ventHeatLoss = ventCond * Math.max(0, operationalTi - externalTemp);
+
     results.push({
       zoneId: id,
       zoneName: z && z.name,
@@ -443,6 +484,8 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
       max_achievable_temperature: maxAchievableTemp === null ? null : Number(maxAchievableTemp.toFixed(2)),
       setpoint_shortfall: Number(setpointShortfall.toFixed(2)),
       balance_status: heatingBalance >= 0 ? 'sufficient' : 'insufficient',
+      ventilation_conductance: Number(ventCond.toFixed(3)),
+      ventilation_heat_loss: Number(ventHeatLoss.toFixed(1)),
       contributing_elements: acc.contributions.map(c => ({ elementId: c.id, conductance: Number(c.c.toFixed(3)) }))
     });
 

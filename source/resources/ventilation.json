@@ -1,0 +1,82 @@
+{
+  "units": {
+    "heat_recovery_efficiency": "fraction 0–1",
+    "specific_fan_power": "W/(l/s)",
+    "design_ach": "air changes per hour (whole-dwelling)"
+  },
+  "calculation_note": "Ventilation heat loss Q [W] = ACH × Volume [m³] × 0.33 [Wh/(m³·K)] × ΔT [K] × (1 − heat_recovery_efficiency). The constant 0.33 = ρ_air × Cp_air / 3600 ≈ 1.205 × 1005 / 3600. Higher heat_recovery_efficiency means less heat wasted to the outside.",
+  "systems": [
+    {
+      "id": "natural_infiltration",
+      "name": "Natural infiltration (no system)",
+      "type": "infiltration",
+      "heat_recovery_efficiency": 0.0,
+      "specific_fan_power": 0.0,
+      "design_ach": 0.5,
+      "notes": "Background infiltration through fabric gaps, window seals, and service penetrations in a typical UK dwelling. No mechanical assistance; driven by stack and wind pressure. ACH₅₀ ~10 for pre-1990 housing, ~5 for post-2000 housing."
+    },
+    {
+      "id": "passive_stack",
+      "name": "Passive stack ventilation (PSV)",
+      "type": "passive",
+      "heat_recovery_efficiency": 0.0,
+      "specific_fan_power": 0.0,
+      "design_ach": 0.5,
+      "notes": "Ducted natural ventilation drawing air out through roof-terminating stacks. Fresh air enters via trickle vents in windows or air bricks. No fan power; performance depends on stack height and temperature differential. Suitable for moderate climates."
+    },
+    {
+      "id": "whev",
+      "name": "Whole-House Extract Ventilation (WHEV)",
+      "type": "mechanical_extract",
+      "heat_recovery_efficiency": 0.0,
+      "specific_fan_power": 0.5,
+      "design_ach": 0.5,
+      "notes": "Single central fan extracts air from wet rooms (kitchen, bathrooms); fresh air enters passively via trickle vents. No heat recovery. Complies with Building Regulations Part F (System 3). Typical SFP 0.4–0.6 W/(l/s)."
+    },
+    {
+      "id": "mev",
+      "name": "Mechanical Extract Ventilation (MEV)",
+      "type": "mechanical_extract",
+      "heat_recovery_efficiency": 0.0,
+      "specific_fan_power": 0.6,
+      "design_ach": 0.5,
+      "notes": "Continuous low-rate central extract from wet rooms with passive inlet trickle vents. No heat recovery; all exhaust heat is lost. Part F compliant. Often used as baseline ventilation strategy in new UK homes without MVHR."
+    },
+    {
+      "id": "dmev",
+      "name": "Decentralised Mechanical Extract Ventilation (dMEV)",
+      "type": "mechanical_extract",
+      "heat_recovery_efficiency": 0.0,
+      "specific_fan_power": 0.7,
+      "design_ach": 0.5,
+      "notes": "Individual low-energy fans installed in each wet room (bathroom, WC, kitchen). Fresher air enters via trickle vents. No heat recovery; simpler to retrofit than ducted MEV. Typical fan: 1–2 W per unit at continuous trickle rate."
+    },
+    {
+      "id": "mvhr_standard",
+      "name": "MVHR — Standard efficiency (70%)",
+      "type": "mvhr",
+      "heat_recovery_efficiency": 0.70,
+      "specific_fan_power": 0.8,
+      "design_ach": 0.5,
+      "notes": "Mechanical Ventilation with Heat Recovery at 70% thermal efficiency. Supply and extract ducting throughout the dwelling; cross-flow heat exchanger. Entry-level MVHR units; suitable for well-insulated new-builds. Saves ~70% of ventilation heat loss vs MEV."
+    },
+    {
+      "id": "mvhr_efficient",
+      "name": "MVHR — High efficiency (85%)",
+      "type": "mvhr",
+      "heat_recovery_efficiency": 0.85,
+      "specific_fan_power": 0.7,
+      "design_ach": 0.5,
+      "notes": "High-efficiency MVHR with 85% heat exchanger efficiency. Mid-range units with good counter-flow exchangers. Compliant with Passivhaus requirements when combined with airtight envelope. SFP typically 0.6–0.8 W/(l/s)."
+    },
+    {
+      "id": "mvhr_passivhaus",
+      "name": "MVHR — Passivhaus grade (93%)",
+      "type": "mvhr",
+      "heat_recovery_efficiency": 0.93,
+      "specific_fan_power": 0.45,
+      "design_ach": 0.3,
+      "notes": "Passivhaus-certified MVHR with ≥93% heat exchanger efficiency. High-performance rotary or counter-flow exchanger. Required with ACH₅₀ ≤ 0.6 for Passivhaus certification. Very low SFP (≤0.45 W/(l/s)); typical design ACH 0.3 for highly airtight buildings."
+    }
+  ]
+}

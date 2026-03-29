@@ -2,64 +2,73 @@
   "units": {
     "thermal_conductivity": "W/mK",
     "u_value": "W/m²K",
-    "r_value": "m²K/W"
+    "r_value": "m²K/W",
+    "air_permeability_m3_per_hour_m2": "m³/(h·m²) at 50 Pa"
   },
-  "calculation_note": "U-value for a single homogeneous insulation layer = thermal_conductivity (W/mK) / thickness (m). Example: 100mm PIR (0.022 W/mK) => U = 0.022 / 0.1 = 0.22 W/m²K",
+  "calculation_note": "U-value for a single homogeneous insulation layer = thermal_conductivity (W/mK) / thickness (m). Example: 100mm PIR (0.022 W/mK) => U = 0.022 / 0.1 = 0.22 W/m²K. air_permeability_m3_per_hour_m2 is the air leakage rate through the material at 50 Pa differential pressure; lower values indicate better airtightness.",
   "materials": [
     {
       "id": "pir",
       "name": "PIR (Polyisocyanurate) board",
       "thermal_conductivity": 0.022,
       "density": 30,
-      "notes": "High performance rigid foam board commonly used in roofs and walls."
+      "air_permeability_m3_per_hour_m2": 0.0,
+      "notes": "High performance rigid foam board commonly used in roofs and walls. Closed-cell structure makes it an effective air barrier."
     },
     {
       "id": "rockwool",
       "name": "Rock wool (Mineral wool)",
       "thermal_conductivity": 0.038,
       "density": 45,
-      "notes": "Non-combustible, good acoustic performance, used in pitched roofs, walls and floors."
+      "air_permeability_m3_per_hour_m2": 1.5,
+      "notes": "Non-combustible, good acoustic performance, used in pitched roofs, walls and floors. Open fibrous structure is not an air barrier; requires separate membrane."
     },
     {
       "id": "glass_wool",
       "name": "Glass wool",
       "thermal_conductivity": 0.035,
       "density": 12,
-      "notes": "Common batt insulation for cavities and lofts."
+      "air_permeability_m3_per_hour_m2": 2.0,
+      "notes": "Common batt insulation for cavities and lofts. Very open structure — not an air barrier; always pair with airtight membrane."
     },
     {
       "id": "wood_fibre",
       "name": "Wood fibre",
       "thermal_conductivity": 0.040,
       "density": 120,
-      "notes": "Breathable, natural fibre used in breathable build-ups and timber-frame insulation."
+      "air_permeability_m3_per_hour_m2": 1.0,
+      "notes": "Breathable, natural fibre used in breathable build-ups and timber-frame insulation. Vapour-open but not an air barrier without a membrane layer."
     },
     {
       "id": "eps",
       "name": "EPS (Expanded Polystyrene)",
       "thermal_conductivity": 0.036,
       "density": 20,
-      "notes": "Rigid foam used externally and under screeds; good compressive properties."
+      "air_permeability_m3_per_hour_m2": 0.1,
+      "notes": "Rigid foam used externally and under screeds; good compressive properties. Mostly closed-cell; low air permeability."
     },
     {
       "id": "xps",
       "name": "XPS (Extruded Polystyrene)",
       "thermal_conductivity": 0.029,
       "density": 32,
-      "notes": "Moisture resistant rigid foam for below-ground and insulated floors."
+      "air_permeability_m3_per_hour_m2": 0.0,
+      "notes": "Moisture resistant rigid foam for below-ground and insulated floors. Fully closed-cell; acts as air barrier."
     },
     {
       "id": "cellulose",
       "name": "Cellulose (recycled paper)",
       "thermal_conductivity": 0.039,
       "density": 60,
-      "notes": "Blown or loose-fill insulation with good environmental credentials."
+      "air_permeability_m3_per_hour_m2": 1.2,
+      "notes": "Blown or loose-fill insulation with good environmental credentials. Loose fill is not an air barrier; dense-pack at ≥55 kg/m³ offers some resistance."
     },
     {
       "id": "stud_wood",
       "name": "Stud (softwood timber)",
       "thermal_conductivity": 0.13,
       "density": 500,
+      "air_permeability_m3_per_hour_m2": 0.3,
       "notes": "Typical timber stud used in framed walls; higher conductivity than insulation so affects cavity U-values where timber paths exist."
     },
     {
@@ -67,6 +76,7 @@
       "name": "Joist (softwood timber)",
       "thermal_conductivity": 0.13,
       "density": 450,
+      "air_permeability_m3_per_hour_m2": 0.3,
       "notes": "Typical softwood floor/roof joist. Higher conductivity than insulation; represents linear/area thermal bridge — use actual joist depth for R calculations."
     },
     {
@@ -74,35 +84,64 @@
       "name": "External blockwork (dense concrete block)",
       "thermal_conductivity": 0.70,
       "density": 1800,
-      "notes": "Typical dense concrete block used in external walls; relatively high thermal conductivity compared with insulation materials."
+      "air_permeability_m3_per_hour_m2": 0.2,
+      "notes": "Typical dense concrete block used in external walls. Block faces are relatively dense; air infiltration occurs mainly via mortar joints and cracks."
     },
     {
       "id": "plasterboard",
       "name": "Plasterboard (gypsum)",
       "thermal_conductivity": 0.21,
       "density": 800,
-      "notes": "Common internal lining board; thin layers contribute modestly to thermal resistance."
+      "air_permeability_m3_per_hour_m2": 0.5,
+      "notes": "Common internal lining board; thin layers contribute modestly to thermal resistance. Can serve as inner airtight layer when all joints and penetrations are taped and sealed."
     },
     {
       "id": "plywood",
       "name": "Plywood",
       "thermal_conductivity": 0.13,
       "density": 600,
-      "notes": "Wood panel material used for sheathing and finishes; thermal conductivity similar to other timber products."
+      "air_permeability_m3_per_hour_m2": 0.2,
+      "notes": "Wood panel material used for sheathing and finishes; thermal conductivity similar to other timber products. Dense cross-laminate structure gives moderate air resistance."
     },
     {
       "id": "roof_tile",
       "name": "Roof tile (clay/ceramic)",
       "thermal_conductivity": 0.90,
       "density": 2000,
-      "notes": "Clay or concrete roof tile — heavy, relatively high conductivity; modelled as an external, discontinuous layer."
+      "air_permeability_m3_per_hour_m2": 5.0,
+      "notes": "Clay or concrete roof tile — heavy, relatively high conductivity; modelled as an external, discontinuous layer. Tiles are lapped (not sealed) so the tile layer is effectively open to air."
     },
     {
       "id": "felt",
       "name": "Roofing felt / bituminous membrane",
       "thermal_conductivity": 0.19,
       "density": 1000,
-      "notes": "Underlay membrane beneath tiles or slates; thin layer with modest conductivity."
+      "air_permeability_m3_per_hour_m2": 0.1,
+      "notes": "Underlay membrane beneath tiles or slates; thin layer with modest conductivity. Provides secondary air resistance; laps and fixings should be sealed for airtight performance."
+    },
+    {
+      "id": "vapour_barrier",
+      "name": "Vapour barrier / control layer",
+      "thermal_conductivity": 0.19,
+      "density": 50,
+      "air_permeability_m3_per_hour_m2": 0.0,
+      "notes": "Low-permeability polyethylene or foil membrane installed on the warm side of insulation to prevent interstitial condensation. When all laps and penetrations are correctly taped, provides a near-perfect air barrier."
+    },
+    {
+      "id": "breather_membrane",
+      "name": "Breather membrane (vapour-open, air-tight)",
+      "thermal_conductivity": 0.19,
+      "density": 40,
+      "air_permeability_m3_per_hour_m2": 0.0,
+      "notes": "Vapour-permeable but air-impermeable membrane installed on the cold side of insulation. Allows moisture to escape while resisting wind-driven air infiltration. Correctly lapped and taped at all joints it acts as a robust air barrier."
+    },
+    {
+      "id": "airtightness_membrane",
+      "name": "Airtightness membrane (high-performance)",
+      "thermal_conductivity": 0.19,
+      "density": 60,
+      "air_permeability_m3_per_hour_m2": 0.0,
+      "notes": "High-performance airtightness layer (e.g. SIGA Majrex, Intello Plus, Pro Clima DB+). Designed to achieve Passivhaus envelope leakage targets (≤0.6 ACH₅₀). All laps, penetrations and perimeter junctions must be sealed with compatible tapes."
     },
     {
       "id": "window_single",

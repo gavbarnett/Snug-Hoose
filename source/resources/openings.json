@@ -2,7 +2,9 @@
 	"units": {
 		"u_value": "W/m²K",
 		"dimensions": "mm",
-		"area": "m²"
+		"area": "m²",
+		"air_leakage_m3_per_hour_per_m2": "m³/(h·m²) at 50 Pa",
+		"trickle_vent_flow_rate_m3_per_hour": "m³/h at 1 Pa (background ventilation)"
 	},
 	"standard_sizes": {
 		"windows": [
@@ -51,43 +53,66 @@
 			"id": "window_single",
 			"name": "Single Glazing",
 			"u_value": 5.7,
-			"frame": "mixed"
+			"frame": "mixed",
+			"air_leakage_m3_per_hour_per_m2": 6.0,
+			"notes": "Old single-glazed windows with poor perimeter seals; significant infiltration source."
 		},
 		{
 			"id": "window_double_old",
 			"name": "Double Glazing (Old)",
 			"u_value": 3.0,
-			"frame": "mixed"
+			"frame": "mixed",
+			"air_leakage_m3_per_hour_per_m2": 3.0,
+			"notes": "Pre-1995 double glazing; deteriorated seals give moderate infiltration rates."
 		},
 		{
 			"id": "window_double_modern",
 			"name": "Double Glazing (Modern)",
 			"u_value": 1.6,
-			"frame": "mixed"
+			"frame": "mixed",
+			"air_leakage_m3_per_hour_per_m2": 0.8,
+			"notes": "Modern double glazing with good perimeter seals; low background infiltration."
 		},
 		{
 			"id": "window_triple",
 			"name": "Triple Glazing",
 			"u_value": 0.8,
-			"frame": "mixed"
+			"frame": "mixed",
+			"air_leakage_m3_per_hour_per_m2": 0.2,
+			"notes": "Triple glazed units with precision hardware and multi-point locking; very low infiltration."
 		},
 		{
 			"id": "window_pvc_double",
 			"name": "PVC Frame Double Glazing",
 			"u_value": 1.4,
-			"frame": "pvc"
+			"frame": "pvc",
+			"air_leakage_m3_per_hour_per_m2": 0.6,
+			"notes": "PVC frames with modern sealing gaskets; typically low infiltration when in good condition."
 		},
 		{
 			"id": "window_wood_double",
 			"name": "Wood Frame Double Glazing",
 			"u_value": 1.5,
-			"frame": "wood"
+			"frame": "wood",
+			"air_leakage_m3_per_hour_per_m2": 1.0,
+			"notes": "Timber frames can swell/shrink seasonally; slightly higher infiltration than PVC equivalent."
 		},
 		{
 			"id": "window_aluminium_thermal",
 			"name": "Aluminium Frame (Thermal Break)",
 			"u_value": 1.8,
-			"frame": "aluminium"
+			"frame": "aluminium",
+			"air_leakage_m3_per_hour_per_m2": 0.5,
+			"notes": "Aluminium frames with thermal break and quality gaskets; low air infiltration."
+		},
+		{
+			"id": "window_trickle_vent_double",
+			"name": "Double Glazing with Trickle Vent",
+			"u_value": 1.6,
+			"frame": "mixed",
+			"air_leakage_m3_per_hour_per_m2": 0.8,
+			"trickle_vent_flow_rate_m3_per_hour": 8.0,
+			"notes": "Modern double glazing fitted with a trickle vent (background ventilator) above the frame. Provides controlled background ventilation per UK Building Regulations Part F. The vent contributes a guaranteed minimum fresh-air flow on top of normal frame infiltration."
 		}
 	],
 	"doors": [
@@ -95,31 +120,49 @@
 			"id": "door_pvc_insulated",
 			"name": "PVC Insulated Door",
 			"u_value": 1.8,
-			"frame": "pvc"
+			"frame": "pvc",
+			"air_leakage_m3_per_hour_per_m2": 1.0,
+			"notes": "Modern PVC door with foam insulated core and perimeter compression seals; low infiltration."
 		},
 		{
 			"id": "door_wood_solid",
 			"name": "Solid Wood Door",
 			"u_value": 2.8,
-			"frame": "wood"
+			"frame": "wood",
+			"air_leakage_m3_per_hour_per_m2": 3.5,
+			"notes": "Traditional solid timber door; natural movement of wood and simple threshold seal leads to higher infiltration."
 		},
 		{
 			"id": "door_wood_insulated",
 			"name": "Insulated Timber Door",
 			"u_value": 1.7,
-			"frame": "wood"
+			"frame": "wood",
+			"air_leakage_m3_per_hour_per_m2": 1.5,
+			"notes": "Insulated timber door with modern multi-point seals; improved airtightness over solid wood."
 		},
 		{
 			"id": "door_aluminium_thermal",
 			"name": "Aluminium Door (Thermal Break)",
 			"u_value": 2.0,
-			"frame": "aluminium"
+			"frame": "aluminium",
+			"air_leakage_m3_per_hour_per_m2": 0.8,
+			"notes": "Aluminium door with thermal break and quality compression seals; low infiltration."
 		},
 		{
 			"id": "door_steel_insulated",
 			"name": "Insulated Steel Door",
 			"u_value": 1.6,
-			"frame": "steel"
+			"frame": "steel",
+			"air_leakage_m3_per_hour_per_m2": 0.8,
+			"notes": "Steel door with insulated core and multi-point locking; very low infiltration."
+		},
+		{
+			"id": "door_poorly_fitted",
+			"name": "Poorly Fitted / Draughty Door",
+			"u_value": 3.0,
+			"frame": "wood",
+			"air_leakage_m3_per_hour_per_m2": 8.0,
+			"notes": "Old or poorly installed door with significant perimeter gaps and no threshold seal. High draught infiltration rate; a draught excluder and door seal kit can reduce this to ~2 m³/(h·m²)."
 		}
 	]
 }

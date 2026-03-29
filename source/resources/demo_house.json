@@ -152,6 +152,8 @@
       "level": 0,
       "setpoint_temperature": 21,
       "is_boiler_control": true,
+      "volume_m3": 60,
+      "ach": 0.5,
       "radiators": [
         {
           "radiator_id": "type_22",
@@ -188,6 +190,8 @@
       "level": 0,
       "setpoint_temperature": 21,
       "is_boiler_control": false,
+      "volume_m3": 48,
+      "ach": 1.0,
       "radiators": [
         {
           "radiator_id": "type_22",
@@ -224,6 +228,8 @@
       "level": 0,
       "setpoint_temperature": 21,
       "is_boiler_control": false,
+      "volume_m3": 43,
+      "ach": 0.5,
       "radiators": [
         {
           "radiator_id": "type_1",
@@ -260,6 +266,8 @@
       "level": 1,
       "setpoint_temperature": 18,
       "is_boiler_control": false,
+      "volume_m3": 66,
+      "ach": 0.5,
       "radiators": [
         {
           "radiator_id": "type_11",
@@ -296,6 +304,8 @@
       "level": 1,
       "setpoint_temperature": 21,
       "is_boiler_control": false,
+      "volume_m3": 17,
+      "ach": 1.5,
       "radiators": [
         {
           "radiator_id": "type_11",
@@ -332,6 +342,8 @@
       "level": 1,
       "setpoint_temperature": 18,
       "is_boiler_control": false,
+      "volume_m3": 10,
+      "ach": 0.5,
       "radiators": [
         {
           "radiator_id": "type_1",
@@ -365,6 +377,8 @@
       "name": "Loft",
       "level": 2,
       "is_unheated": true,
+      "volume_m3": 72,
+      "ach": 5.0,
       "layout": {
         "polygon": [
           {
