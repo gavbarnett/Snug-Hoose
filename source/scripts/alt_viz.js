@@ -7,6 +7,7 @@ let selectedZoneId = null;
 let dragState = null;
 let roomDragState = null;
 let objectDragState = null;
+let persistedMenuPath = [];
 let suppressWallSelectionUntil = 0;
 const DRAG_START_THRESHOLD_PX = 6;
 const DRAG_SNAP_STEP_M = 0.1;
@@ -277,7 +278,11 @@ function createAltVizMenuBar(onMenuAction, getContext) {
   const context = typeof getContext === 'function' ? getContext() : {};
   const menuSpec = buildAltVizMenuSpec(context.demo);
 
-  const renderMenuItems = (items, level = 0) => {
+  const setMenuPath = (path) => {
+    persistedMenuPath = Array.isArray(path) ? path.slice() : [];
+  };
+
+  const renderMenuItems = (items, level = 0, pathPrefix = []) => {
     const list = document.createElement('ul');
     list.className = level === 0 ? 'alt-viz-menu-list' : 'alt-viz-submenu-list';
 
@@ -285,6 +290,62 @@ function createAltVizMenuBar(onMenuAction, getContext) {
       const li = document.createElement('li');
       li.className = 'alt-viz-menu-item';
       if (item.disabled) li.classList.add('is-disabled');
+      const currentPath = [...pathPrefix, item.label];
+      li.dataset.menuPath = currentPath.join('>');
+
+      li.addEventListener('mouseenter', () => {
+        setMenuPath(currentPath);
+      });
+
+      if (item.control === 'slider' && level > 0) {
+        li.classList.add('alt-viz-slider-item');
+
+        const labelRow = document.createElement('div');
+        labelRow.className = 'alt-viz-slider-label-row';
+
+        const label = document.createElement('span');
+        label.className = 'alt-viz-slider-label';
+        label.textContent = item.label;
+
+        const valueText = document.createElement('span');
+        valueText.className = 'alt-viz-slider-value';
+        valueText.textContent = `${item.value}${item.unit || ''}`;
+
+        labelRow.appendChild(label);
+        labelRow.appendChild(valueText);
+
+        const slider = document.createElement('input');
+        slider.type = 'range';
+        slider.className = 'alt-viz-slider-control';
+        slider.min = String(item.min ?? 0);
+        slider.max = String(item.max ?? 100);
+        slider.step = String(item.step ?? 1);
+        slider.value = String(item.value ?? slider.min);
+
+        slider.addEventListener('click', (e) => e.stopPropagation());
+        slider.addEventListener('mousedown', (e) => e.stopPropagation());
+        slider.addEventListener('focus', () => setMenuPath(currentPath));
+
+        slider.addEventListener('input', (e) => {
+          e.stopPropagation();
+          setMenuPath(currentPath);
+          valueText.textContent = `${slider.value}${item.unit || ''}`;
+          if (typeof onMenuAction === 'function' && item.action) {
+            onMenuAction(item.action, {
+              ...item,
+              payload: {
+                ...(item.payload || {}),
+                value: Number(slider.value)
+              }
+            }, typeof getContext === 'function' ? getContext() : {});
+          }
+        });
+
+        li.appendChild(labelRow);
+        li.appendChild(slider);
+        list.appendChild(li);
+        return;
+      }
 
       const trigger = document.createElement('button');
       trigger.type = 'button';
@@ -295,6 +356,7 @@ function createAltVizMenuBar(onMenuAction, getContext) {
 
       trigger.addEventListener('click', (e) => {
         e.stopPropagation();
+        setMenuPath(currentPath);
         if (item.disabled) return;
         if (!item.items && item.action && typeof onMenuAction === 'function') {
           onMenuAction(item.action, item, typeof getContext === 'function' ? getContext() : {});
@@ -305,7 +367,7 @@ function createAltVizMenuBar(onMenuAction, getContext) {
 
       if (Array.isArray(item.items) && item.items.length > 0) {
         li.classList.add('has-submenu');
-        li.appendChild(renderMenuItems(item.items, level + 1));
+        li.appendChild(renderMenuItems(item.items, level + 1, currentPath));
       }
 
       list.appendChild(li);
@@ -314,8 +376,103 @@ function createAltVizMenuBar(onMenuAction, getContext) {
     return list;
   };
 
-  bar.appendChild(renderMenuItems(menuSpec, 0));
+  bar.appendChild(renderMenuItems(menuSpec, 0, []));
+
+  if (Array.isArray(persistedMenuPath) && persistedMenuPath.length > 0) {
+    for (let i = 1; i <= persistedMenuPath.length; i++) {
+      const key = persistedMenuPath.slice(0, i).join('>');
+      const node = bar.querySelector(`[data-menu-path="${key.replace(/"/g, '\\"')}"]`);
+      if (node) node.classList.add('is-open');
+    }
+  }
+
   return bar;
+}
+
+function createEnvironmentControlStrip(demo, onMenuAction, getContext) {
+  const strip = document.createElement('div');
+  strip.className = 'alt-env-strip';
+
+  const controls = [
+    {
+      label: 'Indoor Target',
+      action: 'environment.set.indoor',
+      value: Number.isFinite(demo?.meta?.indoorTemp) ? demo.meta.indoorTemp : 21,
+      min: 14,
+      max: 26,
+      step: 0.5,
+      unit: '°C'
+    },
+    {
+      label: 'External Temp',
+      action: 'environment.set.external',
+      value: Number.isFinite(demo?.meta?.externalTemp) ? demo.meta.externalTemp : 3,
+      min: -10,
+      max: 20,
+      step: 0.5,
+      unit: '°C'
+    },
+    {
+      label: 'Flow Temp',
+      action: 'environment.set.flow',
+      value: Number.isFinite(demo?.meta?.flowTemp) ? demo.meta.flowTemp : 55,
+      min: 30,
+      max: 75,
+      step: 1,
+      unit: '°C'
+    }
+  ];
+
+  controls.forEach(control => {
+    const card = document.createElement('div');
+    card.className = 'alt-env-card';
+
+    const labelRow = document.createElement('div');
+    labelRow.className = 'alt-env-label-row';
+
+    const label = document.createElement('span');
+    label.className = 'alt-env-label';
+    label.textContent = control.label;
+
+    const value = document.createElement('span');
+    value.className = 'alt-env-value';
+    value.textContent = `${control.value}${control.unit}`;
+
+    labelRow.appendChild(label);
+    labelRow.appendChild(value);
+
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.className = 'alt-env-slider';
+    slider.min = String(control.min);
+    slider.max = String(control.max);
+    slider.step = String(control.step);
+    slider.value = String(control.value);
+
+    // Keep dragging smooth by updating text live and only committing on release.
+    slider.addEventListener('input', () => {
+      value.textContent = `${slider.value}${control.unit}`;
+    });
+
+    slider.addEventListener('change', () => {
+      if (typeof onMenuAction === 'function') {
+        onMenuAction(
+          control.action,
+          {
+            action: control.action,
+            payload: { value: Number(slider.value) }
+          },
+          typeof getContext === 'function' ? getContext() : {}
+        );
+      }
+    });
+
+    card.appendChild(labelRow);
+    card.appendChild(slider);
+    strip.appendChild(card);
+  });
+
+  return strip;
 }
 
 function renderEmptyMessage(container, message) {
@@ -1745,6 +1902,13 @@ export function renderAlternativeViz(demo, opts = {}) {
     selectedLevel
   }));
   root.appendChild(menuBar);
+
+  const envStrip = createEnvironmentControlStrip(demo, onMenuAction, () => ({
+    demo,
+    selectedZoneId,
+    selectedLevel
+  }));
+  root.appendChild(envStrip);
 
   const rooms = getRoomZones(demo);
   if (rooms.length === 0) {

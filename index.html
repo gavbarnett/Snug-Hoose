@@ -8,38 +8,17 @@
 <body>
   <h3>Snug-Hoose</h3>
 
-  <div class="control-panel">
-    <div class="control-row">
-      <label>
-        Indoor target temperature (°C)
-        <input id="indoorTemp" type="number" value="21" step="0.5" />
-      </label>
-      <label>
-        External temperature (°C)
-        <input id="externalTemp" type="number" value="3" step="0.5" />
-      </label>
-      <label>
-        Radiator flow temperature (°C)
-        <input id="flowTemp" type="number" value="55" step="1" />
-      </label>
-      <input id="fileUpload" type="file" accept=".json" style="position: absolute; opacity: 0; width: 0; height: 0;" />
-      <button id="uploadBtn">Choose File</button>
-      <a id="download" download="demo_house.solved.json" style="margin-left: 0;">Download</a>
-    </div>
-    <p class="info-text">Temperature inputs update immediately. Upload a JSON file or use the default demo house (auto-loaded).</p>
-  </div>
-
-  <div class="content-layout">
+  <div class="content-layout sidebar-hidden">
     <div class="content-left">
       <h4>Visualization</h4>
       <div class="viz-tabs">
-        <button id="heatMapTab" class="tab-button active">Heating Balance</button>
-        <button id="altVizTab" class="tab-button">Alternative View</button>
+        <button id="heatMapTab" class="tab-button">Heating Balance</button>
+        <button id="altVizTab" class="tab-button active">Alternative View</button>
       </div>
-      <div id="heatMapPanel" class="viz-panel active">
+      <div id="heatMapPanel" class="viz-panel">
         <div id="thermal-container"></div>
       </div>
-      <div id="altVizPanel" class="viz-panel">
+      <div id="altVizPanel" class="viz-panel active">
         <div id="alt-viz-container" class="alt-viz-empty"></div>
       </div>
     </div>

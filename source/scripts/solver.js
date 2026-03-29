@@ -311,6 +311,33 @@ function handleAltVizMenuAction(action, item, context = {}) {
   if (action === 'edit.undo' || action === 'edit.redo') return;
 
   switch (action) {
+    case 'environment.set.indoor': {
+      if (!currentDemo) return;
+      currentDemo.meta = currentDemo.meta || {};
+      const value = Number(payload.value);
+      if (!Number.isFinite(value)) return;
+      currentDemo.meta.indoorTemp = value;
+      triggerSolve();
+      return;
+    }
+    case 'environment.set.external': {
+      if (!currentDemo) return;
+      currentDemo.meta = currentDemo.meta || {};
+      const value = Number(payload.value);
+      if (!Number.isFinite(value)) return;
+      currentDemo.meta.externalTemp = value;
+      triggerSolve();
+      return;
+    }
+    case 'environment.set.flow': {
+      if (!currentDemo) return;
+      currentDemo.meta = currentDemo.meta || {};
+      const value = Number(payload.value);
+      if (!Number.isFinite(value)) return;
+      currentDemo.meta.flowTemp = value;
+      triggerSolve();
+      return;
+    }
     case 'file.new.blank':
       createNewProjectBlank();
       return;
@@ -611,9 +638,15 @@ async function solveAndRender(demoRaw) {
 
     // Get input values and calculate room heat requirements
     const inputTemps = appUiApi ? appUiApi.getTemperatureInputs() : {};
-    const indoorTemp = inputTemps && typeof inputTemps.indoorTemp === 'number' && isFinite(inputTemps.indoorTemp) ? inputTemps.indoorTemp : 21;
-    const externalTemp = inputTemps && typeof inputTemps.externalTemp === 'number' && isFinite(inputTemps.externalTemp) ? inputTemps.externalTemp : 3;
-    const flowTemp = inputTemps && typeof inputTemps.flowTemp === 'number' && isFinite(inputTemps.flowTemp) ? inputTemps.flowTemp : 55;
+    const indoorTemp = inputTemps && typeof inputTemps.indoorTemp === 'number' && isFinite(inputTemps.indoorTemp)
+      ? inputTemps.indoorTemp
+      : (Number.isFinite(demoRaw?.meta?.indoorTemp) ? Number(demoRaw.meta.indoorTemp) : 21);
+    const externalTemp = inputTemps && typeof inputTemps.externalTemp === 'number' && isFinite(inputTemps.externalTemp)
+      ? inputTemps.externalTemp
+      : (Number.isFinite(demoRaw?.meta?.externalTemp) ? Number(demoRaw.meta.externalTemp) : 3);
+    const flowTemp = inputTemps && typeof inputTemps.flowTemp === 'number' && isFinite(inputTemps.flowTemp)
+      ? inputTemps.flowTemp
+      : (Number.isFinite(demoRaw?.meta?.flowTemp) ? Number(demoRaw.meta.flowTemp) : 55);
 
     const heatResults = computeRoomHeatRequirements(demoRaw, radiators, { indoorTemp, externalTemp, flowTemp });
 
@@ -1574,6 +1607,9 @@ function initVizTabs() {
 
   heatMapTab.addEventListener('click', () => showPanel('heat'));
   altVizTab.addEventListener('click', () => showPanel('alt'));
+
+  // Default to the new alternative visualization on startup.
+  showPanel('alt');
 }
 
 // Load and initialize on page load

@@ -202,6 +202,49 @@ a#download:hover {
   z-index: 10;
 }
 
+.alt-env-strip {
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  margin-bottom: 0.7rem;
+  padding: 0.55rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.alt-env-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+}
+
+.alt-env-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+  gap: 0.5rem;
+}
+
+.alt-env-label {
+  color: var(--text-light);
+  font-size: 0.78rem;
+}
+
+.alt-env-value {
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.alt-env-slider {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: ew-resize;
+}
+
 .alt-viz-menu-list,
 .alt-viz-submenu-list {
   list-style: none;
@@ -274,11 +317,21 @@ a#download:hover {
   display: block;
 }
 
+.alt-viz-menu-item.has-submenu.is-open > .alt-viz-submenu-list {
+  display: block;
+}
+
 .alt-viz-menu-item.has-submenu > .alt-viz-submenu-trigger::after {
   content: '▸';
   float: right;
   margin-left: 0.5rem;
   opacity: 0.9;
+}
+
+@media (max-width: 980px) {
+  .alt-env-strip {
+    grid-template-columns: 1fr;
+  }
 }
 
 .alt-viz-toolbar {
