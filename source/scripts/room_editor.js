@@ -1660,7 +1660,9 @@ export function initRoomEditor(opts) {
         glazing_id: firstOption,
         width: 1000,
         height: 1200,
-        area: 1.2
+        area: 1.2,
+        length_m: 1.0,
+        position_ratio: 0.5
       });
       onDataChanged();
       refreshSelectedZone();
@@ -1717,7 +1719,10 @@ export function initRoomEditor(opts) {
         material_id: firstOption,
         width: 900,
         height: 2000,
-        area: 1.8
+        area: 1.8,
+        length_m: 0.9,
+        position_ratio: 0.5,
+        hinge_side: 'left'
       });
       onDataChanged();
       refreshSelectedZone();
@@ -1815,6 +1820,22 @@ export function initRoomEditor(opts) {
     const areaDisplay = document.createElement('span');
     areaDisplay.className = 'area-display';
 
+    const openingLengthInput = document.createElement('input');
+    openingLengthInput.dataset.focusKey = `${focusBaseKey}:length`;
+    openingLengthInput.type = 'number';
+    openingLengthInput.placeholder = 'Length on wall (m)';
+    openingLengthInput.step = '0.05';
+    openingLengthInput.min = '0.1';
+    openingLengthInput.max = '20';
+
+    const positionInput = document.createElement('input');
+    positionInput.dataset.focusKey = `${focusBaseKey}:position`;
+    positionInput.type = 'number';
+    positionInput.placeholder = 'Position %';
+    positionInput.step = '1';
+    positionInput.min = '0';
+    positionInput.max = '100';
+
     const updateOpening = (notify = true) => {
       const wmm = parseFloat(widthInput.value);
       const hmm = parseFloat(heightInput.value);
@@ -1824,7 +1845,9 @@ export function initRoomEditor(opts) {
       opening.width = Math.round(wmm);
       opening.height = Math.round(hmm);
       opening.area = Number(area.toFixed(3));
+      opening.length_m = Number((wmm / 1000).toFixed(3));
       areaDisplay.textContent = `Area: ${opening.area}m²`;
+      openingLengthInput.value = String(opening.length_m);
       if (notify) {
         queueFocusRestore();
         onDataChanged();
@@ -1848,6 +1871,35 @@ export function initRoomEditor(opts) {
     widthInput.addEventListener('input', updateOpening);
     heightInput.addEventListener('input', updateOpening);
 
+    const lengthFromWidth = Number((parseFloat(widthInput.value || '0') / 1000).toFixed(3));
+    const storedLength = typeof opening.length_m === 'number' && isFinite(opening.length_m) && opening.length_m > 0
+      ? opening.length_m
+      : (lengthFromWidth > 0 ? lengthFromWidth : 1);
+    opening.length_m = Number(storedLength.toFixed(3));
+    openingLengthInput.value = String(opening.length_m);
+
+    const storedPositionRatio = typeof opening.position_ratio === 'number' && isFinite(opening.position_ratio)
+      ? Math.max(0, Math.min(1, opening.position_ratio))
+      : 0.5;
+    opening.position_ratio = storedPositionRatio;
+    positionInput.value = String(Math.round(storedPositionRatio * 100));
+
+    openingLengthInput.addEventListener('input', () => {
+      const lv = parseFloat(openingLengthInput.value);
+      if (!isFinite(lv) || lv <= 0) return;
+      opening.length_m = Number(lv.toFixed(3));
+      queueFocusRestore();
+      onDataChanged();
+    });
+
+    positionInput.addEventListener('input', () => {
+      const pv = parseFloat(positionInput.value);
+      if (!isFinite(pv)) return;
+      opening.position_ratio = Number((Math.max(0, Math.min(100, pv)) / 100).toFixed(3));
+      queueFocusRestore();
+      onDataChanged();
+    });
+
     updateOpening(false);
 
     sizeRow.appendChild(document.createTextNode('W:'));
@@ -1856,8 +1908,46 @@ export function initRoomEditor(opts) {
     sizeRow.appendChild(heightInput);
     sizeRow.appendChild(areaDisplay);
 
+    const placementRow = document.createElement('div');
+    placementRow.style.display = 'flex';
+    placementRow.style.gap = '0.5rem';
+    placementRow.style.alignItems = 'center';
+    placementRow.style.flexWrap = 'wrap';
+    placementRow.appendChild(document.createTextNode('Wall length:'));
+    placementRow.appendChild(openingLengthInput);
+    placementRow.appendChild(document.createTextNode('Position:'));
+    placementRow.appendChild(positionInput);
+    placementRow.appendChild(document.createTextNode('%'));
+
+    if (kind === 'door') {
+      const hingeSelect = document.createElement('select');
+      hingeSelect.dataset.focusKey = `${focusBaseKey}:hingeSide`;
+      const leftOpt = document.createElement('option');
+      leftOpt.value = 'left';
+      leftOpt.textContent = 'Left hinge';
+      const rightOpt = document.createElement('option');
+      rightOpt.value = 'right';
+      rightOpt.textContent = 'Right hinge';
+      hingeSelect.appendChild(leftOpt);
+      hingeSelect.appendChild(rightOpt);
+
+      const currentHinge = String(opening.hinge_side || '').toLowerCase() === 'right' ? 'right' : 'left';
+      opening.hinge_side = currentHinge;
+      hingeSelect.value = currentHinge;
+
+      hingeSelect.addEventListener('change', () => {
+        opening.hinge_side = hingeSelect.value === 'right' ? 'right' : 'left';
+        queueFocusRestore();
+        onDataChanged();
+      });
+
+      placementRow.appendChild(document.createTextNode('Hinge:'));
+      placementRow.appendChild(hingeSelect);
+    }
+
     form.appendChild(header);
     form.appendChild(sizeRow);
+    form.appendChild(placementRow);
     wrap.appendChild(form);
     return wrap;
   }

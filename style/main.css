@@ -322,6 +322,43 @@ a#download:hover {
   outline: none;
 }
 
+.alt-opening-line {
+  pointer-events: none;
+  stroke-linecap: round;
+  opacity: 1;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 1px rgba(0, 0, 0, 1));
+}
+
+.alt-opening-window {
+  stroke: #d9f6ff;
+  stroke-width: 8;
+}
+
+.alt-opening-door {
+  stroke: #ffd38a;
+  stroke-width: 9;
+  stroke-dasharray: 10 5;
+}
+
+.alt-opening-door-arc {
+  pointer-events: none;
+  fill: none;
+  stroke: #ffe7bf;
+  stroke-width: 3;
+  opacity: 0.95;
+  stroke-dasharray: 6 4;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.95));
+}
+
+.alt-opening-door-leaf {
+  pointer-events: none;
+  stroke: #fff1d5;
+  stroke-width: 4;
+  opacity: 0.96;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.95));
+}
+
 .content-right {
   display: flex;
   flex-direction: column;

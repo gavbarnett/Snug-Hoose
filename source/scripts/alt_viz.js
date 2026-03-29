@@ -10,6 +10,7 @@ let suppressWallSelectionUntil = 0;
 const DRAG_START_THRESHOLD_PX = 6;
 const DRAG_SNAP_STEP_M = 0.1;
 const DRAG_NEAR_SNAP_THRESHOLD_M = 0.6;
+const DOOR_SWING_DEGREES = 20;
 
 function snapOffsetMeters(offset, step) {
   if (!isFinite(offset)) return 0;
@@ -897,6 +898,37 @@ function updateRenderedZoneGeometry(zoneRenderState, polygon, bounds, scale, pad
     label.setAttribute('y', String(midY));
     label.textContent = formatLengthLabel(len);
   });
+
+  zoneRenderState.edgeOpeningElements?.forEach((openingsOnEdge, idx) => {
+    if (!Array.isArray(openingsOnEdge) || openingsOnEdge.length === 0) return;
+
+    const worldP0 = polygon[idx];
+    const worldP1 = polygon[(idx + 1) % polygon.length];
+    const screenP0 = projected[idx];
+    const screenP1 = projected[(idx + 1) % projected.length];
+
+    openingsOnEdge.forEach(openingState => {
+      const segment = computeOpeningSegmentOnEdge(openingState.opening, worldP0, worldP1, screenP0, screenP1);
+      if (!segment) return;
+      openingState.line.setAttribute('x1', String(segment.x1));
+      openingState.line.setAttribute('y1', String(segment.y1));
+      openingState.line.setAttribute('x2', String(segment.x2));
+      openingState.line.setAttribute('y2', String(segment.y2));
+      if (openingState.arc) {
+        const swing = computeDoorSwingGeometry(segment, openingState.opening);
+        if (swing) openingState.arc.setAttribute('d', swing.arcPath);
+      }
+      if (openingState.leaf) {
+        const swing = computeDoorSwingGeometry(segment, openingState.opening);
+        if (swing) {
+          openingState.leaf.setAttribute('x1', String(swing.hinge.x));
+          openingState.leaf.setAttribute('y1', String(swing.hinge.y));
+          openingState.leaf.setAttribute('x2', String(swing.openLeafEnd.x));
+          openingState.leaf.setAttribute('y2', String(swing.openLeafEnd.y));
+        }
+      }
+    });
+  });
 }
 
 function highlightDraggedEdges(zoneRenderStateById, affectedEdges, active) {
@@ -966,6 +998,94 @@ function findWallElementForEdge(demo, edgeGroups, polygonMap, zoneId, edgeIndex)
   }
 
   return candidates[0] || null;
+}
+
+function getOpeningLengthMeters(opening) {
+  if (typeof opening?.length_m === 'number' && isFinite(opening.length_m) && opening.length_m > 0) {
+    return opening.length_m;
+  }
+  if (typeof opening?.width === 'number' && isFinite(opening.width) && opening.width > 0) {
+    return opening.width / 1000;
+  }
+  if (typeof opening?.area === 'number' && isFinite(opening.area) && opening.area > 0) {
+    return Math.sqrt(opening.area);
+  }
+  return 1;
+}
+
+function getOpeningPositionRatio(opening) {
+  if (typeof opening?.position_ratio !== 'number' || !isFinite(opening.position_ratio)) {
+    return 0.5;
+  }
+  return clamp(opening.position_ratio, 0, 1);
+}
+
+function getWallOpeningsForRender(wall) {
+  if (!wall) return [];
+  const windows = Array.isArray(wall.windows) ? wall.windows : [];
+  const doors = Array.isArray(wall.doors) ? wall.doors : [];
+  return [
+    ...windows.map(opening => ({ kind: 'window', opening })),
+    ...doors.map(opening => ({ kind: 'door', opening }))
+  ];
+}
+
+function shouldRenderOpeningsForWallEdge(wall, zoneId) {
+  if (!wall || !Array.isArray(wall.nodes) || wall.nodes.length < 2) return false;
+  // Render openings from a single side only to avoid mirrored duplicates.
+  return wall.nodes[0] === zoneId;
+}
+
+function computeOpeningSegmentOnEdge(opening, worldP0, worldP1, screenP0, screenP1) {
+  const worldLen = Math.hypot(worldP1.x - worldP0.x, worldP1.y - worldP0.y);
+  if (!isFinite(worldLen) || worldLen <= 1e-6) return null;
+
+  const openingLength = Math.max(0.1, getOpeningLengthMeters(opening));
+  const lengthRatio = clamp(openingLength / worldLen, 0.05, 0.95);
+  const centerRatio = getOpeningPositionRatio(opening);
+  const half = lengthRatio / 2;
+  const startRatio = clamp(centerRatio - half, 0, 1 - lengthRatio);
+  const endRatio = startRatio + lengthRatio;
+
+  return {
+    x1: lerp(screenP0.x, screenP1.x, startRatio),
+    y1: lerp(screenP0.y, screenP1.y, startRatio),
+    x2: lerp(screenP0.x, screenP1.x, endRatio),
+    y2: lerp(screenP0.y, screenP1.y, endRatio)
+  };
+}
+
+function computeDoorSwingGeometry(segment, opening, swingDegrees = DOOR_SWING_DEGREES) {
+  if (!segment) return null;
+
+  const hingeSide = String(opening?.hinge_side || '').toLowerCase() === 'right' ? 'right' : 'left';
+  const hingePoint = hingeSide === 'right'
+    ? { x: segment.x2, y: segment.y2 }
+    : { x: segment.x1, y: segment.y1 };
+  const closedLeafEnd = hingeSide === 'right'
+    ? { x: segment.x1, y: segment.y1 }
+    : { x: segment.x2, y: segment.y2 };
+
+  const hx = hingePoint.x;
+  const hy = hingePoint.y;
+  const vx = closedLeafEnd.x - hingePoint.x;
+  const vy = closedLeafEnd.y - hingePoint.y;
+  const r = Math.hypot(vx, vy);
+  if (!isFinite(r) || r <= 1e-6) return null;
+
+  const rotationSign = hingeSide === 'right' ? -1 : 1;
+  const rad = rotationSign * (Math.PI / 180) * swingDegrees;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const ox = hx + (vx * cos - vy * sin);
+  const oy = hy + (vx * sin + vy * cos);
+
+  return {
+    hinge: hingePoint,
+    closedLeafEnd,
+    openLeafEnd: { x: ox, y: oy },
+    arcPath: `M ${closedLeafEnd.x} ${closedLeafEnd.y} A ${r} ${r} 0 0 1 ${ox} ${oy}`
+  };
 }
 
 function getEdgeWallVisualStyle(demo, edgeGroups, polygonMap, zoneId, edgeIndex) {
@@ -1434,11 +1554,13 @@ export function renderAlternativeViz(demo, opts = {}) {
     const edgeElements = [];
     const edgeVisualElements = [];
     const edgeLabelElements = [];
+    const edgeOpeningElements = [];
     for (let idx = 0; idx < projected.length; idx++) {
       const p0 = projected[idx];
       const p1 = projected[(idx + 1) % projected.length];
       const worldP0 = polygonMap.get(zone.id)[idx];
       const worldP1 = polygonMap.get(zone.id)[(idx + 1) % polygonMap.get(zone.id).length];
+      const wallElement = findWallElementForEdge(demo, edgeGroups, polygonMap, zone.id, idx);
       const wallVisual = getEdgeWallVisualStyle(demo, edgeGroups, polygonMap, zone.id, idx);
 
       const visibleWall = document.createElementNS(ns, 'line');
@@ -1451,6 +1573,42 @@ export function renderAlternativeViz(demo, opts = {}) {
       visibleWall.setAttribute('stroke-width', String(wallVisual.width));
       edgeVisualElements.push(visibleWall);
       svg.appendChild(visibleWall);
+
+      const openingsOnEdge = [];
+      if (shouldRenderOpeningsForWallEdge(wallElement, zone.id)) {
+        getWallOpeningsForRender(wallElement).forEach(({ kind, opening }) => {
+        const segment = computeOpeningSegmentOnEdge(opening, worldP0, worldP1, p0, p1);
+        if (!segment) return;
+        const openingLine = document.createElementNS(ns, 'line');
+        openingLine.setAttribute('x1', String(segment.x1));
+        openingLine.setAttribute('y1', String(segment.y1));
+        openingLine.setAttribute('x2', String(segment.x2));
+        openingLine.setAttribute('y2', String(segment.y2));
+        openingLine.setAttribute('class', kind === 'door' ? 'alt-opening-line alt-opening-door' : 'alt-opening-line alt-opening-window');
+        let openingArc = null;
+        let openingLeaf = null;
+        if (kind === 'door') {
+          const swing = computeDoorSwingGeometry(segment, opening);
+          if (swing) {
+            openingArc = document.createElementNS(ns, 'path');
+            openingArc.setAttribute('d', swing.arcPath);
+            openingArc.setAttribute('class', 'alt-opening-door-arc');
+            svg.appendChild(openingArc);
+
+            openingLeaf = document.createElementNS(ns, 'line');
+            openingLeaf.setAttribute('x1', String(swing.hinge.x));
+            openingLeaf.setAttribute('y1', String(swing.hinge.y));
+            openingLeaf.setAttribute('x2', String(swing.openLeafEnd.x));
+            openingLeaf.setAttribute('y2', String(swing.openLeafEnd.y));
+            openingLeaf.setAttribute('class', 'alt-opening-door-leaf');
+            svg.appendChild(openingLeaf);
+          }
+        }
+        openingsOnEdge.push({ line: openingLine, arc: openingArc, leaf: openingLeaf, opening, kind });
+        svg.appendChild(openingLine);
+        });
+      }
+      edgeOpeningElements.push(openingsOnEdge);
 
       if (onDataChanged) {
         const handle = document.createElementNS(ns, 'line');
@@ -1547,6 +1705,7 @@ export function renderAlternativeViz(demo, opts = {}) {
       edgeElements,
       edgeVisualElements,
       edgeLabelElements,
+      edgeOpeningElements,
       lineCount: lines.length
     });
   });
