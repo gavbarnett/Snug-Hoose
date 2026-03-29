@@ -262,6 +262,41 @@ function createRoomOnLevel(demo, level, namePrefix = 'Room', opts = {}) {
   return zone;
 }
 
+function removeRoomFromDemo(demo, zoneId) {
+  if (!demo || !zoneId) return { removed: false, fallbackZoneId: null };
+  if (!Array.isArray(demo.zones)) demo.zones = [];
+  if (!Array.isArray(demo.elements)) demo.elements = [];
+
+  const target = demo.zones.find(zone => zone && zone.id === zoneId && zone.type !== 'boundary');
+  if (!target) return { removed: false, fallbackZoneId: null };
+
+  const targetLevel = Number.isFinite(target.level) ? target.level : 0;
+  demo.zones = demo.zones.filter(zone => !zone || zone.id !== zoneId);
+
+  demo.elements = demo.elements
+    .filter(element => {
+      const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
+      return !nodes.includes(zoneId);
+    })
+    .map(element => {
+      if (!element || typeof element !== 'object') return element;
+      if (Array.isArray(element.windows)) {
+        element.windows = element.windows.filter(windowSpec => (windowSpec?.zone_id || null) !== zoneId);
+      }
+      if (Array.isArray(element.doors)) {
+        element.doors = element.doors.filter(doorSpec => (doorSpec?.zone_id || null) !== zoneId);
+      }
+      return element;
+    });
+
+  const remainingRooms = getRoomZones(demo);
+  const sameLevelZone = remainingRooms.find(zone => (Number.isFinite(zone?.level) ? zone.level : 0) === targetLevel);
+  return {
+    removed: true,
+    fallbackZoneId: sameLevelZone?.id || remainingRooms[0]?.id || null
+  };
+}
+
 function countOpeningsForZoneOnWall(wall, zoneId, kind) {
   const list = kind === 'door'
     ? (Array.isArray(wall?.doors) ? wall.doors : [])
@@ -597,6 +632,20 @@ function handleAltVizMenuAction(action, item, context = {}) {
       }
       return;
     }
+    case 'structure.delete.room': {
+      if (!currentDemo) return;
+      const zoneId = payload.zoneId || selectedZoneId;
+      if (!zoneId) return;
+      const zone = getZoneById(currentDemo, zoneId);
+      if (!zone || zone.type === 'boundary') return;
+      pushUndoSnapshot(deepClone(currentDemo));
+      const { removed, fallbackZoneId } = removeRoomFromDemo(currentDemo, zoneId);
+      if (!removed) return;
+      lastFocusedZoneId = fallbackZoneId || null;
+      triggerSolve();
+      if (fallbackZoneId && roomEditorApi?.focusZone) roomEditorApi.focusZone(fallbackZoneId);
+      return;
+    }
     case 'openings.windows.add':
     case 'openings.windows.types.standard_sizes': {
       if (!currentDemo || !selectedZoneId) return;
@@ -727,11 +776,18 @@ function isEditableEventTarget(target) {
 
 function handleGlobalShortcut(event) {
   if (!event) return;
-  if (!(event.ctrlKey || event.metaKey)) return;
-  if (event.altKey) return;
   if (isEditableEventTarget(event.target)) return;
 
   const key = String(event.key || '').toLowerCase();
+
+  if ((key === 'delete' || key === 'backspace') && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    event.preventDefault();
+    handleAltVizMenuAction('structure.delete.room', { action: 'structure.delete.room' }, {});
+    return;
+  }
+
+  if (!(event.ctrlKey || event.metaKey)) return;
+  if (event.altKey) return;
 
   // Undo / Redo
   if (key === 'z' && !event.shiftKey) {

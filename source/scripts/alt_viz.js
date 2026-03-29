@@ -79,6 +79,17 @@ function getRoomZones(demo) {
   return zones.filter(z => z && z.type !== 'boundary');
 }
 
+function ensureSelectedZone(rooms) {
+  if (!Array.isArray(rooms) || rooms.length === 0) {
+    selectedZoneId = null;
+    return;
+  }
+  const hasSelection = rooms.some(zone => zone && zone.id === selectedZoneId);
+  if (!hasSelection) {
+    selectedZoneId = rooms[0].id;
+  }
+}
+
 function ensureSelectedLevel(levels) {
   if (!Array.isArray(levels) || levels.length === 0) {
     selectedLevel = null;
@@ -429,6 +440,8 @@ function buildAltVizMenuSpec(context = {}) {
   const demo = context.demo;
   const canUndo = !!context.canUndo;
   const canRedo = !!context.canRedo;
+  const selectedZoneId = context.selectedZoneId || null;
+  const canDeleteRoom = !!selectedZoneId;
   const windowSizes = [
     { label: '600 x 600 mm', width: 600, height: 600 },
     { label: '900 x 900 mm', width: 900, height: 900 },
@@ -545,7 +558,8 @@ function buildAltVizMenuSpec(context = {}) {
       label: 'Edit',
       items: [
         { label: 'Undo', action: 'edit.undo', disabled: !canUndo, shortcut: 'Ctrl+Z' },
-        { label: 'Redo', action: 'edit.redo', disabled: !canRedo, shortcut: 'Ctrl+Y' }
+        { label: 'Redo', action: 'edit.redo', disabled: !canRedo, shortcut: 'Ctrl+Y' },
+        { label: 'Delete Selected Room', action: 'structure.delete.room', disabled: !canDeleteRoom, shortcut: 'Del' }
       ]
     },
     {
@@ -2225,6 +2239,7 @@ export function renderAlternativeViz(demo, opts = {}) {
   root.innerHTML = '';
 
   const rooms = getRoomZones(demo);
+  ensureSelectedZone(rooms);
 
   root.appendChild(createProjectSummaryStrip(demo, rooms));
 
