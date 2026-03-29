@@ -151,6 +151,25 @@ export function initRoomEditor(opts) {
     populateRoomEditor(zoneId);
   }
 
+  function focusZone(zoneId) {
+    if (!zoneId) return;
+
+    selectZone(zoneId);
+
+    if (contentLayout) {
+      contentLayout.classList.remove('sidebar-hidden');
+    }
+
+    if (editorTab && jsonTab && templatesTab && roomEditorPanel && jsonPanel && templatesPanel) {
+      editorTab.classList.add('active');
+      jsonTab.classList.remove('active');
+      templatesTab.classList.remove('active');
+      roomEditorPanel.classList.add('active');
+      jsonPanel.classList.remove('active');
+      templatesPanel.classList.remove('active');
+    }
+  }
+
   function populateRoomEditor(zoneId) {
     const demo = getDemo();
     const radiatorsData = getRadiatorsData();
@@ -2172,6 +2191,7 @@ export function initRoomEditor(opts) {
   }
 
   return {
-    refreshSelectedZone
+    refreshSelectedZone,
+    focusZone
   };
 }

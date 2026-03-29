@@ -1,33 +1,6 @@
 // Thermal visualizer: generates thermal color-coded table display for heating balance
-
-function getThermalColorClass(zone) {
-  if (!zone || zone.is_unheated === true) return 'thermal-unheated';
-
-  const setpoint = typeof zone.setpoint_temperature === 'number' ? zone.setpoint_temperature : null;
-  const actual = typeof zone.max_achievable_temperature === 'number' ? zone.max_achievable_temperature : null;
-  if (setpoint === null || actual === null) return 'thermal-neutral';
-
-  // For TRV rooms that CAN reach setpoint and boiler-control rooms, delta is 0 (neutral)
-  // For TRV rooms that CAN'T reach setpoint, show the actual deficit (cold color)
-  const hasTrv = zoneHasTrv(zone);
-  const isControlRoom = zone.is_boiler_control === true;
-  const canReachSetpoint = zone.can_reach_setpoint !== false;
-  
-  let delta;
-  if (isControlRoom && canReachSetpoint) {
-    delta = 0; // Control room at setpoint is perfect (it's the reference)
-  } else if (hasTrv && canReachSetpoint) {
-    delta = 0; // TRV that can reach setpoint is perfectly controlled
-  } else {
-    delta = actual - setpoint; // Otherwise show the actual delta (could be shortfall)
-  }
-  
-  if (delta <= -2.0) return 'thermal-extreme-cold';
-  if (delta <= -0.4) return 'thermal-cold';
-  if (delta < 0.4) return 'thermal-neutral';
-  if (delta < 2.0) return 'thermal-hot';
-  return 'thermal-extreme-hot';
-}
+import { formatZoneTemperatureText, getZoneCapacitySummary, getZoneSavingsText } from './zone_text.js';
+import { getThermalColorClass } from './zone_thermal.js';
 
 function getEpcBand(intensityKwhM2Yr) {
   if (typeof intensityKwhM2Yr !== 'number' || !isFinite(intensityKwhM2Yr)) return 'N/A';
@@ -51,11 +24,6 @@ function computeEpcEstimate(zone) {
   // Approximate annualized delivered heating intensity under current modulation/TRV behavior.
   const intensityKwhM2Yr = Math.max(0, (deliveredPerM2 * 24 * 365) / 1000);
   return { letter: getEpcBand(intensityKwhM2Yr), intensityKwhM2Yr };
-}
-
-function zoneHasTrv(zone) {
-  if (!zone || !Array.isArray(zone.radiators)) return false;
-  return zone.radiators.some(rad => rad && rad.trv_enabled === true);
 }
 
 function computeWholeHouseStats(demo) {
@@ -262,74 +230,34 @@ export function renderThermalViz(demo, radiators) {
         zoneDiv.appendChild(unheatedDiv);
       }
 
-      const hasTrv = zoneHasTrv(zone);
-      const isControlRoom = zone.is_boiler_control === true;
-      const maxTemp = typeof zone.max_achievable_temperature === 'number' ? zone.max_achievable_temperature : null;
-      const deliveredTemp = typeof zone.delivered_indoor_temperature === 'number' ? zone.delivered_indoor_temperature : null;
-      const setpoint = typeof zone.setpoint_temperature === 'number' ? zone.setpoint_temperature : null;
-      const canReachSetpoint = zone.can_reach_setpoint !== false;
-
-      // Display logic: unheated shows solved delivered temperature; heated rooms use control/TRV semantics.
-      let displayTemp;
-      if (zone.is_unheated === true) {
-        displayTemp = deliveredTemp ?? maxTemp ?? externalTemp;
-      } else if (isControlRoom) {
-        // Control room: show setpoint if it can reach it, otherwise show actual achieved temp
-        displayTemp = canReachSetpoint ? setpoint : (deliveredTemp ?? maxTemp ?? setpoint);
-      } else if (hasTrv && canReachSetpoint) {
-        displayTemp = setpoint;
-      } else {
-        displayTemp = maxTemp ?? deliveredTemp ?? setpoint;
-      }
-
-      if (displayTemp !== null) {
+      const tempText = formatZoneTemperatureText(zone, externalTemp);
+      if (tempText !== null) {
         const temperatureDiv = document.createElement('div');
         temperatureDiv.className = 'zone-temperature';
         temperatureDiv.style.fontSize = '0.9em';
         temperatureDiv.style.color = '#fff';
-        const setpointText = setpoint !== null ? ` [ ${setpoint.toFixed(1)}°C]` : '';
-        temperatureDiv.textContent = `🌡️ ${displayTemp.toFixed(1)}°C${setpointText}`;
+        temperatureDiv.textContent = tempText;
         zoneDiv.appendChild(temperatureDiv);
       }
 
-      // Capacity only applies to heated rooms with setpoints.
-      if (zone.is_unheated !== true && maxTemp !== null && setpoint !== null) {
-        const requiredLift = Math.max(0, setpoint - externalTemp);
-        const availableLift = Math.max(0, maxTemp - externalTemp);
-        const capacityPctRaw = requiredLift > 0 ? (availableLift / requiredLift) * 100 : 100;
-        const capacityPct = Number(capacityPctRaw.toFixed(0));
-
-        let capacitySymbol = '✓';
-        let capacityState = 'good';
-        if (!canReachSetpoint || capacityPctRaw < 100) {
-          capacitySymbol = '⚠️';
-          capacityState = 'bad';
-        } else if (capacityPctRaw > 130) {
-          capacitySymbol = '⬆';
-          capacityState = 'excessive';
-        }
-
+      const capacity = getZoneCapacitySummary(zone, externalTemp);
+      if (capacity) {
         const capacityDiv = document.createElement('div');
         capacityDiv.className = 'zone-capacity';
         capacityDiv.style.fontSize = '0.86em';
         capacityDiv.style.color = '#fff';
-        capacityDiv.textContent = `Capacity: ${capacityPct}% ${capacitySymbol}`;
-        capacityDiv.title = capacityState === 'bad'
-          ? `Insufficient capacity: ${zone.radiator_output?.toFixed(0) || 0}W output vs ${zone.heat_loss?.toFixed(0) || 0}W needed at ${zone.setpoint_temperature}°C`
-          : (capacityState === 'excessive'
-            ? `Excess radiator capacity at current flow: ${capacityPct}% of temperature lift requirement`
-            : `Capacity is in range: ${capacityPct}% of temperature lift requirement`);
+        capacityDiv.textContent = capacity.text;
+        capacityDiv.title = capacity.title;
         zoneDiv.appendChild(capacityDiv);
       }
 
-      if (zone.is_unheated !== true && typeof zone.heat_savings === 'number' && zone.heat_savings > 0) {
+      const savingsText = getZoneSavingsText(zone);
+      if (savingsText) {
         const savingsDiv = document.createElement('div');
         savingsDiv.className = 'zone-savings';
         savingsDiv.style.fontSize = '0.9em';
         savingsDiv.style.color = '#00aa00';
-        const savingsW = typeof zone.delivered_heat_savings === 'number' ? zone.delivered_heat_savings : zone.heat_savings;
-        const annualSavings = (savingsW * 24 * 365) / 1000;
-        savingsDiv.textContent = `Savings: ${annualSavings.toFixed(0)} kWh/yr`;
+        savingsDiv.textContent = savingsText;
         zoneDiv.appendChild(savingsDiv);
       }
 

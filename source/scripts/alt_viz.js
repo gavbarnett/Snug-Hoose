@@ -1,32 +1,9 @@
 // Alternative floor-plan view scaffold: level selector + setpoint-colored room cards.
-
-const COLOR_BY_CLASS = {
-  'thermal-unheated': '#4c4c4c',
-  'thermal-extreme-cold': '#1840a8',
-  'thermal-cold': '#2f78df',
-  'thermal-cool': '#2f78df',
-  'thermal-neutral': '#1ea85a',
-  'thermal-warm': '#dd5a33',
-  'thermal-hot': '#dd5a33',
-  'thermal-extreme-hot': '#bb2525'
-};
+import { formatZoneTemperatureText, getZoneCapacitySummary, getZoneSavingsText } from './zone_text.js';
+import { getThermalColorClass, THERMAL_COLOR_BY_CLASS } from './zone_thermal.js';
 
 let selectedLevel = null;
-
-function zoneSetpointClass(zone) {
-  if (!zone) return 'thermal-neutral';
-  if (zone.is_unheated === true) return 'thermal-unheated';
-
-  const setpoint = typeof zone.setpoint_temperature === 'number' ? zone.setpoint_temperature : null;
-  if (setpoint === null) return 'thermal-neutral';
-
-  if (setpoint <= 16) return 'thermal-extreme-cold';
-  if (setpoint <= 18) return 'thermal-cold';
-  if (setpoint < 20) return 'thermal-cool';
-  if (setpoint <= 22) return 'thermal-neutral';
-  if (setpoint <= 24) return 'thermal-hot';
-  return 'thermal-extreme-hot';
-}
+let selectedZoneId = null;
 
 function getRoomZones(demo) {
   const zones = Array.isArray(demo?.zones) ? demo.zones : [];
@@ -46,7 +23,7 @@ function ensureSelectedLevel(levels) {
 function createLegendChip(label, className) {
   const chip = document.createElement('span');
   chip.className = 'alt-viz-chip';
-  chip.style.background = COLOR_BY_CLASS[className] || '#666';
+  chip.style.background = THERMAL_COLOR_BY_CLASS[className] || '#666';
   chip.textContent = label;
   return chip;
 }
@@ -54,12 +31,11 @@ function createLegendChip(label, className) {
 function renderLegend(container) {
   const legend = document.createElement('div');
   legend.className = 'alt-viz-legend';
-  legend.appendChild(createLegendChip('<=16C', 'thermal-extreme-cold'));
-  legend.appendChild(createLegendChip('17-18C', 'thermal-cold'));
-  legend.appendChild(createLegendChip('19C', 'thermal-cool'));
-  legend.appendChild(createLegendChip('20-22C', 'thermal-neutral'));
-  legend.appendChild(createLegendChip('23-24C', 'thermal-hot'));
-  legend.appendChild(createLegendChip('>=25C', 'thermal-extreme-hot'));
+  legend.appendChild(createLegendChip('Deficit <= -2.0C', 'thermal-extreme-cold'));
+  legend.appendChild(createLegendChip('Deficit <= -0.4C', 'thermal-cold'));
+  legend.appendChild(createLegendChip('Within +/-0.4C', 'thermal-neutral'));
+  legend.appendChild(createLegendChip('Excess < 2.0C', 'thermal-hot'));
+  legend.appendChild(createLegendChip('Excess >= 2.0C', 'thermal-extreme-hot'));
   legend.appendChild(createLegendChip('Unheated', 'thermal-unheated'));
   container.appendChild(legend);
 }
@@ -71,9 +47,11 @@ function renderEmptyMessage(container, message) {
   container.appendChild(empty);
 }
 
-export function renderAlternativeViz(demo) {
+export function renderAlternativeViz(demo, opts = {}) {
   const root = document.getElementById('alt-viz-container');
   if (!root) return;
+
+  const onZoneSelected = typeof opts.onZoneSelected === 'function' ? opts.onZoneSelected : null;
 
   root.innerHTML = '';
 
@@ -125,7 +103,7 @@ export function renderAlternativeViz(demo) {
 
   const cols = Math.max(1, Math.ceil(Math.sqrt(levelRooms.length)));
   const cellW = 220;
-  const cellH = 130;
+  const cellH = 165;
   const gap = 18;
   const rows = Math.ceil(levelRooms.length / cols);
   const width = cols * cellW + (cols + 1) * gap;
@@ -144,8 +122,8 @@ export function renderAlternativeViz(demo) {
     const x = gap + col * (cellW + gap);
     const y = gap + row * (cellH + gap);
 
-    const className = zoneSetpointClass(zone);
-    const fill = COLOR_BY_CLASS[className] || '#1ea85a';
+    const className = getThermalColorClass(zone);
+    const fill = THERMAL_COLOR_BY_CLASS[className] || '#1ea85a';
 
     const group = document.createElementNS(ns, 'g');
     group.setAttribute('class', 'alt-room-group');
@@ -158,7 +136,16 @@ export function renderAlternativeViz(demo) {
     rect.setAttribute('rx', '10');
     rect.setAttribute('fill', fill);
     rect.setAttribute('stroke', '#111');
-    rect.setAttribute('stroke-width', '1.5');
+    rect.setAttribute('stroke-width', selectedZoneId === zone.id ? '4' : '1.5');
+    rect.setAttribute('class', 'alt-room-rect');
+    rect.style.cursor = 'pointer';
+    rect.addEventListener('click', () => {
+      selectedZoneId = zone.id;
+      if (onZoneSelected) {
+        onZoneSelected(zone.id);
+      }
+      renderAlternativeViz(demo, opts);
+    });
     group.appendChild(rect);
 
     const name = document.createElementNS(ns, 'text');
@@ -167,27 +154,48 @@ export function renderAlternativeViz(demo) {
     name.setAttribute('fill', '#ffffff');
     name.setAttribute('font-size', '16');
     name.setAttribute('font-weight', '700');
-    name.textContent = zone.name || zone.id || 'Unnamed room';
+    name.textContent = `${zone.name || zone.id || 'Unnamed room'}${zone.is_boiler_control ? ' 🔥' : ''}`;
+    name.style.pointerEvents = 'none';
     group.appendChild(name);
 
-    const setpoint = document.createElementNS(ns, 'text');
-    setpoint.setAttribute('x', String(x + 12));
-    setpoint.setAttribute('y', String(y + 58));
-    setpoint.setAttribute('fill', '#ffffff');
-    setpoint.setAttribute('font-size', '13');
-    setpoint.setAttribute('opacity', '0.95');
-    const sp = typeof zone.setpoint_temperature === 'number' ? `${zone.setpoint_temperature.toFixed(1)}C` : 'n/a';
-    setpoint.textContent = `Target: ${sp}`;
-    group.appendChild(setpoint);
+    const tempText = formatZoneTemperatureText(zone, Number(demo?.meta?.externalTemp) || 3);
+    if (tempText) {
+      const temperature = document.createElementNS(ns, 'text');
+      temperature.setAttribute('x', String(x + 12));
+      temperature.setAttribute('y', String(y + 58));
+      temperature.setAttribute('fill', '#ffffff');
+      temperature.setAttribute('font-size', '13');
+      temperature.setAttribute('opacity', '0.95');
+      temperature.textContent = tempText;
+      temperature.style.pointerEvents = 'none';
+      group.appendChild(temperature);
+    }
 
-    const meta = document.createElementNS(ns, 'text');
-    meta.setAttribute('x', String(x + 12));
-    meta.setAttribute('y', String(y + 82));
-    meta.setAttribute('fill', '#ffffff');
-    meta.setAttribute('font-size', '12');
-    meta.setAttribute('opacity', '0.9');
-    meta.textContent = `Type: ${zone.is_unheated === true ? 'Unheated' : 'Heated'}`;
-    group.appendChild(meta);
+    const capacity = getZoneCapacitySummary(zone, Number(demo?.meta?.externalTemp) || 3);
+    if (capacity) {
+      const capacityText = document.createElementNS(ns, 'text');
+      capacityText.setAttribute('x', String(x + 12));
+      capacityText.setAttribute('y', String(y + 82));
+      capacityText.setAttribute('fill', '#ffffff');
+      capacityText.setAttribute('font-size', '12');
+      capacityText.setAttribute('opacity', '0.9');
+      capacityText.textContent = capacity.text;
+      capacityText.style.pointerEvents = 'none';
+      group.appendChild(capacityText);
+    }
+
+    const savingsText = getZoneSavingsText(zone);
+    if (savingsText) {
+      const savings = document.createElementNS(ns, 'text');
+      savings.setAttribute('x', String(x + 12));
+      savings.setAttribute('y', String(y + 104));
+      savings.setAttribute('fill', '#d9ffdc');
+      savings.setAttribute('font-size', '12');
+      savings.setAttribute('opacity', '0.95');
+      savings.textContent = savingsText;
+      savings.style.pointerEvents = 'none';
+      group.appendChild(savings);
+    }
 
     svg.appendChild(group);
   });

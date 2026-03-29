@@ -170,7 +170,13 @@ async function solveAndRender(demoRaw) {
 
     // Generate thermal visualization
     renderThermalViz(demoRaw, radiators);
-    renderAlternativeViz(demoRaw);
+    renderAlternativeViz(demoRaw, {
+      onZoneSelected: (zoneId) => {
+        if (roomEditorApi && typeof roomEditorApi.focusZone === 'function') {
+          roomEditorApi.focusZone(zoneId);
+        }
+      }
+    });
     if (roomEditorApi && typeof roomEditorApi.refreshSelectedZone === 'function') {
       roomEditorApi.refreshSelectedZone();
     }

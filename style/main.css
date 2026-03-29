@@ -248,6 +248,14 @@ a#download:hover {
   display: block;
 }
 
+.alt-room-rect {
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.alt-room-rect:hover {
+  filter: brightness(1.06);
+}
+
 .content-right {
   display: flex;
   flex-direction: column;
