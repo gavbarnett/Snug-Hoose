@@ -33,6 +33,21 @@ export function initRoomEditor(opts) {
   let selectedZoneId = null;
   let pendingFocusState = null;
 
+  function ensureEditorVisible() {
+    if (contentLayout) {
+      contentLayout.classList.remove('sidebar-hidden');
+    }
+
+    if (editorTab && jsonTab && templatesTab && roomEditorPanel && jsonPanel && templatesPanel) {
+      editorTab.classList.add('active');
+      jsonTab.classList.remove('active');
+      templatesTab.classList.remove('active');
+      roomEditorPanel.classList.add('active');
+      jsonPanel.classList.remove('active');
+      templatesPanel.classList.remove('active');
+    }
+  }
+
   if (jsonTab && editorTab && templatesTab && jsonPanel && roomEditorPanel && templatesPanel) {
     jsonTab.addEventListener('click', () => {
       jsonTab.classList.add('active');
@@ -155,18 +170,32 @@ export function initRoomEditor(opts) {
     if (!zoneId) return;
 
     selectZone(zoneId);
+    ensureEditorVisible();
+  }
 
-    if (contentLayout) {
-      contentLayout.classList.remove('sidebar-hidden');
+  function focusElement(zoneId, elementId) {
+    if (!zoneId || !elementId) return;
+
+    focusZone(zoneId);
+
+    const card = fabricList ? fabricList.querySelector(`[data-element-id="${CSS.escape(elementId)}"]`) : null;
+    if (!card) return;
+
+    const parentSections = [];
+    let node = card.parentElement;
+    while (node) {
+      if (node.tagName === 'DETAILS') parentSections.push(node);
+      node = node.parentElement;
     }
+    parentSections.forEach(section => {
+      section.open = true;
+    });
 
-    if (editorTab && jsonTab && templatesTab && roomEditorPanel && jsonPanel && templatesPanel) {
-      editorTab.classList.add('active');
-      jsonTab.classList.remove('active');
-      templatesTab.classList.remove('active');
-      roomEditorPanel.classList.add('active');
-      jsonPanel.classList.remove('active');
-      templatesPanel.classList.remove('active');
+    const firstField = card.querySelector('[data-focus-key]');
+    if (firstField) {
+      firstField.focus();
+    } else {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }
 
@@ -775,6 +804,7 @@ export function initRoomEditor(opts) {
 
     const details = document.createElement('details');
     details.className = 'wall-card';
+    details.dataset.elementId = elementId;
     const cardKey = `type:${elementType}|element:${elementId}`;
     restoreOpenState(details, cardKey, false, expandState);
 
@@ -2192,6 +2222,7 @@ export function initRoomEditor(opts) {
 
   return {
     refreshSelectedZone,
-    focusZone
+    focusZone,
+    focusElement
   };
 }

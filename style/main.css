@@ -256,6 +256,18 @@ a#download:hover {
   filter: brightness(1.06);
 }
 
+.alt-wall-handle {
+  stroke: rgba(255, 255, 255, 0.01);
+  stroke-width: 16;
+  stroke-linecap: round;
+  transition: stroke 0.15s ease;
+}
+
+.alt-wall-handle.is-hover,
+.alt-wall-handle.is-dragging {
+  stroke: rgba(255, 255, 255, 0.35);
+}
+
 .content-right {
   display: flex;
   flex-direction: column;

@@ -175,6 +175,47 @@ async function solveAndRender(demoRaw) {
         if (roomEditorApi && typeof roomEditorApi.focusZone === 'function') {
           roomEditorApi.focusZone(zoneId);
         }
+      },
+      onWallSelected: (zoneId, elementId) => {
+        if (roomEditorApi && typeof roomEditorApi.focusElement === 'function') {
+          roomEditorApi.focusElement(zoneId, elementId);
+          return;
+        }
+        if (roomEditorApi && typeof roomEditorApi.focusZone === 'function') {
+          roomEditorApi.focusZone(zoneId);
+        }
+      },
+      onSeedLevelPolygons: (_level, polygonsByZoneId) => {
+        if (!currentDemo || !Array.isArray(currentDemo.zones) || !polygonsByZoneId) return;
+
+        for (const zone of currentDemo.zones) {
+          if (!zone || !zone.id) continue;
+          const polygon = polygonsByZoneId[zone.id];
+          if (!Array.isArray(polygon) || polygon.length < 3) continue;
+          zone.layout = zone.layout || {};
+          zone.layout.polygon = polygon.map(pt => ({ x: Number(pt.x), y: Number(pt.y) }));
+        }
+
+        triggerSolve();
+      },
+      onDataChanged: (changedPolygons, maybePolygon) => {
+        if (!currentDemo || !Array.isArray(currentDemo.zones)) return;
+
+        const polygonsByZoneId = Array.isArray(maybePolygon)
+          ? { [changedPolygons]: maybePolygon }
+          : changedPolygons;
+
+        if (!polygonsByZoneId || typeof polygonsByZoneId !== 'object') return;
+
+        for (const zone of currentDemo.zones) {
+          if (!zone || !zone.id) continue;
+          const polygon = polygonsByZoneId[zone.id];
+          if (!Array.isArray(polygon) || polygon.length < 3) continue;
+          zone.layout = zone.layout || {};
+          zone.layout.polygon = polygon.map(pt => ({ x: Number(pt.x), y: Number(pt.y) }));
+        }
+
+        triggerSolve();
       }
     });
     if (roomEditorApi && typeof roomEditorApi.refreshSelectedZone === 'function') {
