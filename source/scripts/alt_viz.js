@@ -2171,10 +2171,6 @@ export function renderAlternativeViz(demo, opts = {}) {
   root.innerHTML = '';
 
   const rooms = getRoomZones(demo);
-  if (rooms.length === 0) {
-    renderEmptyMessage(root, 'No rooms available for floor-plan view.');
-    return;
-  }
 
   root.appendChild(createProjectSummaryStrip(demo, rooms));
 
@@ -2192,7 +2188,9 @@ export function renderAlternativeViz(demo, opts = {}) {
   }));
   root.appendChild(envStrip);
 
-  const levels = [...new Set(rooms.map(z => (typeof z.level === 'number' ? z.level : 0)))].sort((a, b) => a - b);
+  const levels = rooms.length > 0
+    ? [...new Set(rooms.map(z => (typeof z.level === 'number' ? z.level : 0)))].sort((a, b) => a - b)
+    : [0];
   ensureSelectedLevel(levels);
 
   const toolbar = document.createElement('div');
