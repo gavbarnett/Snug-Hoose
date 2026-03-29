@@ -381,6 +381,8 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
   let totalHeatBaseline = 0;
   let totalRadiatorOutputBaseline = 0;
   let totalDeliveredHeatWithModulation = 0;
+  let totalHeatSavingsEligible = 0;
+  let totalDeliveredHeatSavingsEligible = 0;
 
   for (const id of zoneIds) {
     const z = zoneMap.get(id);
@@ -396,10 +398,12 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
     const radiatorOutput = operational.radiatorOutputByZone.get(id) || 0;
     const radiatorOutputBaseline = radiatorOutputBaselineByZone.get(id) || 0;
     const heatingBalance = operational.heatingBalanceByZone.get(id) || 0;
+    const radiatorCoeff = radiatorCoeffByZone.get(id) || 0;
+    const canClaimTrvSavings = zoneIsHeatedById.get(id) === true && radiatorCoeff > 0;
 
-    const heatSavings = Math.max(0, heatLossBaseline - heatLoss);
+    const heatSavings = canClaimTrvSavings ? Math.max(0, heatLossBaseline - heatLoss) : 0;
     const deliveredHeat = radiatorOutput;
-    const deliveredHeatSavings = Math.max(0, heatLossBaseline - deliveredHeat);
+    const deliveredHeatSavings = canClaimTrvSavings ? Math.max(0, heatLossBaseline - deliveredHeat) : 0;
 
     const canReachSetpoint = typeof setpoint === 'number'
       ? ((typeof temp === 'number') && temp >= setpoint - 0.1)
@@ -447,15 +451,17 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
     totalHeatBaseline += heatLossBaseline;
     totalRadiatorOutputBaseline += radiatorOutputBaseline;
     totalDeliveredHeatWithModulation += deliveredHeat;
+    totalHeatSavingsEligible += heatSavings;
+    totalDeliveredHeatSavingsEligible += deliveredHeatSavings;
   }
 
   return {
     rooms: results,
     total_heat_loss: Number(totalHeatWithTrv.toFixed(1)),
     total_heat_loss_baseline: Number(totalHeatBaseline.toFixed(1)),
-    total_heat_savings: Number(Math.max(0, totalHeatBaseline - totalHeatWithTrv).toFixed(1)),
+    total_heat_savings: Number(Math.max(0, totalHeatSavingsEligible).toFixed(1)),
     total_delivered_heat: Number(totalDeliveredHeatWithModulation.toFixed(1)),
-    total_delivered_heat_savings: Number(Math.max(0, totalHeatBaseline - totalDeliveredHeatWithModulation).toFixed(1)),
+    total_delivered_heat_savings: Number(Math.max(0, totalDeliveredHeatSavingsEligible).toFixed(1)),
     total_radiator_output: Number(totalRadiatorOutputWithTrv.toFixed(1)),
     total_radiator_output_baseline: Number(totalRadiatorOutputBaseline.toFixed(1)),
     total_balance: Number((totalRadiatorOutputWithTrv - totalHeatWithTrv).toFixed(1)),

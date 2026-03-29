@@ -123,6 +123,49 @@ describe('Heated zone adjacent to unheated zone', () => {
   });
 });
 
+describe('Savings eligibility for rooms without radiators', () => {
+  it('does not attribute TRV savings to heated rooms with no radiators', () => {
+    const demo = {
+      zones: [
+        {
+          id: 'z_a', name: 'Heated TRV', is_unheated: false,
+          setpoint_temperature: 21,
+          radiators: [{ radiator_id: 'rad_std', surface_area: 1.0, trv_enabled: true }],
+        },
+        {
+          id: 'z_b', name: 'Heated No Rad', is_unheated: false,
+          setpoint_temperature: 21,
+        },
+        outside,
+      ],
+      elements: [
+        {
+          id: 'el_a_out', type: 'wall',
+          nodes: ['z_a', 'z_outside'],
+          thermal_conductance: 10,
+        },
+        {
+          id: 'el_b_out', type: 'wall',
+          nodes: ['z_b', 'z_outside'],
+          thermal_conductance: 8,
+        },
+        {
+          id: 'el_ab', type: 'wall',
+          nodes: ['z_a', 'z_b'],
+          thermal_conductance: 5,
+        },
+      ],
+    };
+
+    const result = computeRoomHeatRequirements(demo, radiators, OPTS);
+    const noRadZone = result.rooms.find(r => r.zoneId === 'z_b');
+
+    expect(noRadZone.radiator_surface_area).toBe(0);
+    expect(noRadZone.heat_savings).toBe(0);
+    expect(noRadZone.delivered_heat_savings).toBe(0);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Boiler modulation — control zone drives flow temperature down
 // ---------------------------------------------------------------------------
