@@ -123,6 +123,85 @@ function renderLegend(container) {
   container.appendChild(legend);
 }
 
+function createLevelMiniViews(rooms, levels, activeLevel, onSelectLevel) {
+  const wrap = document.createElement('div');
+  wrap.className = 'alt-viz-level-miniviews';
+
+  const ns = 'http://www.w3.org/2000/svg';
+
+  levels.forEach(level => {
+    const levelRooms = rooms.filter(z => (typeof z.level === 'number' ? z.level : 0) === level);
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'alt-viz-level-mini';
+    if (level === activeLevel) button.classList.add('is-active');
+    button.setAttribute('aria-label', `Switch to level ${level}`);
+    button.title = `Level ${level}`;
+
+    const header = document.createElement('div');
+    header.className = 'alt-viz-level-mini-header';
+    header.textContent = `Level ${level}`;
+
+    const content = document.createElement('div');
+    content.className = 'alt-viz-level-mini-content';
+
+    const previewPolygons = buildSeedPolygons(levelRooms);
+    const polygonEntries = levelRooms
+      .map(zone => ({ zone, polygon: getPolygonForZone(zone, previewPolygons) }))
+      .filter(entry => isValidPolygon(entry.polygon));
+
+    if (polygonEntries.length > 0) {
+      const miniW = 150;
+      const miniH = 96;
+      const miniPad = 8;
+      const bounds = polygonBounds(polygonEntries.map(entry => entry.polygon));
+      const scale = computeRenderScale(bounds, miniW, miniH, miniPad);
+
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('class', 'alt-viz-level-mini-svg');
+      svg.setAttribute('viewBox', `0 0 ${miniW} ${miniH}`);
+      svg.setAttribute('role', 'img');
+      svg.setAttribute('aria-label', `Preview of level ${level}`);
+
+      polygonEntries.forEach(({ zone, polygon }) => {
+        const pts = polygon.map(pt => projectPoint(pt, bounds, scale, miniPad));
+        const thermalClass = getThermalColorClass(zone);
+
+        const poly = document.createElementNS(ns, 'polygon');
+        poly.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
+        poly.setAttribute('fill', THERMAL_COLOR_BY_CLASS[thermalClass] || '#4d7fd1');
+        poly.setAttribute('fill-opacity', '0.42');
+        poly.setAttribute('stroke', 'rgba(255,255,255,0.75)');
+        poly.setAttribute('stroke-width', '1');
+        svg.appendChild(poly);
+      });
+
+      content.appendChild(svg);
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'alt-viz-level-mini-empty';
+      empty.textContent = 'No rooms';
+      content.appendChild(empty);
+    }
+
+    const meta = document.createElement('div');
+    meta.className = 'alt-viz-level-mini-meta';
+    meta.textContent = `${levelRooms.length} room${levelRooms.length === 1 ? '' : 's'}`;
+
+    button.addEventListener('click', () => {
+      if (typeof onSelectLevel === 'function') onSelectLevel(level);
+    });
+
+    button.appendChild(header);
+    button.appendChild(content);
+    button.appendChild(meta);
+    wrap.appendChild(button);
+  });
+
+  return wrap;
+}
+
 function buildAltVizMenuSpec(demo) {
   const windowSizes = [
     { label: '600 x 600 mm', width: 600, height: 600 },
@@ -1885,7 +1964,6 @@ export function renderAlternativeViz(demo, opts = {}) {
   const onOpeningSelected = typeof opts.onOpeningSelected === 'function' ? opts.onOpeningSelected : null;
   const onRadiatorSelected = typeof opts.onRadiatorSelected === 'function' ? opts.onRadiatorSelected : null;
   const onObjectMoved = typeof opts.onObjectMoved === 'function' ? opts.onObjectMoved : null;
-  const onSeedLevelPolygons = typeof opts.onSeedLevelPolygons === 'function' ? opts.onSeedLevelPolygons : null;
   const onDataChanged = typeof opts.onDataChanged === 'function' ? opts.onDataChanged : null;
   const onMenuAction = typeof opts.onMenuAction === 'function' ? opts.onMenuAction : null;
 
@@ -1917,27 +1995,11 @@ export function renderAlternativeViz(demo, opts = {}) {
   const toolbar = document.createElement('div');
   toolbar.className = 'alt-viz-toolbar';
 
-  const levelLabel = document.createElement('label');
-  levelLabel.className = 'alt-viz-level-label';
-  levelLabel.textContent = 'Active Level';
-
-  const levelSelect = document.createElement('select');
-  levelSelect.className = 'alt-viz-level-select';
-  levels.forEach(level => {
-    const option = document.createElement('option');
-    option.value = String(level);
-    option.textContent = `Level ${level}`;
-    if (level === selectedLevel) option.selected = true;
-    levelSelect.appendChild(option);
-  });
-
-  levelSelect.addEventListener('change', () => {
-    selectedLevel = Number(levelSelect.value);
+  const levelMiniViews = createLevelMiniViews(rooms, levels, selectedLevel, (level) => {
+    selectedLevel = level;
     renderAlternativeViz(demo, opts);
   });
-
-  levelLabel.appendChild(levelSelect);
-  toolbar.appendChild(levelLabel);
+  toolbar.appendChild(levelMiniViews);
 
   root.appendChild(toolbar);
 
