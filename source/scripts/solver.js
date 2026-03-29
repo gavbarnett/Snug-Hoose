@@ -428,6 +428,23 @@ function handleAltVizMenuAction(action, item, context = {}) {
       if (roomEditorApi?.focusZone) roomEditorApi.focusZone(selectedZoneId);
       return;
     }
+    case 'zones.rename': {
+      if (!currentDemo) return;
+      const zoneId = payload.zoneId || selectedZoneId;
+      if (!zoneId) return;
+      const zone = getZoneById(currentDemo, zoneId);
+      if (!zone) return;
+      const nextName = String(payload.name || '').trim();
+      if (nextName) {
+        zone.name = nextName;
+      } else {
+        delete zone.name;
+      }
+      lastFocusedZoneId = zoneId;
+      triggerSolve();
+      if (roomEditorApi?.focusZone) roomEditorApi.focusZone(zoneId);
+      return;
+    }
     default:
       console.info(`[alt-viz menu] action selected: ${action}`);
   }

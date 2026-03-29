@@ -66,7 +66,6 @@ export function initRoomEditor(opts) {
   const roomSelector = document.getElementById('roomSelector');
   const roomEditor = document.getElementById('roomEditor');
   const selectedRoomName = document.getElementById('selectedRoomName');
-  const roomMetaList = document.getElementById('roomMetaList');
   const radiatorsList = document.getElementById('radiatorsList');
   const fabricList = document.getElementById('fabricList');
   const addRadiatorBtn = document.getElementById('addRadiatorBtn');
@@ -255,7 +254,7 @@ export function initRoomEditor(opts) {
   function populateRoomEditor(zoneId) {
     const demo = getDemo();
     const radiatorsData = getRadiatorsData();
-    if (!demo || !Array.isArray(demo.zones) || !radiatorsList || !fabricList || !roomMetaList) return;
+    if (!demo || !Array.isArray(demo.zones) || !radiatorsList || !fabricList) return;
 
     const zoneKey = String(zoneId || '').trim();
     const zone = demo.zones.find(z => String(z.id || '').trim() === zoneKey);
@@ -264,9 +263,6 @@ export function initRoomEditor(opts) {
     if (selectedRoomName) {
       selectedRoomName.textContent = `Selected Room: ${zone.name || zone.id}`;
     }
-
-    roomMetaList.innerHTML = '';
-    populateRoomMetadata(zone, zoneKey);
 
     radiatorsList.innerHTML = '';
 
@@ -478,222 +474,6 @@ export function initRoomEditor(opts) {
     if (!selectedZoneId) return;
     const selectedCell = document.querySelector(`.thermal-zone-cell[data-zone-id="${selectedZoneId}"]`);
     if (selectedCell) selectedCell.classList.add('selected');
-  }
-
-  function populateRoomMetadata(zone, zoneKey) {
-    const demo = getDemo();
-    const globalTargetTemp = (demo && demo.meta && typeof demo.meta.global_target_temperature === 'number')
-      ? demo.meta.global_target_temperature
-      : 21;
-    const idRow = document.createElement('div');
-    idRow.style.display = 'flex';
-    idRow.style.alignItems = 'center';
-    idRow.style.gap = '0.5rem';
-    idRow.style.flexWrap = 'wrap';
-    const idLabel = document.createElement('strong');
-    idLabel.textContent = 'ID:';
-    const idText = document.createElement('span');
-    idText.textContent = zone.id;
-    idRow.appendChild(idLabel);
-    idRow.appendChild(idText);
-
-    const nameRow = document.createElement('div');
-    nameRow.style.display = 'flex';
-    nameRow.style.alignItems = 'center';
-    nameRow.style.gap = '0.5rem';
-    nameRow.style.flexWrap = 'wrap';
-
-    const nameLabel = document.createElement('strong');
-    nameLabel.textContent = 'Name:';
-
-    const nameInput = document.createElement('input');
-    nameInput.type = 'text';
-    nameInput.value = zone.name || '';
-    nameInput.placeholder = zone.id;
-    nameInput.dataset.focusKey = `zone:${zoneKey}:meta:name`;
-    nameInput.addEventListener('change', () => {
-      const nextName = nameInput.value.trim();
-      if (nextName) {
-        zone.name = nextName;
-      } else {
-        delete zone.name;
-      }
-      onDataChanged();
-    });
-    nameInput.addEventListener('input', () => {
-      // Just capture focus while typing, don't re-render on each keystroke
-      queueFocusRestore();
-    });
-
-    nameRow.appendChild(nameLabel);
-    nameRow.appendChild(nameInput);
-
-    const levelRow = document.createElement('div');
-    levelRow.style.display = 'flex';
-    levelRow.style.alignItems = 'center';
-    levelRow.style.gap = '0.5rem';
-    levelRow.style.flexWrap = 'wrap';
-
-    const levelLabel = document.createElement('strong');
-    levelLabel.textContent = 'Floor:';
-
-    const levelInput = document.createElement('input');
-    levelInput.type = 'number';
-    levelInput.value = zone.level ?? 0;
-    levelInput.placeholder = '0';
-    levelInput.step = '1';
-    levelInput.min = '-10';
-    levelInput.max = '50';
-    levelInput.dataset.focusKey = `zone:${zoneKey}:meta:level`;
-    levelInput.addEventListener('input', () => {
-      const nextLevel = parseInt(levelInput.value, 10);
-      if (!isNaN(nextLevel)) {
-        zone.level = nextLevel;
-      }
-      queueFocusRestore();
-      onDataChanged();
-    });
-
-    levelRow.appendChild(levelLabel);
-    levelRow.appendChild(levelInput);
-
-    const heatingRow = document.createElement('div');
-    heatingRow.style.display = 'flex';
-    heatingRow.style.alignItems = 'center';
-    heatingRow.style.gap = '0.5rem';
-    heatingRow.style.flexWrap = 'wrap';
-
-    const heatedCheckbox = document.createElement('input');
-    heatedCheckbox.type = 'checkbox';
-    heatedCheckbox.checked = zone.is_unheated !== true;
-    heatedCheckbox.dataset.focusKey = `zone:${zoneKey}:meta:heated`;
-
-    const heatedLabel = document.createElement('label');
-    heatedLabel.style.display = 'flex';
-    heatedLabel.style.alignItems = 'center';
-    heatedLabel.style.gap = '0.3rem';
-    heatedLabel.style.cursor = 'pointer';
-    heatedLabel.appendChild(heatedCheckbox);
-    heatedLabel.appendChild(document.createTextNode('Heated Zone'));
-
-    heatingRow.appendChild(heatedLabel);
-
-    const setpointRow = document.createElement('div');
-    setpointRow.style.display = 'flex';
-    setpointRow.style.alignItems = 'center';
-    setpointRow.style.gap = '0.5rem';
-    setpointRow.style.flexWrap = 'wrap';
-
-    const setpointLabel = document.createElement('strong');
-    setpointLabel.textContent = 'Setpoint (°C):';
-
-    const setpointInput = document.createElement('input');
-    setpointInput.type = 'range';
-    setpointInput.min = '16';
-    setpointInput.max = '25';
-    setpointInput.step = '1';
-    setpointInput.value = zone.setpoint_temperature ?? globalTargetTemp;
-    setpointInput.style.flex = '1';
-    setpointInput.style.minWidth = '120px';
-    setpointInput.dataset.focusKey = `zone:${zoneKey}:meta:setpoint`;
-
-    const setpointDisplay = document.createElement('span');
-    setpointDisplay.textContent = zone.is_unheated === true
-      ? 'Unheated'
-      : (typeof zone.setpoint_temperature === 'number' ? `${zone.setpoint_temperature}°C` : `Inherit ${globalTargetTemp}°C`);
-    setpointDisplay.style.minWidth = '40px';
-
-    const refreshSetpointUi = () => {
-      const isHeated = heatedCheckbox.checked;
-      setpointInput.disabled = !isHeated;
-      if (!isHeated) {
-        setpointDisplay.textContent = 'Unheated';
-        return;
-      }
-      if (typeof zone.setpoint_temperature === 'number') {
-        setpointInput.value = zone.setpoint_temperature;
-        setpointDisplay.textContent = `${zone.setpoint_temperature}°C`;
-      } else {
-        setpointInput.value = globalTargetTemp;
-        setpointDisplay.textContent = `Inherit ${globalTargetTemp}°C`;
-      }
-    };
-
-    setpointInput.addEventListener('input', () => {
-      if (!heatedCheckbox.checked) return;
-      const nextSetpoint = parseInt(setpointInput.value, 10);
-      if (!isNaN(nextSetpoint)) {
-        zone.setpoint_temperature = nextSetpoint;
-        setpointDisplay.textContent = `${nextSetpoint}°C`;
-      }
-      queueFocusRestore();
-      onDataChanged();
-    });
-
-    heatedCheckbox.addEventListener('change', () => {
-      const isHeated = heatedCheckbox.checked;
-      if (!isHeated) {
-        zone.is_unheated = true;
-        delete zone.setpoint_temperature;
-        zone.is_boiler_control = false;
-      } else {
-        delete zone.is_unheated;
-      }
-      refreshSetpointUi();
-      syncBoilerControlUi();
-      queueFocusRestore();
-      onDataChanged();
-    });
-
-    setpointRow.appendChild(setpointLabel);
-    setpointRow.appendChild(setpointInput);
-    setpointRow.appendChild(setpointDisplay);
-
-    const boilerControlRow = document.createElement('div');
-    boilerControlRow.style.display = 'flex';
-    boilerControlRow.style.alignItems = 'center';
-    boilerControlRow.style.gap = '0.5rem';
-    boilerControlRow.style.flexWrap = 'wrap';
-
-    const boilerCheckbox = document.createElement('input');
-    boilerCheckbox.type = 'checkbox';
-    boilerCheckbox.checked = zone.is_boiler_control || false;
-    boilerCheckbox.disabled = zone.is_unheated === true;
-    boilerCheckbox.dataset.focusKey = `zone:${zoneKey}:meta:boiler`;
-    boilerCheckbox.addEventListener('change', () => {
-      if (zone.is_unheated === true && boilerCheckbox.checked) {
-        boilerCheckbox.checked = false;
-      }
-      zone.is_boiler_control = boilerCheckbox.checked;
-      queueFocusRestore();
-      onDataChanged();
-    });
-
-    const boilerLabel = document.createElement('label');
-    boilerLabel.style.display = 'flex';
-    boilerLabel.style.alignItems = 'center';
-    boilerLabel.style.gap = '0.3rem';
-    boilerLabel.style.cursor = 'pointer';
-    boilerLabel.appendChild(boilerCheckbox);
-    boilerLabel.appendChild(document.createTextNode('🔥 Boiler Control'));
-
-    boilerControlRow.appendChild(boilerLabel);
-
-    const syncBoilerControlUi = () => {
-      const isHeated = heatedCheckbox.checked;
-      boilerCheckbox.disabled = !isHeated;
-      if (!isHeated) boilerCheckbox.checked = false;
-    };
-
-    refreshSetpointUi();
-    syncBoilerControlUi();
-
-    roomMetaList.appendChild(idRow);
-    roomMetaList.appendChild(nameRow);
-    roomMetaList.appendChild(levelRow);
-    roomMetaList.appendChild(heatingRow);
-    roomMetaList.appendChild(setpointRow);
-    roomMetaList.appendChild(boilerControlRow);
   }
 
   function createRoom() {

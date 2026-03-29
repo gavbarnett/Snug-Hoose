@@ -258,7 +258,8 @@ function computeLevelEpcEstimate(levelRooms) {
   };
 }
 
-function createLevelMiniViews(rooms, levels, activeLevel, onSelectLevel) {
+function createLevelMiniViews(rooms, levels, activeLevel, onSelectLevel, extraOpts = {}) {
+  const { globalTargetTemp = 21, onSetpointChanged } = extraOpts;
   const wrap = document.createElement('div');
   wrap.className = 'alt-viz-level-miniviews';
 
@@ -267,12 +268,26 @@ function createLevelMiniViews(rooms, levels, activeLevel, onSelectLevel) {
   levels.forEach(level => {
     const levelRooms = rooms.filter(z => (typeof z.level === 'number' ? z.level : 0) === level);
 
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'alt-viz-level-mini';
-    if (level === activeLevel) button.classList.add('is-active');
-    button.setAttribute('aria-label', `Switch to level ${level}`);
-    button.title = `Level ${level}`;
+    const card = document.createElement('div');
+    card.className = 'alt-viz-level-mini';
+    if (level === activeLevel) card.classList.add('is-active');
+
+    // Clickable zone: header + preview + room count
+    const clickZone = document.createElement('div');
+    clickZone.className = 'alt-viz-level-mini-click';
+    clickZone.setAttribute('role', 'button');
+    clickZone.setAttribute('tabindex', '0');
+    clickZone.setAttribute('aria-label', `Switch to level ${level}`);
+    clickZone.title = `Level ${level}`;
+    clickZone.addEventListener('click', () => {
+      if (typeof onSelectLevel === 'function') onSelectLevel(level);
+    });
+    clickZone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (typeof onSelectLevel === 'function') onSelectLevel(level);
+      }
+    });
 
     const header = document.createElement('div');
     header.className = 'alt-viz-level-mini-header';
@@ -324,36 +339,61 @@ function createLevelMiniViews(rooms, levels, activeLevel, onSelectLevel) {
     meta.className = 'alt-viz-level-mini-meta';
     meta.textContent = `${levelRooms.length} room${levelRooms.length === 1 ? '' : 's'}`;
 
-    const epc = computeLevelEpcEstimate(levelRooms);
-    const epcWrap = document.createElement('div');
-    epcWrap.className = 'alt-viz-level-mini-epc';
+    clickZone.appendChild(header);
+    clickZone.appendChild(content);
+    clickZone.appendChild(meta);
+    card.appendChild(clickZone);
 
-    const epcSummary = document.createElement('div');
-    epcSummary.className = 'alt-viz-level-mini-epc-summary';
-    const epcValue = epc.intensityKwhM2Yr === null ? 'n/a' : `${epc.intensityKwhM2Yr.toFixed(0)}`;
-    epcSummary.textContent = `EPC ${epc.letter} (${epcValue})`;
+    // Per-room setpoint sliders
+    const heatedRooms = levelRooms.filter(z => z.is_unheated !== true);
+    if (heatedRooms.length > 0 && typeof onSetpointChanged === 'function') {
+      const roomsSection = document.createElement('div');
+      roomsSection.className = 'alt-viz-level-mini-rooms';
 
-    const epcScale = document.createElement('div');
-    epcScale.className = 'alt-viz-level-mini-epc-scale';
-    ['A', 'B', 'C', 'D', 'E', 'F', 'G'].forEach(letter => {
-      const chip = document.createElement('span');
-      chip.className = `epc-chip epc-${letter}${letter === epc.letter ? ' active' : ''}`;
-      chip.textContent = letter;
-      epcScale.appendChild(chip);
-    });
+      heatedRooms.forEach(zone => {
+        const row = document.createElement('div');
+        row.className = 'alt-viz-level-mini-room-row';
 
-    epcWrap.appendChild(epcSummary);
-    epcWrap.appendChild(epcScale);
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'alt-viz-level-mini-room-name';
+        nameSpan.textContent = zone.name || zone.id;
 
-    button.addEventListener('click', () => {
-      if (typeof onSelectLevel === 'function') onSelectLevel(level);
-    });
+        const sliderWrap = document.createElement('div');
+        sliderWrap.className = 'alt-viz-level-mini-room-slider-wrap';
 
-    button.appendChild(header);
-    button.appendChild(content);
-    button.appendChild(meta);
-    button.appendChild(epcWrap);
-    wrap.appendChild(button);
+        const slider = document.createElement('input');
+        slider.type = 'range';
+        slider.className = 'alt-env-slider';
+        slider.min = '16';
+        slider.max = '25';
+        slider.step = '1';
+        slider.value = String(typeof zone.setpoint_temperature === 'number' ? zone.setpoint_temperature : globalTargetTemp);
+
+        const valueDisplay = document.createElement('span');
+        valueDisplay.className = 'alt-env-value';
+        valueDisplay.textContent = typeof zone.setpoint_temperature === 'number'
+          ? `${zone.setpoint_temperature}°C`
+          : `${globalTargetTemp}°C`;
+
+        slider.addEventListener('input', () => {
+          valueDisplay.textContent = `${slider.value}°C`;
+        });
+
+        slider.addEventListener('change', () => {
+          onSetpointChanged(zone, Number(slider.value));
+        });
+
+        sliderWrap.appendChild(slider);
+        sliderWrap.appendChild(valueDisplay);
+        row.appendChild(nameSpan);
+        row.appendChild(sliderWrap);
+        roomsSection.appendChild(row);
+      });
+
+      card.appendChild(roomsSection);
+    }
+
+    wrap.appendChild(card);
   });
 
   return wrap;
@@ -1596,6 +1636,10 @@ function updateRenderedZoneGeometry(zoneRenderState, polygon, bounds, scale, pad
   const centroid = projectPoint(centroidWorld, bounds, scale, pad);
   zoneRenderState.textElement.setAttribute('x', String(centroid.x));
   zoneRenderState.textElement.setAttribute('y', String(centroid.y - ((zoneRenderState.lineCount - 1) * 10)));
+  if (zoneRenderState.infoTextElement) {
+    zoneRenderState.infoTextElement.setAttribute('x', String(centroid.x));
+    zoneRenderState.infoTextElement.setAttribute('y', String(centroid.y - ((zoneRenderState.lineCount - 1) * 10)));
+  }
   zoneRenderState.tspans.forEach(tspan => {
     tspan.setAttribute('x', String(centroid.x));
   });
@@ -2154,9 +2198,18 @@ export function renderAlternativeViz(demo, opts = {}) {
   const toolbar = document.createElement('div');
   toolbar.className = 'alt-viz-toolbar';
 
+  const globalTargetTemp = typeof demo?.meta?.global_target_temperature === 'number'
+    ? demo.meta.global_target_temperature : 21;
   const levelMiniViews = createLevelMiniViews(rooms, levels, selectedLevel, (level) => {
     selectedLevel = level;
     renderAlternativeViz(demo, opts);
+  }, {
+    globalTargetTemp,
+    onSetpointChanged: (zone, value) => {
+      zone.setpoint_temperature = value;
+      if (onDataChanged) onDataChanged({});
+      renderAlternativeViz(demo, opts);
+    }
   });
   toolbar.appendChild(levelMiniViews);
 
@@ -2212,6 +2265,87 @@ export function renderAlternativeViz(demo, opts = {}) {
   const edgeGroups = buildSharedEdgeGroups(polygonMap);
   const zoneRenderStateById = new Map();
   let activeLengthEditor = null;
+  let activeNameEditor = null;
+  const closeNameEditor = () => {
+    if (activeNameEditor && activeNameEditor.parentNode) {
+      activeNameEditor.parentNode.removeChild(activeNameEditor);
+    }
+    activeNameEditor = null;
+  };
+
+  const openNameEditor = (zone, cx, cy) => {
+    closeLengthEditor();
+    closeNameEditor();
+    suppressWallSelectionUntil = Date.now() + 250;
+
+    const editor = document.createElementNS(ns, 'foreignObject');
+    editor.setAttribute('class', 'alt-wall-length-editor');
+    editor.setAttribute('x', String(cx - 60));
+    editor.setAttribute('y', String(cy - 14));
+    editor.setAttribute('width', '120');
+    editor.setAttribute('height', '28');
+
+    const input = document.createElementNS('http://www.w3.org/1999/xhtml', 'input');
+    input.setAttribute('type', 'text');
+    input.setAttribute('class', 'alt-wall-length-input');
+    input.value = zone.name || '';
+    input.placeholder = zone.id || '';
+
+    let committed = false;
+    const commitNameEdit = () => {
+      if (committed) return;
+      committed = true;
+      const nextName = input.value.trim();
+      if (nextName) zone.name = nextName; else delete zone.name;
+      suppressWallSelectionUntil = Date.now() + 250;
+      closeNameEditor();
+
+      if (typeof onMenuAction === 'function') {
+        onMenuAction(
+          'zones.rename',
+          {
+            action: 'zones.rename',
+            payload: { zoneId: zone.id, name: nextName }
+          },
+          {
+            demo,
+            selectedZoneId: zone.id,
+            selectedLevel
+          }
+        );
+        return;
+      }
+
+      if (onDataChanged) {
+        onDataChanged({});
+      } else {
+        renderAlternativeViz(demo, opts);
+      }
+    };
+
+    input.addEventListener('mousedown', (e) => e.stopPropagation());
+    input.addEventListener('click', (e) => e.stopPropagation());
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        commitNameEdit();
+      } else if (e.key === 'Escape') {
+        committed = true;
+        closeNameEditor();
+      }
+    });
+    input.addEventListener('blur', commitNameEdit);
+
+    editor.appendChild(input);
+    svg.appendChild(editor);
+    activeNameEditor = editor;
+
+    setTimeout(() => {
+      try { input.focus(); input.select(); } catch (_) {}
+    }, 0);
+  };
+
 
   const svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('class', 'alt-viz-svg');
@@ -2694,46 +2828,64 @@ export function renderAlternativeViz(demo, opts = {}) {
     });
     svg.appendChild(roomPoly);
 
-    const lines = [];
-    lines.push(`${zone.name || zone.id || 'Unnamed room'}${zone.is_boiler_control ? ' 🔥' : ''}`);
-
     const externalTemp = Number(demo?.meta?.externalTemp) || 3;
     const tempText = formatZoneTemperatureText(zone, externalTemp);
-    if (tempText) lines.push(tempText);
-
     const capacity = getZoneCapacitySummary(zone, externalTemp);
-    if (capacity) lines.push(capacity.text);
-
     const savingsText = getZoneSavingsText(zone);
-    if (savingsText) lines.push(savingsText);
 
+    const infoLines = [];
+    if (tempText) infoLines.push(tempText);
+    if (capacity) infoLines.push(capacity.text);
+    if (savingsText) infoLines.push(savingsText);
     if (zone.is_unheated !== true) {
       const epc = computeZoneEpcEstimate(zone);
       const epcValue = epc.intensityKwhM2Yr === null ? 'n/a' : epc.intensityKwhM2Yr.toFixed(0);
-      lines.push(`EPC ${epc.letter} (${epcValue})`);
+      infoLines.push(`EPC ${epc.letter} (${epcValue})`);
     }
 
-    const text = document.createElementNS(ns, 'text');
-    text.setAttribute('x', String(centroid.x));
-    text.setAttribute('y', String(centroid.y - ((lines.length - 1) * 10)));
-    text.setAttribute('fill', '#ffffff');
-    text.setAttribute('font-size', '14');
-    text.setAttribute('font-weight', '700');
-    text.setAttribute('text-anchor', 'middle');
-    text.style.pointerEvents = 'none';
+    const nameY = centroid.y - (infoLines.length * 10);
 
-    lines.forEach((line, idx) => {
-      const tspan = document.createElementNS(ns, 'tspan');
-      tspan.setAttribute('x', String(centroid.x));
-      tspan.setAttribute('dy', idx === 0 ? '0' : '18');
-      tspan.textContent = line;
-      tspan.setAttribute('font-size', idx === 0 ? '15' : '12');
-      tspan.setAttribute('font-weight', idx === 0 ? '700' : '500');
-      text.appendChild(tspan);
-    });
+    const nameText = document.createElementNS(ns, 'text');
+    nameText.setAttribute('x', String(centroid.x));
+    nameText.setAttribute('y', String(nameY));
+    nameText.setAttribute('fill', '#ffffff');
+    nameText.setAttribute('font-size', '15');
+    nameText.setAttribute('font-weight', '700');
+    nameText.setAttribute('text-anchor', 'middle');
+    nameText.setAttribute('paint-order', 'stroke');
+    nameText.setAttribute('stroke', 'rgba(0, 0, 0, 0.65)');
+    nameText.setAttribute('stroke-width', '3');
+    nameText.setAttribute('class', 'alt-room-name-label');
+    nameText.textContent = `${zone.name || zone.id || 'Unnamed room'}${zone.is_boiler_control ? ' 🔥' : ''}`;
+    if (onDataChanged) {
+      nameText.style.cursor = 'text';
+      nameText.addEventListener('click', (e) => {
+        if (dragState || roomDragState || Date.now() < suppressWallSelectionUntil) return;
+        e.stopPropagation();
+        openNameEditor(zone, centroid.x, nameY);
+      });
+    }
+    svg.appendChild(nameText);
 
-    svg.appendChild(text);
-
+    let infoText = null;
+    if (infoLines.length > 0) {
+      infoText = document.createElementNS(ns, 'text');
+      infoText.setAttribute('x', String(centroid.x));
+      infoText.setAttribute('y', String(nameY));
+      infoText.setAttribute('fill', '#ffffff');
+      infoText.setAttribute('text-anchor', 'middle');
+      infoText.style.pointerEvents = 'none';
+      infoLines.forEach(line => {
+        const tspan = document.createElementNS(ns, 'tspan');
+        tspan.setAttribute('x', String(centroid.x));
+        tspan.setAttribute('dy', '18');
+        tspan.textContent = line;
+        tspan.setAttribute('font-size', '12');
+        tspan.setAttribute('font-weight', '500');
+        infoText.appendChild(tspan);
+      });
+      svg.appendChild(infoText);
+    }
     const radiatorElements = [];
     const radiatorLabelElements = [];
     const radiatorHandleElements = [];
@@ -2843,108 +2995,108 @@ export function renderAlternativeViz(demo, opts = {}) {
       const openingsOnEdge = [];
       if (shouldRenderOpeningsForWallEdge(wallElement, zone.id)) {
         getWallOpeningsForRender(demo, wallElement).forEach(({ kind, opening, ownerZoneId, thickness }, openingIndex) => {
-        if (ownerZoneId && ownerZoneId !== zone.id) return;
-        const segment = computeOpeningSegmentOnEdge(opening, worldP0, worldP1, p0, p1);
-        if (!segment) return;
-        const openingLine = document.createElementNS(ns, 'line');
-        openingLine.setAttribute('x1', String(segment.x1));
-        openingLine.setAttribute('y1', String(segment.y1));
-        openingLine.setAttribute('x2', String(segment.x2));
-        openingLine.setAttribute('y2', String(segment.y2));
-        openingLine.setAttribute('class', kind === 'door' ? 'alt-opening-line alt-opening-door' : 'alt-opening-line alt-opening-window');
-        openingLine.setAttribute('stroke-width', String(thickness));
-        let openingArc = null;
-        let openingLeaf = null;
-        if (kind === 'door') {
-          const swing = computeDoorSwingGeometry(segment, opening);
-          if (swing) {
-            openingArc = document.createElementNS(ns, 'path');
-            openingArc.setAttribute('d', swing.arcPath);
-            openingArc.setAttribute('class', 'alt-opening-door-arc');
-            svg.appendChild(openingArc);
+          if (ownerZoneId && ownerZoneId !== zone.id) return;
+          const segment = computeOpeningSegmentOnEdge(opening, worldP0, worldP1, p0, p1);
+          if (!segment) return;
+          const openingLine = document.createElementNS(ns, 'line');
+          openingLine.setAttribute('x1', String(segment.x1));
+          openingLine.setAttribute('y1', String(segment.y1));
+          openingLine.setAttribute('x2', String(segment.x2));
+          openingLine.setAttribute('y2', String(segment.y2));
+          openingLine.setAttribute('class', kind === 'door' ? 'alt-opening-line alt-opening-door' : 'alt-opening-line alt-opening-window');
+          openingLine.setAttribute('stroke-width', String(thickness));
+          let openingArc = null;
+          let openingLeaf = null;
+          if (kind === 'door') {
+            const swing = computeDoorSwingGeometry(segment, opening);
+            if (swing) {
+              openingArc = document.createElementNS(ns, 'path');
+              openingArc.setAttribute('d', swing.arcPath);
+              openingArc.setAttribute('class', 'alt-opening-door-arc');
+              svg.appendChild(openingArc);
 
-            openingLeaf = document.createElementNS(ns, 'line');
-            openingLeaf.setAttribute('x1', String(swing.hinge.x));
-            openingLeaf.setAttribute('y1', String(swing.hinge.y));
-            openingLeaf.setAttribute('x2', String(swing.openLeafEnd.x));
-            openingLeaf.setAttribute('y2', String(swing.openLeafEnd.y));
-            openingLeaf.setAttribute('class', 'alt-opening-door-leaf');
-            svg.appendChild(openingLeaf);
-          }
-        }
-
-        let openingHandle = null;
-        if (onObjectMoved || onOpeningSelected) {
-          const handlePos = getOffsetHandlePositionFromSegment(
-            segment,
-            OPENING_HANDLE_OFFSET_ALONG_PX,
-            OPENING_HANDLE_OFFSET_NORMAL_PX,
-            centroid
-          );
-          openingHandle = document.createElementNS(ns, 'circle');
-          openingHandle.setAttribute('cx', String(handlePos.x));
-          openingHandle.setAttribute('cy', String(handlePos.y));
-          openingHandle.setAttribute('r', String(OBJECT_HANDLE_RADIUS_PX));
-          openingHandle.setAttribute('class', kind === 'door' ? 'alt-object-handle alt-door-handle' : 'alt-object-handle alt-window-handle');
-          openingHandle.style.cursor = 'grab';
-
-          const openingId = getOpeningId(opening, openingIndex);
-          openingHandle.addEventListener('mousedown', (e) => {
-            if (e.button !== 0) return;
-            e.preventDefault();
-            e.stopPropagation();
-
-            const startSvgPoint = getSVGPoint(svg, e);
-            const startWorldPoint = svgPointToWorld(startSvgPoint, bounds, scale, pad);
-            const centerRatio = getOpeningPositionRatio(opening);
-            const centerWorld = {
-              x: lerp(worldP0.x, worldP1.x, centerRatio),
-              y: lerp(worldP0.y, worldP1.y, centerRatio)
-            };
-            objectDragState = {
-              kind: 'opening',
-              openingKind: kind,
-              openingId,
-              sourceZoneId: zone.id,
-              sourceWallElementId: wallElement?.id || null,
-              opening,
-              openingState: null,
-              bounds,
-              scale,
-              pad,
-              startWorldPoint,
-              currentWorldPoint: startWorldPoint,
-              currentSvgPoint: startSvgPoint,
-              objectCenterWorld: centerWorld,
-              handleElement: openingHandle,
-              startSvgPoint,
-              originalSegment: { ...segment },
-              didMove: false
-            };
-            openingHandle.style.cursor = 'grabbing';
-          });
-
-          openingHandle.addEventListener('mouseup', () => {
-            openingHandle.style.cursor = 'grab';
-          });
-
-          svg.appendChild(openingHandle);
-        }
-
-        const openingState = { line: openingLine, arc: openingArc, leaf: openingLeaf, opening, kind, handle: openingHandle };
-        openingsOnEdge.push(openingState);
-        if (openingHandle) {
-          openingHandle.addEventListener('mousedown', () => {
-            if (objectDragState) {
-              objectDragState.openingState = openingState;
+              openingLeaf = document.createElementNS(ns, 'line');
+              openingLeaf.setAttribute('x1', String(swing.hinge.x));
+              openingLeaf.setAttribute('y1', String(swing.hinge.y));
+              openingLeaf.setAttribute('x2', String(swing.openLeafEnd.x));
+              openingLeaf.setAttribute('y2', String(swing.openLeafEnd.y));
+              openingLeaf.setAttribute('class', 'alt-opening-door-leaf');
+              svg.appendChild(openingLeaf);
             }
-            svg.appendChild(openingLine);
-            if (openingArc) svg.appendChild(openingArc);
-            if (openingLeaf) svg.appendChild(openingLeaf);
+          }
+
+          let openingHandle = null;
+          if (onObjectMoved || onOpeningSelected) {
+            const handlePos = getOffsetHandlePositionFromSegment(
+              segment,
+              OPENING_HANDLE_OFFSET_ALONG_PX,
+              OPENING_HANDLE_OFFSET_NORMAL_PX,
+              centroid
+            );
+            openingHandle = document.createElementNS(ns, 'circle');
+            openingHandle.setAttribute('cx', String(handlePos.x));
+            openingHandle.setAttribute('cy', String(handlePos.y));
+            openingHandle.setAttribute('r', String(OBJECT_HANDLE_RADIUS_PX));
+            openingHandle.setAttribute('class', kind === 'door' ? 'alt-object-handle alt-door-handle' : 'alt-object-handle alt-window-handle');
+            openingHandle.style.cursor = 'grab';
+
+            const openingId = getOpeningId(opening, openingIndex);
+            openingHandle.addEventListener('mousedown', (e) => {
+              if (e.button !== 0) return;
+              e.preventDefault();
+              e.stopPropagation();
+
+              const startSvgPoint = getSVGPoint(svg, e);
+              const startWorldPoint = svgPointToWorld(startSvgPoint, bounds, scale, pad);
+              const centerRatio = getOpeningPositionRatio(opening);
+              const centerWorld = {
+                x: lerp(worldP0.x, worldP1.x, centerRatio),
+                y: lerp(worldP0.y, worldP1.y, centerRatio)
+              };
+              objectDragState = {
+                kind: 'opening',
+                openingKind: kind,
+                openingId,
+                sourceZoneId: zone.id,
+                sourceWallElementId: wallElement?.id || null,
+                opening,
+                openingState: null,
+                bounds,
+                scale,
+                pad,
+                startWorldPoint,
+                currentWorldPoint: startWorldPoint,
+                currentSvgPoint: startSvgPoint,
+                objectCenterWorld: centerWorld,
+                handleElement: openingHandle,
+                startSvgPoint,
+                originalSegment: { ...segment },
+                didMove: false
+              };
+              openingHandle.style.cursor = 'grabbing';
+            });
+
+            openingHandle.addEventListener('mouseup', () => {
+              openingHandle.style.cursor = 'grab';
+            });
+
             svg.appendChild(openingHandle);
-          });
-        }
-        svg.appendChild(openingLine);
+          }
+
+          const openingState = { line: openingLine, arc: openingArc, leaf: openingLeaf, opening, kind, handle: openingHandle };
+          openingsOnEdge.push(openingState);
+          if (openingHandle) {
+            openingHandle.addEventListener('mousedown', () => {
+              if (objectDragState) {
+                objectDragState.openingState = openingState;
+              }
+              svg.appendChild(openingLine);
+              if (openingArc) svg.appendChild(openingArc);
+              if (openingLeaf) svg.appendChild(openingLeaf);
+              svg.appendChild(openingHandle);
+            });
+          }
+          svg.appendChild(openingLine);
         });
       }
       edgeOpeningElements.push(openingsOnEdge);
@@ -3039,8 +3191,9 @@ export function renderAlternativeViz(demo, opts = {}) {
 
     zoneRenderStateById.set(zone.id, {
       polygonElement: roomPoly,
-      textElement: text,
-      tspans: Array.from(text.querySelectorAll('tspan')),
+      textElement: nameText,
+      infoTextElement: infoText,
+      tspans: infoText ? Array.from(infoText.querySelectorAll('tspan')) : [],
       edgeElements,
       edgeVisualElements,
       edgeLabelElements,
@@ -3052,7 +3205,7 @@ export function renderAlternativeViz(demo, opts = {}) {
       edgeGroups,
       polygonMap,
       zone,
-      lineCount: lines.length
+      lineCount: infoLines.length + 1
     });
   });
 
