@@ -317,10 +317,6 @@ a#download:hover {
   display: block;
 }
 
-.alt-viz-menu-item.has-submenu.is-open > .alt-viz-submenu-list {
-  display: block;
-}
-
 .alt-viz-menu-item.has-submenu > .alt-viz-submenu-trigger::after {
   content: '▸';
   float: right;

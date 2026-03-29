@@ -7,7 +7,6 @@ let selectedZoneId = null;
 let dragState = null;
 let roomDragState = null;
 let objectDragState = null;
-let persistedMenuPath = [];
 let suppressWallSelectionUntil = 0;
 const DRAG_START_THRESHOLD_PX = 6;
 const DRAG_SNAP_STEP_M = 0.1;
@@ -126,39 +125,47 @@ function renderLegend(container) {
 
 function buildAltVizMenuSpec(demo) {
   const windowSizes = [
-    { label: '600 x 600', width: 600, height: 600 },
-    { label: '900 x 900', width: 900, height: 900 },
-    { label: '1200 x 1200', width: 1200, height: 1200 },
-    { label: '1500 x 1200', width: 1500, height: 1200 },
-    { label: '1800 x 1200', width: 1800, height: 1200 }
+    { label: '600 x 600 mm', width: 600, height: 600 },
+    { label: '900 x 900 mm', width: 900, height: 900 },
+    { label: '1200 x 1200 mm', width: 1200, height: 1200 },
+    { label: '1500 x 1200 mm', width: 1500, height: 1200 },
+    { label: '1800 x 1200 mm', width: 1800, height: 1200 }
   ];
 
   const doorSizes = [
-    { label: '762 x 1981', width: 762, height: 1981 },
-    { label: '838 x 1981', width: 838, height: 1981 },
-    { label: '915 x 1981', width: 915, height: 1981 },
-    { label: '926 x 2040', width: 926, height: 2040 }
+    { label: '762 x 1981 mm', width: 762, height: 1981 },
+    { label: '838 x 1981 mm', width: 838, height: 1981 },
+    { label: '915 x 1981 mm', width: 915, height: 1981 },
+    { label: '926 x 2040 mm', width: 926, height: 2040 }
   ];
 
   const radiatorWidths = [400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000];
 
-  const mapWindowSizeItems = () => windowSizes.map(size => ({
+  const mapWindowSizeItems = (glazingId) => windowSizes.map(size => ({
     label: size.label,
     action: 'openings.windows.add',
-    payload: { width: size.width, height: size.height }
+    payload: { width: size.width, height: size.height, glazingId }
   }));
 
-  const mapDoorSizeItems = () => doorSizes.map(size => ({
+  const mapDoorSizeItems = (materialId) => doorSizes.map(size => ({
     label: size.label,
     action: 'openings.doors.add',
-    payload: { width: size.width, height: size.height }
+    payload: { width: size.width, height: size.height, materialId }
   }));
 
   const mapRadiatorSizeItems = (trvEnabled, radiatorId) => radiatorWidths.map(width => ({
-    label: `${width}`,
+    label: `${width} mm`,
     action: 'hvac.radiators.add',
     payload: { width, trvEnabled, radiatorId }
   }));
+
+  const openingsLibrary = demo?.openings || {};
+  const windowLibrary = Array.isArray(openingsLibrary.windows)
+    ? openingsLibrary.windows
+    : [];
+  const doorLibrary = Array.isArray(openingsLibrary.doors)
+    ? openingsLibrary.doors
+    : [];
 
   const radiatorLibrary = Array.isArray(demo?.radiators?.radiators)
     ? demo.radiators.radiators
@@ -174,21 +181,44 @@ function buildAltVizMenuSpec(demo) {
       ]
   ).map(type => ({
     label: type.name || type.id,
-    items: [
-      {
-        label: 'Standard Sizes',
-        items: [
-          {
-            label: 'TRV',
-            items: mapRadiatorSizeItems(true, type.id)
-          },
-          {
-            label: 'No TRV',
-            items: mapRadiatorSizeItems(false, type.id)
-          }
-        ]
-      }
-    ]
+    items: mapRadiatorSizeItems(false, type.id)
+  }));
+
+  const radiatorTypeMenusWithTrv = (radiatorLibrary.length > 0
+    ? radiatorLibrary
+    : [
+        { id: 'type_1', name: 'Type 1' },
+        { id: 'type_11', name: 'Type 11' },
+        { id: 'type_22', name: 'Type 22' },
+        { id: 'type_33', name: 'Type 33' }
+      ]
+  ).map(type => ({
+    label: type.name || type.id,
+    items: mapRadiatorSizeItems(true, type.id)
+  }));
+
+  const windowGlazingMenus = (windowLibrary.length > 0
+    ? windowLibrary
+    : [
+        { id: 'window_single', name: 'Single Glazing' },
+        { id: 'window_double_modern', name: 'Double Glazing (Modern)' },
+        { id: 'window_triple', name: 'Triple Glazing' }
+      ]
+  ).map(glazing => ({
+    label: glazing.name || glazing.id,
+    items: mapWindowSizeItems(glazing.id)
+  }));
+
+  const doorMaterialMenus = (doorLibrary.length > 0
+    ? doorLibrary
+    : [
+        { id: 'door_pvc_insulated', name: 'PVC Insulated Door' },
+        { id: 'door_wood_solid', name: 'Solid Wood Door' },
+        { id: 'door_steel_insulated', name: 'Insulated Steel Door' }
+      ]
+  ).map(material => ({
+    label: material.name || material.id,
+    items: mapDoorSizeItems(material.id)
   }));
 
   return [
@@ -225,31 +255,11 @@ function buildAltVizMenuSpec(demo) {
       items: [
         {
           label: 'Windows',
-          items: [
-            {
-              label: 'Window Types',
-              items: [
-                {
-                  label: 'Standard Sizes',
-                  items: mapWindowSizeItems()
-                }
-              ]
-            }
-          ]
+          items: windowGlazingMenus
         },
         {
           label: 'Doors',
-          items: [
-            {
-              label: 'Door Types',
-              items: [
-                {
-                  label: 'Standard Sizes',
-                  items: mapDoorSizeItems()
-                }
-              ]
-            }
-          ]
+          items: doorMaterialMenus
         }
       ]
     },
@@ -260,7 +270,11 @@ function buildAltVizMenuSpec(demo) {
           label: 'Radiators',
           items: [
             {
-              label: 'Radiator Type',
+              label: 'TRV',
+              items: radiatorTypeMenusWithTrv
+            },
+            {
+              label: 'No TRV',
               items: radiatorTypeMenus
             }
           ]
@@ -278,10 +292,6 @@ function createAltVizMenuBar(onMenuAction, getContext) {
   const context = typeof getContext === 'function' ? getContext() : {};
   const menuSpec = buildAltVizMenuSpec(context.demo);
 
-  const setMenuPath = (path) => {
-    persistedMenuPath = Array.isArray(path) ? path.slice() : [];
-  };
-
   const renderMenuItems = (items, level = 0, pathPrefix = []) => {
     const list = document.createElement('ul');
     list.className = level === 0 ? 'alt-viz-menu-list' : 'alt-viz-submenu-list';
@@ -292,10 +302,6 @@ function createAltVizMenuBar(onMenuAction, getContext) {
       if (item.disabled) li.classList.add('is-disabled');
       const currentPath = [...pathPrefix, item.label];
       li.dataset.menuPath = currentPath.join('>');
-
-      li.addEventListener('mouseenter', () => {
-        setMenuPath(currentPath);
-      });
 
       if (item.control === 'slider' && level > 0) {
         li.classList.add('alt-viz-slider-item');
@@ -324,11 +330,9 @@ function createAltVizMenuBar(onMenuAction, getContext) {
 
         slider.addEventListener('click', (e) => e.stopPropagation());
         slider.addEventListener('mousedown', (e) => e.stopPropagation());
-        slider.addEventListener('focus', () => setMenuPath(currentPath));
 
         slider.addEventListener('input', (e) => {
           e.stopPropagation();
-          setMenuPath(currentPath);
           valueText.textContent = `${slider.value}${item.unit || ''}`;
           if (typeof onMenuAction === 'function' && item.action) {
             onMenuAction(item.action, {
@@ -356,7 +360,6 @@ function createAltVizMenuBar(onMenuAction, getContext) {
 
       trigger.addEventListener('click', (e) => {
         e.stopPropagation();
-        setMenuPath(currentPath);
         if (item.disabled) return;
         if (!item.items && item.action && typeof onMenuAction === 'function') {
           onMenuAction(item.action, item, typeof getContext === 'function' ? getContext() : {});
@@ -377,14 +380,6 @@ function createAltVizMenuBar(onMenuAction, getContext) {
   };
 
   bar.appendChild(renderMenuItems(menuSpec, 0, []));
-
-  if (Array.isArray(persistedMenuPath) && persistedMenuPath.length > 0) {
-    for (let i = 1; i <= persistedMenuPath.length; i++) {
-      const key = persistedMenuPath.slice(0, i).join('>');
-      const node = bar.querySelector(`[data-menu-path="${key.replace(/"/g, '\\"')}"]`);
-      if (node) node.classList.add('is-open');
-    }
-  }
 
   return bar;
 }
