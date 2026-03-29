@@ -5,6 +5,7 @@ import { getThermalColorClass, THERMAL_COLOR_BY_CLASS } from './zone_thermal.js'
 let selectedLevel = null;
 let selectedZoneId = null;
 let dragState = null;
+let roomDragState = null;
 let suppressWallSelectionUntil = 0;
 const DRAG_START_THRESHOLD_PX = 6;
 const DRAG_SNAP_STEP_M = 0.1;
@@ -237,6 +238,83 @@ function clonePolygonMap(polygonMap) {
     cloned.set(zoneId, clonePolygon(polygon));
   }
   return cloned;
+}
+
+function translatePolygonByDelta(polygon, deltaX, deltaY) {
+  return polygon.map(pt => ({ x: pt.x + deltaX, y: pt.y + deltaY }));
+}
+
+function getPolygonAxisBounds(polygon) {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+
+  for (const pt of polygon || []) {
+    if (!pt || !isFinite(pt.x) || !isFinite(pt.y)) continue;
+    minX = Math.min(minX, pt.x);
+    maxX = Math.max(maxX, pt.x);
+    minY = Math.min(minY, pt.y);
+    maxY = Math.max(maxY, pt.y);
+  }
+
+  if (!isFinite(minX) || !isFinite(maxX) || !isFinite(minY) || !isFinite(maxY)) {
+    return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+  }
+  return { minX, maxX, minY, maxY };
+}
+
+function collectRoomDragSnapTargets(polygonMap, excludeZoneId, ghostPolygons = []) {
+  const xTargets = [];
+  const yTargets = [];
+
+  const addBoundsTargets = (polygon) => {
+    if (!isValidPolygon(polygon)) return;
+    const b = getPolygonAxisBounds(polygon);
+    xTargets.push(b.minX, b.maxX);
+    yTargets.push(b.minY, b.maxY);
+  };
+
+  for (const [zoneId, polygon] of polygonMap.entries()) {
+    if (zoneId === excludeZoneId) continue;
+    addBoundsTargets(polygon);
+  }
+
+  for (const polygon of ghostPolygons) {
+    addBoundsTargets(polygon);
+  }
+
+  return { xTargets, yTargets };
+}
+
+function snapRoomAxisDelta(rawDelta, baseMin, baseMax, targets, step, nearThreshold) {
+  if (!isFinite(rawDelta)) return 0;
+
+  let bestDelta = null;
+  let bestDist = Infinity;
+
+  for (const target of targets || []) {
+    if (!isFinite(target)) continue;
+    const deltaToMin = target - baseMin;
+    const distToMin = Math.abs(deltaToMin - rawDelta);
+    if (distToMin < bestDist) {
+      bestDist = distToMin;
+      bestDelta = deltaToMin;
+    }
+
+    const deltaToMax = target - baseMax;
+    const distToMax = Math.abs(deltaToMax - rawDelta);
+    if (distToMax < bestDist) {
+      bestDist = distToMax;
+      bestDelta = deltaToMax;
+    }
+  }
+
+  if (bestDelta !== null && bestDist <= nearThreshold) {
+    return bestDelta;
+  }
+
+  return snapOffsetMeters(rawDelta, step);
 }
 
 function isSamePoint(a, b, epsilon = 1e-6) {
@@ -968,7 +1046,7 @@ export function renderAlternativeViz(demo, opts = {}) {
 
   const hint = document.createElement('div');
   hint.className = 'alt-viz-message';
-  hint.textContent = 'Drag walls to reshape joined rooms on the active level, or click a wall to open that fabric element in the editor.';
+  hint.textContent = 'Drag walls to reshape joined rooms, or drag room bodies to move them. Click a wall to open that fabric element in the editor.';
   root.appendChild(hint);
 
   renderLegend(root);
@@ -1121,6 +1199,50 @@ export function renderAlternativeViz(demo, opts = {}) {
   };
 
   svg.addEventListener('mousemove', (e) => {
+    if (roomDragState) {
+      const svgPt = getSVGPoint(svg, e);
+      const worldPt = svgPointToWorld(svgPt, roomDragState.bounds, roomDragState.scale, roomDragState.pad);
+      const rawDeltaX = worldPt.x - roomDragState.startWorldPoint.x;
+      const rawDeltaY = worldPt.y - roomDragState.startWorldPoint.y;
+
+      const deltaX = snapRoomAxisDelta(
+        rawDeltaX,
+        roomDragState.baseBounds.minX,
+        roomDragState.baseBounds.maxX,
+        roomDragState.snapTargets.xTargets,
+        DRAG_SNAP_STEP_M,
+        DRAG_NEAR_SNAP_THRESHOLD_M
+      );
+      const deltaY = snapRoomAxisDelta(
+        rawDeltaY,
+        roomDragState.baseBounds.minY,
+        roomDragState.baseBounds.maxY,
+        roomDragState.snapTargets.yTargets,
+        DRAG_SNAP_STEP_M,
+        DRAG_NEAR_SNAP_THRESHOLD_M
+      );
+
+      roomDragState.currentDeltaX = deltaX;
+      roomDragState.currentDeltaY = deltaY;
+
+      const thresholdWorld = DRAG_START_THRESHOLD_PX / roomDragState.scale;
+      if (!roomDragState.didMove && Math.hypot(deltaX, deltaY) < thresholdWorld) {
+        return;
+      }
+      roomDragState.didMove = true;
+
+      const movedPolygon = translatePolygonByDelta(roomDragState.basePolygon, deltaX, deltaY);
+      polygonMap.set(roomDragState.zoneId, movedPolygon);
+      updateRenderedZoneGeometry(
+        zoneRenderStateById.get(roomDragState.zoneId),
+        movedPolygon,
+        roomDragState.bounds,
+        roomDragState.scale,
+        roomDragState.pad
+      );
+      return;
+    }
+
     if (!dragState) return;
     const svgPt = getSVGPoint(svg, e);
     const worldPt = svgPointToWorld(svgPt, dragState.bounds, dragState.scale, dragState.pad);
@@ -1170,6 +1292,20 @@ export function renderAlternativeViz(demo, opts = {}) {
   });
 
   const finishDrag = () => {
+    if (roomDragState) {
+      const { onDataChanged: onDC, zoneId, didMove, currentDeltaX = 0, currentDeltaY = 0, basePolygon } = roomDragState;
+      if (didMove) {
+        suppressWallSelectionUntil = Date.now() + 250;
+      }
+      roomDragState = null;
+      if (didMove && onDC) {
+        onDC({
+          [zoneId]: translatePolygonByDelta(basePolygon, currentDeltaX, currentDeltaY)
+        });
+      }
+      return;
+    }
+
     if (!dragState) return;
     const { onDataChanged: onDC, zoneIds, affectedEdges, didMove, currentOffset = 0 } = dragState;
     if (didMove) {
@@ -1204,7 +1340,7 @@ export function renderAlternativeViz(demo, opts = {}) {
   svg.addEventListener('mouseup', finishDrag);
   svg.addEventListener('mouseleave', finishDrag);
   svg.addEventListener('mousedown', () => {
-    if (!dragState) closeLengthEditor();
+    if (!dragState && !roomDragState) closeLengthEditor();
   });
 
   polygonEntries.forEach(({ zone }) => {
@@ -1223,9 +1359,38 @@ export function renderAlternativeViz(demo, opts = {}) {
     roomPoly.setAttribute('stroke', '#101010');
     roomPoly.setAttribute('stroke-width', String(strokeWidth));
     roomPoly.setAttribute('class', 'alt-room-rect');
-    roomPoly.style.cursor = 'pointer';
+    roomPoly.style.cursor = onDataChanged ? 'grab' : 'pointer';
+    roomPoly.addEventListener('mousedown', (e) => {
+      if (!onDataChanged || dragState || roomDragState) return;
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const basePolygon = polygonMap.get(zone.id);
+      if (!isValidPolygon(basePolygon)) return;
+      const startWorldPoint = svgPointToWorld(getSVGPoint(svg, e), bounds, scale, pad);
+      const baseBounds = getPolygonAxisBounds(basePolygon);
+      const snapTargets = collectRoomDragSnapTargets(polygonMap, zone.id, ghostPolygonsForSnap);
+      roomDragState = {
+        zoneId: zone.id,
+        bounds,
+        scale,
+        pad,
+        startWorldPoint,
+        basePolygon: clonePolygon(basePolygon),
+        baseBounds,
+        snapTargets,
+        onDataChanged,
+        didMove: false,
+        currentDeltaX: 0,
+        currentDeltaY: 0
+      };
+      roomPoly.style.cursor = 'grabbing';
+    });
+    roomPoly.addEventListener('mouseup', () => {
+      roomPoly.style.cursor = onDataChanged ? 'grab' : 'pointer';
+    });
     roomPoly.addEventListener('click', () => {
-      if (dragState) return;
+      if (dragState || roomDragState || Date.now() < suppressWallSelectionUntil) return;
       selectedZoneId = zone.id;
       if (onZoneSelected) onZoneSelected(zone.id);
       renderAlternativeViz(demo, opts);
