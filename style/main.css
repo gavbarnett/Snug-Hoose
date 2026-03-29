@@ -248,6 +248,22 @@ a#download:hover {
   display: block;
 }
 
+.alt-ghost-layer {
+  pointer-events: none;
+}
+
+.alt-ghost-room {
+  fill: rgba(180, 190, 205, 0.11);
+  stroke: rgba(190, 200, 215, 0.45);
+  stroke-width: 1.1;
+}
+
+.alt-ghost-wall {
+  stroke: rgba(190, 200, 215, 0.55);
+  stroke-width: 1.25;
+  stroke-dasharray: 5 4;
+}
+
 .alt-room-rect {
   transition: filter 0.15s ease, transform 0.15s ease;
 }

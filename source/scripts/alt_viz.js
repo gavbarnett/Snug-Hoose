@@ -81,6 +81,20 @@ function ensureSelectedLevel(levels) {
   }
 }
 
+function getGhostLevel(levels, activeLevel) {
+  if (!Array.isArray(levels) || levels.length < 2 || !isFinite(activeLevel)) return null;
+  const sorted = levels.slice().sort((a, b) => a - b);
+  const minLevel = sorted[0];
+  if (activeLevel === minLevel) {
+    return sorted[1] ?? null;
+  }
+
+  const below = sorted.filter(level => level < activeLevel);
+  if (below.length > 0) return below[below.length - 1];
+  const above = sorted.filter(level => level > activeLevel);
+  return above[0] ?? null;
+}
+
 function createLegendChip(label, className) {
   const chip = document.createElement('span');
   chip.className = 'alt-viz-chip';
@@ -466,6 +480,23 @@ function collectParallelSnapTargets(polygonMap, dragP0, dragP1, normal, excludeE
       const p1 = polygon[(i + 1) % polygon.length];
       const key = createEdgeKey(p0, p1);
       if (key === excludeEdgeKey) continue;
+      if (!areVectorsParallel(dragP0, dragP1, p0, p1)) continue;
+      targets.push(dotPointNormal(p0, normal));
+    }
+  }
+
+  return targets;
+}
+
+function collectParallelSnapTargetsFromPolygons(polygons, dragP0, dragP1, normal) {
+  const targets = [];
+  if (!Array.isArray(polygons)) return targets;
+
+  for (const polygon of polygons) {
+    if (!Array.isArray(polygon)) continue;
+    for (let i = 0; i < polygon.length; i++) {
+      const p0 = polygon[i];
+      const p1 = polygon[(i + 1) % polygon.length];
       if (!areVectorsParallel(dragP0, dragP1, p0, p1)) continue;
       targets.push(dotPointNormal(p0, normal));
     }
@@ -865,12 +896,21 @@ export function renderAlternativeViz(demo, opts = {}) {
     .map(zone => ({ zone, polygon: getPolygonForZone(zone, previewPolygons) }))
     .filter(entry => isValidPolygon(entry.polygon));
 
+  const ghostLevel = getGhostLevel(levels, selectedLevel);
+  const ghostRooms = ghostLevel === null
+    ? []
+    : rooms.filter(z => (typeof z.level === 'number' ? z.level : 0) === ghostLevel);
+  const ghostPreviewPolygons = buildSeedPolygons(ghostRooms);
+  const ghostEntries = ghostRooms
+    .map(zone => ({ zone, polygon: getPolygonForZone(zone, ghostPreviewPolygons) }))
+    .filter(entry => isValidPolygon(entry.polygon));
+
   if (polygonEntries.length === 0) {
     renderEmptyMessage(root, 'No valid polygons to render on selected level.');
     return;
   }
 
-  const bounds = polygonBounds(polygonEntries.map(e => e.polygon));
+  const bounds = polygonBounds([...polygonEntries.map(e => e.polygon), ...ghostEntries.map(e => e.polygon)]);
 
   const svgWrap = document.createElement('div');
   svgWrap.className = 'alt-viz-svg-wrap';
@@ -882,6 +922,9 @@ export function renderAlternativeViz(demo, opts = {}) {
   const scale = computeRenderScale(bounds, canvasW, canvasH, pad);
   const rawPolygonMap = new Map(polygonEntries.map(({ zone, polygon }) => [zone.id, clonePolygon(polygon)]));
   const polygonMap = normalizePolygonMapForSharedWalls(rawPolygonMap);
+  const ghostRawPolygonMap = new Map(ghostEntries.map(({ zone, polygon }) => [zone.id, clonePolygon(polygon)]));
+  const ghostPolygonMap = normalizePolygonMapForSharedWalls(ghostRawPolygonMap);
+  const ghostPolygonsForSnap = Array.from(ghostPolygonMap.values());
   const edgeGroups = buildSharedEdgeGroups(polygonMap);
   const zoneRenderStateById = new Map();
   let activeLengthEditor = null;
@@ -891,6 +934,34 @@ export function renderAlternativeViz(demo, opts = {}) {
   svg.setAttribute('viewBox', `0 0 ${canvasW} ${canvasH}`);
   svg.setAttribute('role', 'img');
   svg.setAttribute('aria-label', `Alternative polygon room view for level ${selectedLevel}`);
+
+  let ghostGroup = null;
+  if (ghostEntries.length > 0) {
+    ghostGroup = document.createElementNS(ns, 'g');
+    ghostGroup.setAttribute('class', 'alt-ghost-layer');
+    ghostEntries.forEach(({ zone }) => {
+      const polygon = ghostPolygonMap.get(zone.id);
+      if (!isValidPolygon(polygon)) return;
+      const projected = polygon.map(pt => projectPoint(pt, bounds, scale, pad));
+
+      const ghostPoly = document.createElementNS(ns, 'polygon');
+      ghostPoly.setAttribute('points', projected.map(p => `${p.x},${p.y}`).join(' '));
+      ghostPoly.setAttribute('class', 'alt-ghost-room');
+      ghostGroup.appendChild(ghostPoly);
+
+      for (let idx = 0; idx < projected.length; idx++) {
+        const p0 = projected[idx];
+        const p1 = projected[(idx + 1) % projected.length];
+        const ghostWall = document.createElementNS(ns, 'line');
+        ghostWall.setAttribute('x1', String(p0.x));
+        ghostWall.setAttribute('y1', String(p0.y));
+        ghostWall.setAttribute('x2', String(p1.x));
+        ghostWall.setAttribute('y2', String(p1.y));
+        ghostWall.setAttribute('class', 'alt-ghost-wall');
+        ghostGroup.appendChild(ghostWall);
+      }
+    });
+  }
 
   const closeLengthEditor = () => {
     if (activeLengthEditor && activeLengthEditor.parentNode) {
@@ -1147,6 +1218,8 @@ export function renderAlternativeViz(demo, opts = {}) {
           const edgeKey = createEdgeKey(baseP0, baseP1);
           const snapBaseCoord = dotPointNormal(baseP0, normal);
           const snapTargets = collectParallelSnapTargets(polygonMap, baseP0, baseP1, normal, edgeKey);
+          const ghostSnapTargets = collectParallelSnapTargetsFromPolygons(ghostPolygonsForSnap, baseP0, baseP1, normal);
+          snapTargets.push(...ghostSnapTargets);
           dragState = {
             bounds,
             scale,
@@ -1209,6 +1282,10 @@ export function renderAlternativeViz(demo, opts = {}) {
       lineCount: lines.length
     });
   });
+
+  if (ghostGroup) {
+    svg.appendChild(ghostGroup);
+  }
 
   svgWrap.appendChild(svg);
   root.appendChild(svgWrap);
