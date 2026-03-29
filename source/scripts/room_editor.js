@@ -1621,14 +1621,6 @@ export function initRoomEditor(opts) {
     const areaDisplay = document.createElement('span');
     areaDisplay.className = 'area-display';
 
-    const openingLengthInput = document.createElement('input');
-    openingLengthInput.dataset.focusKey = `${focusBaseKey}:length`;
-    openingLengthInput.type = 'number';
-    openingLengthInput.placeholder = 'Length on wall (m)';
-    openingLengthInput.step = '0.05';
-    openingLengthInput.min = '0.1';
-    openingLengthInput.max = '20';
-
     const positionInput = document.createElement('input');
     positionInput.dataset.focusKey = `${focusBaseKey}:position`;
     positionInput.type = 'number';
@@ -1648,7 +1640,6 @@ export function initRoomEditor(opts) {
       opening.area = Number(area.toFixed(3));
       opening.length_m = Number((wmm / 1000).toFixed(3));
       areaDisplay.textContent = `Area: ${opening.area}m²`;
-      openingLengthInput.value = String(opening.length_m);
       if (notify) {
         queueFocusRestore();
         onDataChanged();
@@ -1677,21 +1668,12 @@ export function initRoomEditor(opts) {
       ? opening.length_m
       : (lengthFromWidth > 0 ? lengthFromWidth : 1);
     opening.length_m = Number(storedLength.toFixed(3));
-    openingLengthInput.value = String(opening.length_m);
 
     const storedPositionRatio = typeof opening.position_ratio === 'number' && isFinite(opening.position_ratio)
       ? Math.max(0, Math.min(1, opening.position_ratio))
       : 0.5;
     opening.position_ratio = storedPositionRatio;
     positionInput.value = String(Math.round(storedPositionRatio * 100));
-
-    openingLengthInput.addEventListener('input', () => {
-      const lv = parseFloat(openingLengthInput.value);
-      if (!isFinite(lv) || lv <= 0) return;
-      opening.length_m = Number(lv.toFixed(3));
-      queueFocusRestore();
-      onDataChanged();
-    });
 
     positionInput.addEventListener('input', () => {
       const pv = parseFloat(positionInput.value);
@@ -1714,8 +1696,6 @@ export function initRoomEditor(opts) {
     placementRow.style.gap = '0.5rem';
     placementRow.style.alignItems = 'center';
     placementRow.style.flexWrap = 'wrap';
-    placementRow.appendChild(document.createTextNode('Wall length:'));
-    placementRow.appendChild(openingLengthInput);
     placementRow.appendChild(document.createTextNode('Position:'));
     placementRow.appendChild(positionInput);
     placementRow.appendChild(document.createTextNode('%'));
