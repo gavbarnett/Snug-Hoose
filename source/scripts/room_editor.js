@@ -1616,6 +1616,15 @@ export function initRoomEditor(opts) {
   }
 
   function createWindowsSection(element, parentKey, expandState) {
+    const redistributeWindowPositions = (windows) => {
+      if (!Array.isArray(windows) || windows.length === 0) return;
+      const count = windows.length;
+      windows.forEach((win, idx) => {
+        // Even spacing with edge margins: n=1 => 0.5, n=2 => 0.333/0.667, etc.
+        win.position_ratio = Number(((idx + 1) / (count + 1)).toFixed(3));
+      });
+    };
+
     const section = document.createElement('details');
     section.className = 'wall-subsection';
     restoreOpenState(section, `${parentKey}|sub:windows`, false, expandState);
@@ -1642,6 +1651,7 @@ export function initRoomEditor(opts) {
           focusBaseKey: `${parentKey}|window:${win.id || i}`,
           onRemove: () => {
             element.windows.splice(i, 1);
+            redistributeWindowPositions(element.windows);
             onDataChanged();
             refreshSelectedZone();
           }
@@ -1664,6 +1674,7 @@ export function initRoomEditor(opts) {
         length_m: 1.0,
         position_ratio: 0.5
       });
+      redistributeWindowPositions(element.windows);
       onDataChanged();
       refreshSelectedZone();
     });
