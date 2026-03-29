@@ -14,6 +14,11 @@ let roomEditorApi = null;
 let appUiApi = null;
 let defaultDemoTemplate = null;
 let lastFocusedZoneId = null;
+let undoStack = [];
+let redoStack = [];
+let isApplyingHistory = false;
+
+const MAX_HISTORY_STEPS = 100;
 
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -21,6 +26,46 @@ function deepClone(value) {
 
 function generateId(prefix = 'id') {
   return `${prefix}_${Math.random().toString(16).slice(2, 14)}`;
+}
+
+function clearHistory() {
+  undoStack = [];
+  redoStack = [];
+}
+
+function pushUndoSnapshot(snapshot) {
+  if (!snapshot || isApplyingHistory) return;
+  undoStack.push(snapshot);
+  if (undoStack.length > MAX_HISTORY_STEPS) {
+    undoStack.splice(0, undoStack.length - MAX_HISTORY_STEPS);
+  }
+  redoStack = [];
+}
+
+function applyHistorySnapshot(snapshot) {
+  if (!snapshot) return;
+  isApplyingHistory = true;
+  currentDemo = deepClone(snapshot);
+  ensureBoundaryZones(currentDemo);
+  isApplyingHistory = false;
+  triggerSolve();
+}
+
+function handleUndo() {
+  if (!currentDemo || undoStack.length === 0) return;
+  const previous = undoStack.pop();
+  redoStack.push(deepClone(currentDemo));
+  applyHistorySnapshot(previous);
+}
+
+function handleRedo() {
+  if (!currentDemo || redoStack.length === 0) return;
+  const next = redoStack.pop();
+  undoStack.push(deepClone(currentDemo));
+  if (undoStack.length > MAX_HISTORY_STEPS) {
+    undoStack.splice(0, undoStack.length - MAX_HISTORY_STEPS);
+  }
+  applyHistorySnapshot(next);
 }
 
 function ensureBoundaryZones(demo) {
@@ -411,6 +456,7 @@ function loadProjectFromFile() {
       const parsed = JSON.parse(text);
       currentDemo = parsed;
       ensureBoundaryZones(currentDemo);
+      clearHistory();
       triggerSolve();
     } catch (error) {
       console.error(error);
@@ -437,6 +483,7 @@ function createNewProjectBlank() {
   };
   ensureBoundaryZones(blank);
   currentDemo = blank;
+  clearHistory();
   triggerSolve();
 }
 
@@ -447,6 +494,7 @@ function createNewProjectFromTemplate() {
   }
   currentDemo = deepClone(defaultDemoTemplate);
   ensureBoundaryZones(currentDemo);
+  clearHistory();
   triggerSolve();
 }
 
@@ -457,14 +505,19 @@ function handleAltVizMenuAction(action, item, context = {}) {
   const selectedLevel = Number.isFinite(context.selectedLevel) ? context.selectedLevel : 0;
   const payload = item?.payload || {};
 
-  if (action === 'edit.undo' || action === 'edit.redo') return;
-
   switch (action) {
+    case 'edit.undo':
+      handleUndo();
+      return;
+    case 'edit.redo':
+      handleRedo();
+      return;
     case 'environment.set.indoor': {
       if (!currentDemo) return;
       currentDemo.meta = currentDemo.meta || {};
       const value = Number(payload.value);
       if (!Number.isFinite(value)) return;
+      pushUndoSnapshot(deepClone(currentDemo));
       currentDemo.meta.indoorTemp = value;
       triggerSolve();
       return;
@@ -474,6 +527,7 @@ function handleAltVizMenuAction(action, item, context = {}) {
       currentDemo.meta = currentDemo.meta || {};
       const value = Number(payload.value);
       if (!Number.isFinite(value)) return;
+      pushUndoSnapshot(deepClone(currentDemo));
       currentDemo.meta.externalTemp = value;
       triggerSolve();
       return;
@@ -483,6 +537,7 @@ function handleAltVizMenuAction(action, item, context = {}) {
       currentDemo.meta = currentDemo.meta || {};
       const value = Number(payload.value);
       if (!Number.isFinite(value)) return;
+      pushUndoSnapshot(deepClone(currentDemo));
       currentDemo.meta.flowTemp = value;
       triggerSolve();
       return;
@@ -501,6 +556,7 @@ function handleAltVizMenuAction(action, item, context = {}) {
       return;
     case 'structure.add.room': {
       if (!currentDemo) return;
+      pushUndoSnapshot(deepClone(currentDemo));
       const level = selectedZoneId
         ? (getZoneById(currentDemo, selectedZoneId)?.level ?? selectedLevel)
         : selectedLevel;
@@ -514,6 +570,7 @@ function handleAltVizMenuAction(action, item, context = {}) {
     }
     case 'structure.add.room.at': {
       if (!currentDemo) return;
+      pushUndoSnapshot(deepClone(currentDemo));
       const level = Number.isFinite(payload.level)
         ? payload.level
         : (selectedZoneId ? (getZoneById(currentDemo, selectedZoneId)?.level ?? selectedLevel) : selectedLevel);
@@ -530,6 +587,7 @@ function handleAltVizMenuAction(action, item, context = {}) {
     }
     case 'structure.add.floor': {
       if (!currentDemo) return;
+      pushUndoSnapshot(deepClone(currentDemo));
       const level = getNextLevel(currentDemo);
       const zone = createRoomOnLevel(currentDemo, level, `Floor ${level} Room`);
       triggerSolve();
@@ -542,11 +600,13 @@ function handleAltVizMenuAction(action, item, context = {}) {
     case 'openings.windows.add':
     case 'openings.windows.types.standard_sizes': {
       if (!currentDemo || !selectedZoneId) return;
+      const before = deepClone(currentDemo);
       if (addWindowToZoneWall(currentDemo, currentOpenings, selectedZoneId, {
         width: Number(payload.width),
         height: Number(payload.height),
         glazingId: payload.glazingId
       })) {
+        pushUndoSnapshot(before);
         lastFocusedZoneId = selectedZoneId;
         triggerSolve();
         if (roomEditorApi?.focusZone) roomEditorApi.focusZone(selectedZoneId);
@@ -556,11 +616,13 @@ function handleAltVizMenuAction(action, item, context = {}) {
     case 'openings.doors.add':
     case 'openings.doors.types.standard_sizes': {
       if (!currentDemo || !selectedZoneId) return;
+      const before = deepClone(currentDemo);
       if (addDoorToZoneWall(currentDemo, currentOpenings, selectedZoneId, {
         width: Number(payload.width),
         height: Number(payload.height),
         materialId: payload.materialId
       })) {
+        pushUndoSnapshot(before);
         lastFocusedZoneId = selectedZoneId;
         triggerSolve();
         if (roomEditorApi?.focusZone) roomEditorApi.focusZone(selectedZoneId);
@@ -571,12 +633,14 @@ function handleAltVizMenuAction(action, item, context = {}) {
     case 'hvac.radiators.standard_sizes.trv':
     case 'hvac.radiators.standard_sizes.no_trv': {
       if (!currentDemo || !selectedZoneId) return;
+      const before = deepClone(currentDemo);
       const trv = typeof payload.trvEnabled === 'boolean' ? payload.trvEnabled : action.endsWith('.trv');
       if (addRadiatorToZone(currentDemo, currentRadiators, selectedZoneId, trv, {
         width: Number(payload.width),
         height: Number(payload.height),
         radiatorId: payload.radiatorId
       })) {
+        pushUndoSnapshot(before);
         lastFocusedZoneId = selectedZoneId;
         triggerSolve();
         if (roomEditorApi?.focusZone) roomEditorApi.focusZone(selectedZoneId);
@@ -587,6 +651,7 @@ function handleAltVizMenuAction(action, item, context = {}) {
       if (!currentDemo || !selectedZoneId) return;
       const zone = getZoneById(currentDemo, selectedZoneId);
       if (!zone) return;
+      pushUndoSnapshot(deepClone(currentDemo));
       zone.is_boiler_control = true;
       delete zone.is_unheated;
       lastFocusedZoneId = selectedZoneId;
@@ -600,6 +665,7 @@ function handleAltVizMenuAction(action, item, context = {}) {
       if (!zoneId) return;
       const zone = getZoneById(currentDemo, zoneId);
       if (!zone) return;
+      pushUndoSnapshot(deepClone(currentDemo));
       const nextName = String(payload.name || '').trim();
       if (nextName) {
         zone.name = nextName;
@@ -885,6 +951,8 @@ async function solveAndRender(demoRaw) {
       openings: currentOpenings,
       radiators: currentRadiators
     }, {
+      canUndo: undoStack.length > 0,
+      canRedo: redoStack.length > 0,
       onMenuAction: handleAltVizMenuAction,
       onZoneSelected: (zoneId) => {
         lastFocusedZoneId = zoneId;
@@ -928,6 +996,7 @@ async function solveAndRender(demoRaw) {
       },
       onObjectMoved: (payload) => {
         if (!payload || !currentDemo) return;
+        const before = deepClone(currentDemo);
         let changed = false;
         if (payload.kind === 'opening') {
           changed = moveOpeningAcrossWalls(payload);
@@ -935,6 +1004,7 @@ async function solveAndRender(demoRaw) {
           changed = moveRadiatorAcrossZones(payload);
         }
         if (changed) {
+          pushUndoSnapshot(before);
           triggerSolve();
         }
       },
@@ -953,6 +1023,7 @@ async function solveAndRender(demoRaw) {
       },
       onDataChanged: (changedPolygons, maybePolygon) => {
         if (!currentDemo || !Array.isArray(currentDemo.zones)) return;
+        const before = deepClone(currentDemo);
 
         const polygonsByZoneId = Array.isArray(maybePolygon)
           ? { [changedPolygons]: maybePolygon }
@@ -970,6 +1041,7 @@ async function solveAndRender(demoRaw) {
 
         reconcileWallElementsFromPolygons(currentDemo, polygonsByZoneId);
 
+        pushUndoSnapshot(before);
         triggerSolve();
       }
     });

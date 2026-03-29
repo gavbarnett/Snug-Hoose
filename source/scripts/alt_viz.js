@@ -399,7 +399,10 @@ function createLevelMiniViews(rooms, levels, activeLevel, onSelectLevel, extraOp
   return wrap;
 }
 
-function buildAltVizMenuSpec(demo) {
+function buildAltVizMenuSpec(context = {}) {
+  const demo = context.demo;
+  const canUndo = !!context.canUndo;
+  const canRedo = !!context.canRedo;
   const windowSizes = [
     { label: '600 x 600 mm', width: 600, height: 600 },
     { label: '900 x 900 mm', width: 900, height: 900 },
@@ -515,8 +518,8 @@ function buildAltVizMenuSpec(demo) {
     {
       label: 'Edit',
       items: [
-        { label: 'Undo (Not Yet Implemented)', action: 'edit.undo', disabled: true },
-        { label: 'Redo (Not Yet Implemented)', action: 'edit.redo', disabled: true }
+        { label: 'Undo', action: 'edit.undo', disabled: !canUndo },
+        { label: 'Redo', action: 'edit.redo', disabled: !canRedo }
       ]
     },
     {
@@ -566,7 +569,7 @@ function createAltVizMenuBar(onMenuAction, getContext) {
   bar.className = 'alt-viz-menubar';
 
   const context = typeof getContext === 'function' ? getContext() : {};
-  const menuSpec = buildAltVizMenuSpec(context.demo);
+  const menuSpec = buildAltVizMenuSpec(context);
 
   const renderMenuItems = (items, level = 0, pathPrefix = []) => {
     const list = document.createElement('ul');
@@ -2167,6 +2170,8 @@ export function renderAlternativeViz(demo, opts = {}) {
   const onObjectMoved = typeof opts.onObjectMoved === 'function' ? opts.onObjectMoved : null;
   const onDataChanged = typeof opts.onDataChanged === 'function' ? opts.onDataChanged : null;
   const onMenuAction = typeof opts.onMenuAction === 'function' ? opts.onMenuAction : null;
+  const canUndo = !!opts.canUndo;
+  const canRedo = !!opts.canRedo;
 
   const requestAddRoomAt = (x, y, level) => {
     if (typeof onMenuAction !== 'function') return;
@@ -2192,6 +2197,8 @@ export function renderAlternativeViz(demo, opts = {}) {
 
   const menuBar = createAltVizMenuBar(onMenuAction, () => ({
     demo,
+    canUndo,
+    canRedo,
     selectedZoneId,
     selectedLevel
   }));
