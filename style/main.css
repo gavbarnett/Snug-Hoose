@@ -359,6 +359,31 @@ a#download:hover {
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.95));
 }
 
+.alt-object-handle {
+  pointer-events: auto;
+  stroke: rgba(0, 0, 0, 0.95);
+  stroke-width: 1.5;
+  opacity: 0.95;
+  transition: opacity 0.12s ease, stroke-width 0.12s ease;
+}
+
+.alt-object-handle:hover {
+  opacity: 1;
+  stroke-width: 2.5;
+}
+
+.alt-window-handle {
+  fill: #7edfff;
+}
+
+.alt-door-handle {
+  fill: #ffc56b;
+}
+
+.alt-radiator-handle {
+  fill: #ff8a70;
+}
+
 .alt-radiator-line {
   pointer-events: none;
   stroke: #ff7f6b;

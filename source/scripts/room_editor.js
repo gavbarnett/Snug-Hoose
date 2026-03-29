@@ -168,6 +168,7 @@ export function initRoomEditor(opts) {
       if (!zone.radiators) zone.radiators = [];
 
       zone.radiators.push({
+        id: generateUniqueId(),
         radiator_id: 'type_11',
         surface_area: 1.0,
         width: 800,
@@ -249,6 +250,54 @@ export function initRoomEditor(opts) {
     }
   }
 
+  function focusOpening(zoneId, elementId, kind, openingId) {
+    if (!zoneId || !elementId || !kind || !openingId) return;
+
+    focusElement(zoneId, elementId);
+
+    const openingCard = fabricList
+      ? fabricList.querySelector(
+          `[data-element-id="${CSS.escape(elementId)}"] [data-opening-kind="${CSS.escape(kind)}"][data-opening-id="${CSS.escape(openingId)}"]`
+        )
+      : null;
+    if (!openingCard) return;
+
+    const parentSections = [];
+    let node = openingCard.parentElement;
+    while (node) {
+      if (node.tagName === 'DETAILS') parentSections.push(node);
+      node = node.parentElement;
+    }
+    parentSections.forEach(section => {
+      section.open = true;
+    });
+
+    const firstField = openingCard.querySelector('[data-focus-key]');
+    if (firstField) {
+      firstField.focus();
+    } else {
+      openingCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  function focusRadiator(zoneId, radiatorId) {
+    if (!zoneId || !radiatorId) return;
+
+    focusZone(zoneId);
+
+    const radiatorCard = radiatorsList
+      ? radiatorsList.querySelector(`[data-radiator-id="${CSS.escape(radiatorId)}"]`)
+      : null;
+    if (!radiatorCard) return;
+
+    const firstField = radiatorCard.querySelector('[data-focus-key]');
+    if (firstField) {
+      firstField.focus();
+    } else {
+      radiatorCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
   function populateRoomEditor(zoneId) {
     const demo = getDemo();
     const radiatorsData = getRadiatorsData();
@@ -269,9 +318,14 @@ export function initRoomEditor(opts) {
 
     if (Array.isArray(zone.radiators)) {
       zone.radiators.forEach((radSpec, index) => {
+        if (!radSpec.id) {
+          radSpec.id = generateUniqueId();
+        }
+
         const radFocusBaseKey = `zone:${zoneKey}|radiator:${index}`;
         const item = document.createElement('div');
         item.className = 'radiator-item';
+        item.dataset.radiatorId = String(radSpec.id);
 
         const typeSelect = document.createElement('select');
         typeSelect.dataset.focusKey = `${radFocusBaseKey}:type`;
@@ -1753,6 +1807,8 @@ export function initRoomEditor(opts) {
 
     const wrap = document.createElement('div');
     wrap.className = 'radiator-item';
+    wrap.dataset.openingKind = String(kind);
+    wrap.dataset.openingId = String(opening.id || `opening_${index}`);
 
     const form = document.createElement('div');
     form.style.display = 'flex';
@@ -2373,6 +2429,8 @@ export function initRoomEditor(opts) {
   return {
     refreshSelectedZone,
     focusZone,
-    focusElement
+    focusElement,
+    focusOpening,
+    focusRadiator
   };
 }

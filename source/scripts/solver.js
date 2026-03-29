@@ -94,6 +94,110 @@ function getOpeningMaterials(openings) {
   return [...windows.map(asMaterial), ...doors.map(asMaterial)];
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function parseSyntheticIndex(id, prefix) {
+  const match = String(id || '').match(new RegExp(`^${prefix}_(\\d+)$`));
+  if (!match) return null;
+  const index = Number(match[1]);
+  return Number.isInteger(index) && index >= 0 ? index : null;
+}
+
+function findOpeningInWall(wall, openingKind, openingId) {
+  if (!wall) return { list: null, index: -1, opening: null };
+  const listKey = openingKind === 'window' ? 'windows' : 'doors';
+  if (!Array.isArray(wall[listKey])) wall[listKey] = [];
+  const list = wall[listKey];
+
+  let index = list.findIndex(item => String(item?.id || '') === String(openingId || ''));
+  if (index < 0) {
+    const syntheticIndex = parseSyntheticIndex(openingId, 'opening');
+    if (syntheticIndex !== null && syntheticIndex < list.length) {
+      index = syntheticIndex;
+    }
+  }
+
+  return {
+    list,
+    index,
+    opening: index >= 0 ? list[index] : null
+  };
+}
+
+function moveOpeningAcrossWalls(payload) {
+  if (!currentDemo || !Array.isArray(currentDemo.elements) || !payload) return false;
+  const {
+    openingKind,
+    openingId,
+    sourceWallElementId,
+    targetWallElementId,
+    targetZoneId,
+    targetPositionRatio
+  } = payload;
+
+  const sourceWall = currentDemo.elements.find(el => el?.id === sourceWallElementId);
+  const targetWall = currentDemo.elements.find(el => el?.id === targetWallElementId);
+  if (!sourceWall || !targetWall) return false;
+
+  const sourceMatch = findOpeningInWall(sourceWall, openingKind, openingId);
+  if (!sourceMatch.opening) return false;
+  const opening = sourceMatch.opening;
+  opening.position_ratio = Number(clamp(Number(targetPositionRatio), 0, 1).toFixed(3));
+  if (targetZoneId) {
+    opening.zone_id = targetZoneId;
+  }
+
+  if (sourceWall.id === targetWall.id) {
+    return true;
+  }
+
+  sourceMatch.list.splice(sourceMatch.index, 1);
+  const targetListKey = openingKind === 'window' ? 'windows' : 'doors';
+  if (!Array.isArray(targetWall[targetListKey])) targetWall[targetListKey] = [];
+  targetWall[targetListKey].push(opening);
+  return true;
+}
+
+function moveRadiatorAcrossZones(payload) {
+  if (!currentDemo || !Array.isArray(currentDemo.zones) || !payload) return false;
+  const { sourceZoneId, targetZoneId, radiatorId, targetWallElementId, targetPositionRatio } = payload;
+  const sourceZone = currentDemo.zones.find(zone => zone?.id === sourceZoneId);
+  const targetZone = currentDemo.zones.find(zone => zone?.id === targetZoneId);
+  if (!sourceZone || !targetZone) return false;
+  if (!Array.isArray(sourceZone.radiators)) sourceZone.radiators = [];
+  if (!Array.isArray(targetZone.radiators)) targetZone.radiators = [];
+
+  let index = sourceZone.radiators.findIndex(rad => String(rad?.id || '') === String(radiatorId || ''));
+  if (index < 0) {
+    const syntheticIndex = parseSyntheticIndex(radiatorId, 'radiator');
+    if (syntheticIndex !== null && syntheticIndex < sourceZone.radiators.length) {
+      index = syntheticIndex;
+    }
+  }
+  if (index < 0) return false;
+
+  const radiator = sourceZone.radiators[index];
+  if (!radiator.id && radiatorId && !String(radiatorId).startsWith('radiator_')) {
+    radiator.id = String(radiatorId);
+  }
+  if (targetWallElementId) {
+    radiator.wall_element_id = targetWallElementId;
+  }
+  if (typeof targetPositionRatio === 'number' && isFinite(targetPositionRatio)) {
+    radiator.position_ratio = Number(clamp(targetPositionRatio, 0, 1).toFixed(3));
+  }
+
+  if (sourceZone.id === targetZone.id) {
+    return true;
+  }
+
+  sourceZone.radiators.splice(index, 1);
+  targetZone.radiators.push(radiator);
+  return true;
+}
+
 async function solveAndRender(demoRaw) {
   try {
     if (!currentMaterials) {
@@ -183,6 +287,40 @@ async function solveAndRender(demoRaw) {
         }
         if (roomEditorApi && typeof roomEditorApi.focusZone === 'function') {
           roomEditorApi.focusZone(zoneId);
+        }
+      },
+      onOpeningSelected: (zoneId, elementId, kind, openingId) => {
+        if (roomEditorApi && typeof roomEditorApi.focusOpening === 'function') {
+          roomEditorApi.focusOpening(zoneId, elementId, kind, openingId);
+          return;
+        }
+        if (roomEditorApi && typeof roomEditorApi.focusElement === 'function') {
+          roomEditorApi.focusElement(zoneId, elementId);
+          return;
+        }
+        if (roomEditorApi && typeof roomEditorApi.focusZone === 'function') {
+          roomEditorApi.focusZone(zoneId);
+        }
+      },
+      onRadiatorSelected: (zoneId, radiatorId) => {
+        if (roomEditorApi && typeof roomEditorApi.focusRadiator === 'function') {
+          roomEditorApi.focusRadiator(zoneId, radiatorId);
+          return;
+        }
+        if (roomEditorApi && typeof roomEditorApi.focusZone === 'function') {
+          roomEditorApi.focusZone(zoneId);
+        }
+      },
+      onObjectMoved: (payload) => {
+        if (!payload || !currentDemo) return;
+        let changed = false;
+        if (payload.kind === 'opening') {
+          changed = moveOpeningAcrossWalls(payload);
+        } else if (payload.kind === 'radiator') {
+          changed = moveRadiatorAcrossZones(payload);
+        }
+        if (changed) {
+          triggerSolve();
         }
       },
       onSeedLevelPolygons: (_level, polygonsByZoneId) => {

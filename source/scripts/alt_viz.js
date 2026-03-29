@@ -6,11 +6,17 @@ let selectedLevel = null;
 let selectedZoneId = null;
 let dragState = null;
 let roomDragState = null;
+let objectDragState = null;
 let suppressWallSelectionUntil = 0;
 const DRAG_START_THRESHOLD_PX = 6;
 const DRAG_SNAP_STEP_M = 0.1;
 const DRAG_NEAR_SNAP_THRESHOLD_M = 0.6;
 const DOOR_SWING_DEGREES = 20;
+const OBJECT_HANDLE_RADIUS_PX = 6;
+const OPENING_HANDLE_OFFSET_ALONG_PX = 14;
+const OPENING_HANDLE_OFFSET_NORMAL_PX = 12;
+const RADIATOR_HANDLE_OFFSET_NORMAL_PX = 14;
+const WALL_LABEL_OFFSET_PX = 16;
 
 function snapOffsetMeters(offset, step) {
   if (!isFinite(offset)) return 0;
@@ -601,6 +607,49 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function pointInPolygon(point, polygon) {
+  if (!point || !Array.isArray(polygon) || polygon.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].x;
+    const yi = polygon[i].y;
+    const xj = polygon[j].x;
+    const yj = polygon[j].y;
+    const denom = yj - yi;
+    if (Math.abs(denom) < 1e-12) continue;
+    const intersects = ((yi > point.y) !== (yj > point.y))
+      && (point.x < ((xj - xi) * (point.y - yi)) / denom + xi);
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function distancePointToSegment(point, p0, p1) {
+  const dx = p1.x - p0.x;
+  const dy = p1.y - p0.y;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq <= 1e-12) {
+    const ddx = point.x - p0.x;
+    const ddy = point.y - p0.y;
+    return {
+      distance: Math.hypot(ddx, ddy),
+      ratio: 0,
+      closestPoint: { x: p0.x, y: p0.y }
+    };
+  }
+  const rawRatio = ((point.x - p0.x) * dx + (point.y - p0.y) * dy) / lenSq;
+  const ratio = clamp(rawRatio, 0, 1);
+  const closestPoint = {
+    x: p0.x + dx * ratio,
+    y: p0.y + dy * ratio
+  };
+  return {
+    distance: Math.hypot(point.x - closestPoint.x, point.y - closestPoint.y),
+    ratio,
+    closestPoint
+  };
+}
+
 function lerp(a, b, t) {
   return a + (b - a) * t;
 }
@@ -620,6 +669,106 @@ function lerpColorHex(hexA, hexB, t) {
   const tt = clamp(t, 0, 1);
   const toHex = (v) => Math.round(clamp(v, 0, 255)).toString(16).padStart(2, '0');
   return `#${toHex(lerp(a.r, b.r, tt))}${toHex(lerp(a.g, b.g, tt))}${toHex(lerp(a.b, b.b, tt))}`;
+}
+
+function getSegmentFrame(segment, centroidPoint = null) {
+  if (!segment) return null;
+  const dx = segment.x2 - segment.x1;
+  const dy = segment.y2 - segment.y1;
+  const len = Math.hypot(dx, dy);
+  if (!isFinite(len) || len <= 1e-6) {
+    return {
+      midX: (segment.x1 + segment.x2) / 2,
+      midY: (segment.y1 + segment.y2) / 2,
+      tangentX: 1,
+      tangentY: 0,
+      normalX: 0,
+      normalY: -1
+    };
+  }
+
+  const tangentX = dx / len;
+  const tangentY = dy / len;
+  const midX = (segment.x1 + segment.x2) / 2;
+  const midY = (segment.y1 + segment.y2) / 2;
+  let normalX = -tangentY;
+  let normalY = tangentX;
+
+  if (centroidPoint) {
+    const toCentroidX = centroidPoint.x - midX;
+    const toCentroidY = centroidPoint.y - midY;
+    if ((toCentroidX * normalX) + (toCentroidY * normalY) < 0) {
+      normalX *= -1;
+      normalY *= -1;
+    }
+  }
+
+  return { midX, midY, tangentX, tangentY, normalX, normalY };
+}
+
+function getOffsetHandlePositionFromSegment(segment, alongPx = 0, normalPx = 0, centroidPoint = null) {
+  const frame = getSegmentFrame(segment, centroidPoint);
+  if (!frame) return null;
+
+  return {
+    x: frame.midX + frame.tangentX * alongPx + frame.normalX * normalPx,
+    y: frame.midY + frame.tangentY * alongPx + frame.normalY * normalPx
+  };
+}
+
+function updateOpeningRenderState(openingState, segment, centroidPoint) {
+  if (!openingState || !segment) return;
+  openingState.line.setAttribute('x1', String(segment.x1));
+  openingState.line.setAttribute('y1', String(segment.y1));
+  openingState.line.setAttribute('x2', String(segment.x2));
+  openingState.line.setAttribute('y2', String(segment.y2));
+
+  if (openingState.arc) {
+    const swing = computeDoorSwingGeometry(segment, openingState.opening);
+    if (swing) openingState.arc.setAttribute('d', swing.arcPath);
+  }
+  if (openingState.leaf) {
+    const swing = computeDoorSwingGeometry(segment, openingState.opening);
+    if (swing) {
+      openingState.leaf.setAttribute('x1', String(swing.hinge.x));
+      openingState.leaf.setAttribute('y1', String(swing.hinge.y));
+      openingState.leaf.setAttribute('x2', String(swing.openLeafEnd.x));
+      openingState.leaf.setAttribute('y2', String(swing.openLeafEnd.y));
+    }
+  }
+
+  if (openingState.handle) {
+    const handlePos = getOffsetHandlePositionFromSegment(
+      segment,
+      OPENING_HANDLE_OFFSET_ALONG_PX,
+      OPENING_HANDLE_OFFSET_NORMAL_PX,
+      centroidPoint
+    );
+    openingState.handle.setAttribute('cx', String(handlePos.x));
+    openingState.handle.setAttribute('cy', String(handlePos.y));
+  }
+}
+
+function updateRadiatorRenderState(renderState, segment, labelText, centroidPoint) {
+  if (!renderState || !segment) return;
+  renderState.line.setAttribute('x1', String(segment.x1));
+  renderState.line.setAttribute('y1', String(segment.y1));
+  renderState.line.setAttribute('x2', String(segment.x2));
+  renderState.line.setAttribute('y2', String(segment.y2));
+  renderState.line.setAttribute('stroke-width', String(segment.thickness));
+  renderState.line.setAttribute('title', segment.title);
+
+  const midX = (segment.x1 + segment.x2) / 2;
+  const midY = (segment.y1 + segment.y2) / 2;
+  renderState.label.setAttribute('x', String(midX));
+  renderState.label.setAttribute('y', String(midY - 8));
+  renderState.label.textContent = labelText;
+
+  if (renderState.handle) {
+    const handlePos = getOffsetHandlePositionFromSegment(segment, 0, RADIATOR_HANDLE_OFFSET_NORMAL_PX, centroidPoint);
+    renderState.handle.setAttribute('cx', String(handlePos.x));
+    renderState.handle.setAttribute('cy', String(handlePos.y));
+  }
 }
 
 export function getWallStackRValue(element) {
@@ -889,13 +1038,12 @@ function updateRenderedZoneGeometry(zoneRenderState, polygon, bounds, scale, pad
   zoneRenderState.edgeLabelElements?.forEach((label, idx) => {
     const p0 = projected[idx];
     const p1 = projected[(idx + 1) % projected.length];
-    const midX = (p0.x + p1.x) / 2;
-    const midY = (p0.y + p1.y) / 2;
     const worldP0 = polygon[idx];
     const worldP1 = polygon[(idx + 1) % polygon.length];
     const len = Math.hypot(worldP1.x - worldP0.x, worldP1.y - worldP0.y);
-    label.setAttribute('x', String(midX));
-    label.setAttribute('y', String(midY));
+    const frame = getSegmentFrame({ x1: p0.x, y1: p0.y, x2: p1.x, y2: p1.y }, centroid);
+    label.setAttribute('x', String(frame.midX - frame.normalX * WALL_LABEL_OFFSET_PX));
+    label.setAttribute('y', String(frame.midY - frame.normalY * WALL_LABEL_OFFSET_PX));
     label.textContent = formatLengthLabel(len);
   });
 
@@ -910,52 +1058,50 @@ function updateRenderedZoneGeometry(zoneRenderState, polygon, bounds, scale, pad
     openingsOnEdge.forEach(openingState => {
       const segment = computeOpeningSegmentOnEdge(openingState.opening, worldP0, worldP1, screenP0, screenP1);
       if (!segment) return;
-      openingState.line.setAttribute('x1', String(segment.x1));
-      openingState.line.setAttribute('y1', String(segment.y1));
-      openingState.line.setAttribute('x2', String(segment.x2));
-      openingState.line.setAttribute('y2', String(segment.y2));
-      if (openingState.arc) {
-        const swing = computeDoorSwingGeometry(segment, openingState.opening);
-        if (swing) openingState.arc.setAttribute('d', swing.arcPath);
-      }
-      if (openingState.leaf) {
-        const swing = computeDoorSwingGeometry(segment, openingState.opening);
-        if (swing) {
-          openingState.leaf.setAttribute('x1', String(swing.hinge.x));
-          openingState.leaf.setAttribute('y1', String(swing.hinge.y));
-          openingState.leaf.setAttribute('x2', String(swing.openLeafEnd.x));
-          openingState.leaf.setAttribute('y2', String(swing.openLeafEnd.y));
-        }
-      }
+      updateOpeningRenderState(openingState, segment, centroid);
     });
   });
 
-  if (Array.isArray(zoneRenderState.radiatorElements)) {
-    const radiatorSegments = computeRadiatorSegments(zoneRenderState.zone, polygon, projected);
-    zoneRenderState.radiatorElements.forEach((line, idx) => {
-      const seg = radiatorSegments[idx];
-      if (!seg) return;
-      line.setAttribute('x1', String(seg.x1));
-      line.setAttribute('y1', String(seg.y1));
-      line.setAttribute('x2', String(seg.x2));
-      line.setAttribute('y2', String(seg.y2));
-      line.setAttribute('stroke-width', String(seg.thickness));
-      line.setAttribute('title', seg.title);
-    });
-  }
+  const radiatorSegments = computeRadiatorSegments(
+    zoneRenderState.demo,
+    zoneRenderState.edgeGroups,
+    zoneRenderState.polygonMap,
+    zoneRenderState.zone,
+    polygon,
+    projected
+  );
 
-  if (Array.isArray(zoneRenderState.radiatorLabelElements)) {
-    const radiatorSegments = computeRadiatorSegments(zoneRenderState.zone, polygon, projected);
-    zoneRenderState.radiatorLabelElements.forEach((label, idx) => {
-      const seg = radiatorSegments[idx];
-      if (!seg) return;
-      const midX = (seg.x1 + seg.x2) / 2;
-      const midY = (seg.y1 + seg.y2) / 2;
-      label.setAttribute('x', String(midX));
-      label.setAttribute('y', String(midY - 8));
-      label.textContent = seg.radiatorType.replace(/^type_/i, '');
-    });
-  }
+  zoneRenderState.radiatorElements?.forEach((line, idx) => {
+    if (!line) return;
+    const seg = radiatorSegments[idx];
+    if (!seg) return;
+    line.setAttribute('x1', String(seg.x1));
+    line.setAttribute('y1', String(seg.y1));
+    line.setAttribute('x2', String(seg.x2));
+    line.setAttribute('y2', String(seg.y2));
+    line.setAttribute('stroke-width', String(seg.thickness));
+    line.setAttribute('title', seg.title);
+  });
+
+  zoneRenderState.radiatorLabelElements?.forEach((label, idx) => {
+    if (!label) return;
+    const seg = radiatorSegments[idx];
+    if (!seg) return;
+    const midX = (seg.x1 + seg.x2) / 2;
+    const midY = (seg.y1 + seg.y2) / 2;
+    label.setAttribute('x', String(midX));
+    label.setAttribute('y', String(midY - 8));
+    label.textContent = seg.radiatorType.replace(/^type_/i, '');
+  });
+
+  zoneRenderState.radiatorHandleElements?.forEach((handle, idx) => {
+    if (!handle) return;
+    const seg = radiatorSegments[idx];
+    if (!seg) return;
+    const handlePos = getOffsetHandlePositionFromSegment(seg, 0, RADIATOR_HANDLE_OFFSET_NORMAL_PX, centroid);
+    handle.setAttribute('cx', String(handlePos.x));
+    handle.setAttribute('cy', String(handlePos.y));
+  });
 }
 
 function highlightDraggedEdges(zoneRenderStateById, affectedEdges, active) {
@@ -1047,20 +1193,38 @@ function getOpeningPositionRatio(opening) {
   return clamp(opening.position_ratio, 0, 1);
 }
 
+function getOpeningId(opening, fallbackIndex) {
+  if (opening?.id) return String(opening.id);
+  return `opening_${fallbackIndex}`;
+}
+
+function getRadiatorId(radiator, fallbackIndex) {
+  if (radiator?.id) return String(radiator.id);
+  return `radiator_${fallbackIndex}`;
+}
+
 function getWallOpeningsForRender(wall) {
   if (!wall) return [];
+  const defaultOwnerZoneId = Array.isArray(wall.nodes) && wall.nodes.length > 0 ? wall.nodes[0] : null;
   const windows = Array.isArray(wall.windows) ? wall.windows : [];
   const doors = Array.isArray(wall.doors) ? wall.doors : [];
   return [
-    ...windows.map(opening => ({ kind: 'window', opening })),
-    ...doors.map(opening => ({ kind: 'door', opening }))
+    ...windows.map(opening => ({
+      kind: 'window',
+      opening,
+      ownerZoneId: opening?.zone_id || defaultOwnerZoneId
+    })),
+    ...doors.map(opening => ({
+      kind: 'door',
+      opening,
+      ownerZoneId: opening?.zone_id || defaultOwnerZoneId
+    }))
   ];
 }
 
 function shouldRenderOpeningsForWallEdge(wall, zoneId) {
   if (!wall || !Array.isArray(wall.nodes) || wall.nodes.length < 2) return false;
-  // Render openings from a single side only to avoid mirrored duplicates.
-  return wall.nodes[0] === zoneId;
+  return wall.nodes.includes(zoneId);
 }
 
 function computeOpeningSegmentOnEdge(opening, worldP0, worldP1, screenP0, screenP1) {
@@ -1113,6 +1277,48 @@ function computeDoorSwingGeometry(segment, opening, swingDegrees = DOOR_SWING_DE
     openLeafEnd: { x: ox, y: oy },
     arcPath: `M ${closedLeafEnd.x} ${closedLeafEnd.y} A ${r} ${r} 0 0 1 ${ox} ${oy}`
   };
+}
+
+function findContainingZoneIdForPoint(point, polygonMap) {
+  for (const [zoneId, polygon] of polygonMap.entries()) {
+    if (pointInPolygon(point, polygon)) return zoneId;
+  }
+  return null;
+}
+
+function findNearestWallDropTarget(demo, polygonMap, edgeGroups, zoneId, worldPoint, bounds, scale, pad) {
+  const polygon = polygonMap.get(zoneId);
+  if (!isValidPolygon(polygon)) return null;
+
+  let best = null;
+  let bestDistance = Infinity;
+
+  for (let edgeIndex = 0; edgeIndex < polygon.length; edgeIndex++) {
+    const wall = findWallElementForEdge(demo, edgeGroups, polygonMap, zoneId, edgeIndex);
+    if (!wall || !wall.id) continue;
+    if (!Array.isArray(wall.nodes) || !wall.nodes.includes(zoneId)) continue;
+
+    const p0 = polygon[edgeIndex];
+    const p1 = polygon[(edgeIndex + 1) % polygon.length];
+    const seg = distancePointToSegment(worldPoint, p0, p1);
+    if (seg.distance < bestDistance) {
+      bestDistance = seg.distance;
+      const screenP0 = projectPoint(p0, bounds, scale, pad);
+      const screenP1 = projectPoint(p1, bounds, scale, pad);
+      best = {
+        targetWallElementId: wall.id,
+        targetPositionRatio: Number(seg.ratio.toFixed(3)),
+        edgeIndex,
+        worldP0: p0,
+        worldP1: p1,
+        screenP0,
+        screenP1,
+        polygon
+      };
+    }
+  }
+
+  return best;
 }
 
 function getRadiatorThicknessForId(radiatorId) {
@@ -1172,78 +1378,101 @@ function chooseRadiatorEdge(polygon) {
   return bestHorizontal !== null ? bestHorizontal : fallbackLongest;
 }
 
-function computeRadiatorSegments(zone, polygon, projected) {
-  const radiators = Array.isArray(zone?.radiators) ? zone.radiators : [];
-  if (!Array.isArray(polygon) || !Array.isArray(projected) || radiators.length === 0) return [];
+function findEdgeIndexForWallElementId(demo, edgeGroups, polygonMap, zoneId, wallElementId) {
+  if (!wallElementId) return null;
+  const polygon = polygonMap.get(zoneId);
+  if (!isValidPolygon(polygon)) return null;
 
-  const edgeIndex = chooseRadiatorEdge(polygon);
-  if (edgeIndex === null || edgeIndex < 0) return [];
+  for (let edgeIndex = 0; edgeIndex < polygon.length; edgeIndex++) {
+    const wall = findWallElementForEdge(demo, edgeGroups, polygonMap, zoneId, edgeIndex);
+    if (wall?.id === wallElementId) return edgeIndex;
+  }
+  return null;
+}
 
-  const worldP0 = polygon[edgeIndex];
-  const worldP1 = polygon[(edgeIndex + 1) % polygon.length];
-  const screenP0 = projected[edgeIndex];
-  const screenP1 = projected[(edgeIndex + 1) % projected.length];
+function getRadiatorPositionRatio(radiator) {
+  if (typeof radiator?.position_ratio === 'number' && isFinite(radiator.position_ratio)) {
+    return clamp(radiator.position_ratio, 0, 1);
+  }
+  return null;
+}
 
+function computeRadiatorSegmentForPlacement(radiator, worldP0, worldP1, screenP0, screenP1, positionRatio) {
   const worldLen = Math.hypot(worldP1.x - worldP0.x, worldP1.y - worldP0.y);
   const screenLen = Math.hypot(screenP1.x - screenP0.x, screenP1.y - screenP0.y);
-  if (!isFinite(worldLen) || worldLen <= 1e-6 || !isFinite(screenLen) || screenLen <= 1e-6) return [];
+  if (!isFinite(worldLen) || worldLen <= 1e-6 || !isFinite(screenLen) || screenLen <= 1e-6) return null;
+
+  const segmentLength = clamp(getRadiatorNominalLengthMeters(radiator), 0.35, Math.max(0.35, worldLen * 0.88));
+  const halfRatio = clamp((segmentLength / worldLen) / 2, 0.02, 0.49);
+  const centerRatio = clamp(positionRatio ?? 0.5, halfRatio, 1 - halfRatio);
+  const startT = clamp(centerRatio - halfRatio, 0, 1);
+  const endT = clamp(centerRatio + halfRatio, 0, 1);
 
   const edgeUx = (screenP1.x - screenP0.x) / screenLen;
   const edgeUy = (screenP1.y - screenP0.y) / screenLen;
-
-  const centroid = polygonCentroid(polygon);
-  const midX = (screenP0.x + screenP1.x) / 2;
-  const midY = (screenP0.y + screenP1.y) / 2;
-  let normalX = -edgeUy;
-  let normalY = edgeUx;
-  const toCentroidX = centroid.x - ((worldP0.x + worldP1.x) / 2);
-  const toCentroidY = centroid.y - ((worldP0.y + worldP1.y) / 2);
-  const worldEdgeLen = Math.hypot(worldP1.x - worldP0.x, worldP1.y - worldP0.y);
-  const worldEdgeUx = (worldP1.x - worldP0.x) / worldEdgeLen;
-  const worldEdgeUy = (worldP1.y - worldP0.y) / worldEdgeLen;
-  const worldNormalX = -worldEdgeUy;
-  const worldNormalY = worldEdgeUx;
-  if ((toCentroidX * worldNormalX + toCentroidY * worldNormalY) < 0) {
-    normalX *= -1;
-    normalY *= -1;
-  }
-
-  const lengths = radiators.map(r => clamp(getRadiatorNominalLengthMeters(r), 0.35, 2.2));
-  const gap = Math.max(0.12, Math.min(0.25, worldLen * 0.06));
-  const totalGaps = gap * Math.max(0, radiators.length - 1);
-  const maxFill = worldLen * 0.88;
-  const totalLength = lengths.reduce((sum, len) => sum + len, 0);
-  const scale = (totalLength + totalGaps) > maxFill ? (maxFill - totalGaps) / Math.max(totalLength, 1e-6) : 1;
-  const scaledLengths = lengths.map(len => len * clamp(scale, 0.15, 1));
-  const usedLength = scaledLengths.reduce((sum, len) => sum + len, 0) + totalGaps;
-  let cursor = (worldLen - usedLength) / 2;
-  cursor = Math.max(0, cursor);
-
   const insetPx = 10;
-  const segments = [];
+  const normalX = -edgeUy;
+  const normalY = edgeUx;
 
-  radiators.forEach((rad, idx) => {
-    const segLen = scaledLengths[idx];
-    const startT = clamp(cursor / worldLen, 0, 1);
-    const endT = clamp((cursor + segLen) / worldLen, 0, 1);
+  return {
+    x1: lerp(screenP0.x, screenP1.x, startT) + normalX * insetPx,
+    y1: lerp(screenP0.y, screenP1.y, startT) + normalY * insetPx,
+    x2: lerp(screenP0.x, screenP1.x, endT) + normalX * insetPx,
+    y2: lerp(screenP0.y, screenP1.y, endT) + normalY * insetPx,
+    thickness: getRadiatorThicknessForId(radiator?.radiator_id),
+    radiatorType: String(radiator?.radiator_id || 'rad'),
+    title: `${radiator?.radiator_id || 'radiator'} (${segmentLength.toFixed(2)}m)`,
+    positionRatio: centerRatio
+  };
+}
 
-    const sx = lerp(screenP0.x, screenP1.x, startT) + normalX * insetPx;
-    const sy = lerp(screenP0.y, screenP1.y, startT) + normalY * insetPx;
-    const ex = lerp(screenP0.x, screenP1.x, endT) + normalX * insetPx;
-    const ey = lerp(screenP0.y, screenP1.y, endT) + normalY * insetPx;
+function computeRadiatorSegments(demo, edgeGroups, polygonMap, zone, polygon, projected) {
+  const radiators = Array.isArray(zone?.radiators) ? zone.radiators : [];
+  if (!Array.isArray(polygon) || !Array.isArray(projected) || radiators.length === 0) return [];
 
-    segments.push({
-      x1: sx,
-      y1: sy,
-      x2: ex,
-      y2: ey,
-      thickness: getRadiatorThicknessForId(rad?.radiator_id),
-      radiatorType: String(rad?.radiator_id || 'rad'),
-      title: `${rad?.radiator_id || 'radiator'} (${segLen.toFixed(2)}m)`
+  const defaultEdgeIndex = chooseRadiatorEdge(polygon);
+  if (defaultEdgeIndex === null || defaultEdgeIndex < 0) return [];
+
+  const grouped = new Map();
+  radiators.forEach((rad, radiatorIndex) => {
+    const preferredEdgeIndex = findEdgeIndexForWallElementId(demo, edgeGroups, polygonMap, zone?.id, rad?.wall_element_id);
+    const edgeIndex = preferredEdgeIndex ?? defaultEdgeIndex;
+    if (!grouped.has(edgeIndex)) grouped.set(edgeIndex, []);
+    grouped.get(edgeIndex).push({ rad, radiatorIndex });
+  });
+
+  const segments = new Array(radiators.length).fill(null);
+  for (const [edgeIndex, group] of grouped.entries()) {
+    const worldP0 = polygon[edgeIndex];
+    const worldP1 = polygon[(edgeIndex + 1) % polygon.length];
+    const screenP0 = projected[edgeIndex];
+    const screenP1 = projected[(edgeIndex + 1) % projected.length];
+    if (!worldP0 || !worldP1 || !screenP0 || !screenP1) continue;
+
+    const explicit = [];
+    const implicit = [];
+    group.forEach(entry => {
+      const ratio = getRadiatorPositionRatio(entry.rad);
+      if (ratio === null) {
+        implicit.push(entry);
+      } else {
+        explicit.push({ ...entry, ratio });
+      }
     });
 
-    cursor += segLen + gap;
-  });
+    implicit.forEach((entry, idx) => {
+      const ratio = Number(((idx + 1) / (implicit.length + 1)).toFixed(3));
+      explicit.push({ ...entry, ratio });
+    });
+
+    explicit.forEach(entry => {
+      const segment = computeRadiatorSegmentForPlacement(entry.rad, worldP0, worldP1, screenP0, screenP1, entry.ratio);
+      if (segment) {
+        segment.edgeIndex = edgeIndex;
+        segments[entry.radiatorIndex] = segment;
+      }
+    });
+  }
 
   return segments;
 }
@@ -1266,6 +1495,9 @@ export function renderAlternativeViz(demo, opts = {}) {
 
   const onZoneSelected = typeof opts.onZoneSelected === 'function' ? opts.onZoneSelected : null;
   const onWallSelected = typeof opts.onWallSelected === 'function' ? opts.onWallSelected : null;
+  const onOpeningSelected = typeof opts.onOpeningSelected === 'function' ? opts.onOpeningSelected : null;
+  const onRadiatorSelected = typeof opts.onRadiatorSelected === 'function' ? opts.onRadiatorSelected : null;
+  const onObjectMoved = typeof opts.onObjectMoved === 'function' ? opts.onObjectMoved : null;
   const onSeedLevelPolygons = typeof opts.onSeedLevelPolygons === 'function' ? opts.onSeedLevelPolygons : null;
   const onDataChanged = typeof opts.onDataChanged === 'function' ? opts.onDataChanged : null;
 
@@ -1326,7 +1558,7 @@ export function renderAlternativeViz(demo, opts = {}) {
 
   const hint = document.createElement('div');
   hint.className = 'alt-viz-message';
-  hint.textContent = 'Drag walls to reshape joined rooms, or drag room bodies to move them. Click a wall to open that fabric element in the editor.';
+  hint.textContent = 'Drag walls to reshape rooms, drag room bodies to move zones, and drag object handles to move windows, doors, and radiators. Clicking a handle opens that object in the editor.';
   root.appendChild(hint);
 
   renderLegend(root);
@@ -1479,6 +1711,113 @@ export function renderAlternativeViz(demo, opts = {}) {
   };
 
   svg.addEventListener('mousemove', (e) => {
+    if (objectDragState) {
+      const svgPt = getSVGPoint(svg, e);
+      const worldPt = svgPointToWorld(svgPt, objectDragState.bounds, objectDragState.scale, objectDragState.pad);
+      objectDragState.currentWorldPoint = worldPt;
+      objectDragState.currentSvgPoint = svgPt;
+
+      const deltaWorld = {
+        x: worldPt.x - objectDragState.startWorldPoint.x,
+        y: worldPt.y - objectDragState.startWorldPoint.y
+      };
+      const thresholdWorld = DRAG_START_THRESHOLD_PX / objectDragState.scale;
+      if (!objectDragState.didMove && Math.hypot(deltaWorld.x, deltaWorld.y) >= thresholdWorld) {
+        objectDragState.didMove = true;
+      }
+
+      if (objectDragState.didMove) {
+        const targetZoneId = findContainingZoneIdForPoint(worldPt, polygonMap);
+        if (targetZoneId) {
+          const nearest = findNearestWallDropTarget(demo, polygonMap, edgeGroups, targetZoneId, worldPt, bounds, scale, pad);
+          const targetPolygon = nearest?.polygon || polygonMap.get(targetZoneId);
+          const targetCentroid = targetPolygon ? projectPoint(polygonCentroid(targetPolygon), bounds, scale, pad) : null;
+
+          if (objectDragState.kind === 'opening' && nearest && objectDragState.openingState && objectDragState.opening) {
+            const previewOpening = {
+              ...objectDragState.opening,
+              position_ratio: nearest.targetPositionRatio
+            };
+            const previewSegment = computeOpeningSegmentOnEdge(
+              previewOpening,
+              nearest.worldP0,
+              nearest.worldP1,
+              nearest.screenP0,
+              nearest.screenP1
+            );
+            if (previewSegment) {
+              updateOpeningRenderState(objectDragState.openingState, previewSegment, targetCentroid);
+              return;
+            }
+          }
+
+          if (objectDragState.kind === 'radiator' && nearest && objectDragState.radiatorRenderState && objectDragState.radiator) {
+            const previewRadiator = {
+              ...objectDragState.radiator,
+              wall_element_id: nearest.targetWallElementId,
+              position_ratio: nearest.targetPositionRatio
+            };
+            const previewSegment = computeRadiatorSegmentForPlacement(
+              previewRadiator,
+              nearest.worldP0,
+              nearest.worldP1,
+              nearest.screenP0,
+              nearest.screenP1,
+              nearest.targetPositionRatio
+            );
+            if (previewSegment) {
+              updateRadiatorRenderState(
+                objectDragState.radiatorRenderState,
+                previewSegment,
+                previewSegment.radiatorType.replace(/^type_/i, ''),
+                targetCentroid
+              );
+              return;
+            }
+          }
+        }
+
+        const deltaSvgX = svgPt.x - objectDragState.startSvgPoint.x;
+        const deltaSvgY = svgPt.y - objectDragState.startSvgPoint.y;
+
+        if (objectDragState.kind === 'opening' && objectDragState.openingState && objectDragState.originalSegment) {
+          const base = objectDragState.originalSegment;
+          const translatedSegment = {
+            x1: base.x1 + deltaSvgX,
+            y1: base.y1 + deltaSvgY,
+            x2: base.x2 + deltaSvgX,
+            y2: base.y2 + deltaSvgY
+          };
+          updateOpeningRenderState(objectDragState.openingState, translatedSegment, null);
+          return;
+        }
+
+        if (objectDragState.kind === 'radiator' && objectDragState.radiatorRenderState && objectDragState.originalSegment) {
+          const base = objectDragState.originalSegment;
+          const translatedSegment = {
+            x1: base.x1 + deltaSvgX,
+            y1: base.y1 + deltaSvgY,
+            x2: base.x2 + deltaSvgX,
+            y2: base.y2 + deltaSvgY,
+            thickness: base.thickness || getRadiatorThicknessForId(objectDragState.radiator?.radiator_id),
+            title: base.title || '',
+            radiatorType: String(objectDragState.radiator?.radiator_id || 'rad')
+          };
+          updateRadiatorRenderState(
+            objectDragState.radiatorRenderState,
+            translatedSegment,
+            translatedSegment.radiatorType.replace(/^type_/i, ''),
+            null
+          );
+          return;
+        }
+
+        objectDragState.handleElement.setAttribute('cx', String(svgPt.x));
+        objectDragState.handleElement.setAttribute('cy', String(svgPt.y));
+      }
+      return;
+    }
+
     if (roomDragState) {
       const svgPt = getSVGPoint(svg, e);
       const worldPt = svgPointToWorld(svgPt, roomDragState.bounds, roomDragState.scale, roomDragState.pad);
@@ -1572,6 +1911,77 @@ export function renderAlternativeViz(demo, opts = {}) {
   });
 
   const finishDrag = () => {
+    if (objectDragState) {
+      const {
+        didMove,
+        kind,
+        openingKind,
+        openingId,
+        radiatorId,
+        sourceZoneId,
+        sourceWallElementId,
+        currentWorldPoint,
+        handleElement
+      } = objectDragState;
+
+      const fallbackCenter = objectDragState.objectCenterWorld;
+      const dropWorldPoint = currentWorldPoint || fallbackCenter;
+      const targetZoneId = dropWorldPoint ? findContainingZoneIdForPoint(dropWorldPoint, polygonMap) : null;
+
+      objectDragState = null;
+
+      if (!didMove) {
+        if (kind === 'opening' && onOpeningSelected) {
+          onOpeningSelected(sourceZoneId, sourceWallElementId, openingKind, openingId);
+        } else if (kind === 'radiator' && onRadiatorSelected) {
+          onRadiatorSelected(sourceZoneId, radiatorId);
+        }
+        return;
+      }
+
+      suppressWallSelectionUntil = Date.now() + 250;
+
+      if (!targetZoneId || !dropWorldPoint || !onObjectMoved) {
+        renderAlternativeViz(demo, opts);
+        return;
+      }
+
+      if (kind === 'opening') {
+        const nearest = findNearestWallDropTarget(demo, polygonMap, edgeGroups, targetZoneId, dropWorldPoint, bounds, scale, pad);
+        if (nearest) {
+          onObjectMoved({
+            kind: 'opening',
+            openingKind,
+            openingId,
+            sourceZoneId,
+            sourceWallElementId,
+            targetZoneId,
+            targetWallElementId: nearest.targetWallElementId,
+            targetPositionRatio: nearest.targetPositionRatio
+          });
+          return;
+        }
+      }
+
+      if (kind === 'radiator') {
+        const nearest = findNearestWallDropTarget(demo, polygonMap, edgeGroups, targetZoneId, dropWorldPoint, bounds, scale, pad);
+        onObjectMoved({
+          kind: 'radiator',
+          radiatorId,
+          sourceZoneId,
+          targetZoneId,
+          targetWallElementId: nearest?.targetWallElementId || null,
+          targetPositionRatio: nearest?.targetPositionRatio ?? null
+        });
+        return;
+      }
+
+      if (handleElement) {
+        renderAlternativeViz(demo, opts);
+      }
+      return;
+    }
+
     if (roomDragState) {
       const { onDataChanged: onDC, zoneId, didMove, currentDeltaX = 0, currentDeltaY = 0, basePolygon } = roomDragState;
       if (didMove) {
@@ -1620,7 +2030,7 @@ export function renderAlternativeViz(demo, opts = {}) {
   svg.addEventListener('mouseup', finishDrag);
   svg.addEventListener('mouseleave', finishDrag);
   svg.addEventListener('mousedown', () => {
-    if (!dragState && !roomDragState) closeLengthEditor();
+    if (!dragState && !roomDragState && !objectDragState) closeLengthEditor();
   });
 
   polygonEntries.forEach(({ zone }) => {
@@ -1713,28 +2123,85 @@ export function renderAlternativeViz(demo, opts = {}) {
 
     const radiatorElements = [];
     const radiatorLabelElements = [];
-    const radiatorSegments = computeRadiatorSegments(zone, polygon, projected);
-    radiatorSegments.forEach(seg => {
+    const radiatorHandleElements = [];
+    const radiatorRenderStates = [];
+    const radiatorSegments = computeRadiatorSegments(demo, edgeGroups, polygonMap, zone, polygon, projected);
+    radiatorSegments.forEach((seg, radiatorIndex) => {
+      if (!seg) {
+        radiatorElements[radiatorIndex] = null;
+        radiatorLabelElements[radiatorIndex] = null;
+        radiatorHandleElements[radiatorIndex] = null;
+        radiatorRenderStates[radiatorIndex] = null;
+        return;
+      }
+
       const radiatorLine = document.createElementNS(ns, 'line');
-      radiatorLine.setAttribute('x1', String(seg.x1));
-      radiatorLine.setAttribute('y1', String(seg.y1));
-      radiatorLine.setAttribute('x2', String(seg.x2));
-      radiatorLine.setAttribute('y2', String(seg.y2));
-      radiatorLine.setAttribute('stroke-width', String(seg.thickness));
       radiatorLine.setAttribute('class', 'alt-radiator-line');
-      radiatorLine.setAttribute('title', seg.title);
-      radiatorElements.push(radiatorLine);
+      radiatorElements[radiatorIndex] = radiatorLine;
       svg.appendChild(radiatorLine);
 
       const radiatorLabel = document.createElementNS(ns, 'text');
-      const midX = (seg.x1 + seg.x2) / 2;
-      const midY = (seg.y1 + seg.y2) / 2;
-      radiatorLabel.setAttribute('x', String(midX));
-      radiatorLabel.setAttribute('y', String(midY - 8));
       radiatorLabel.setAttribute('class', 'alt-radiator-label');
-      radiatorLabel.textContent = seg.radiatorType.replace(/^type_/i, '');
-      radiatorLabelElements.push(radiatorLabel);
+      radiatorLabelElements[radiatorIndex] = radiatorLabel;
       svg.appendChild(radiatorLabel);
+
+      let radiatorHandle = null;
+      if (onObjectMoved || onRadiatorSelected) {
+        radiatorHandle = document.createElementNS(ns, 'circle');
+        radiatorHandle.setAttribute('r', String(OBJECT_HANDLE_RADIUS_PX));
+        radiatorHandle.setAttribute('class', 'alt-object-handle alt-radiator-handle');
+        radiatorHandle.style.cursor = 'grab';
+
+        const radiatorId = getRadiatorId(zone.radiators?.[radiatorIndex], radiatorIndex);
+        radiatorHandle.addEventListener('mousedown', (e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          e.stopPropagation();
+
+          const startSvgPoint = getSVGPoint(svg, e);
+          const startWorldPoint = svgPointToWorld(startSvgPoint, bounds, scale, pad);
+          objectDragState = {
+            kind: 'radiator',
+            sourceZoneId: zone.id,
+            radiatorId,
+            radiator: zone.radiators?.[radiatorIndex] || null,
+            radiatorRenderState: radiatorRenderStates[radiatorIndex],
+            bounds,
+            scale,
+            pad,
+            startWorldPoint,
+            currentWorldPoint: startWorldPoint,
+            currentSvgPoint: startSvgPoint,
+            objectCenterWorld: startWorldPoint,
+            handleElement: radiatorHandle,
+            startSvgPoint,
+            originalSegment: { ...seg },
+            didMove: false
+          };
+          radiatorHandle.style.cursor = 'grabbing';
+          if (radiatorRenderStates[radiatorIndex]) {
+            svg.appendChild(radiatorRenderStates[radiatorIndex].line);
+            svg.appendChild(radiatorRenderStates[radiatorIndex].label);
+            if (radiatorRenderStates[radiatorIndex].handle) svg.appendChild(radiatorRenderStates[radiatorIndex].handle);
+          }
+        });
+
+        radiatorHandle.addEventListener('mouseup', () => {
+          radiatorHandle.style.cursor = 'grab';
+        });
+
+        radiatorHandleElements[radiatorIndex] = radiatorHandle;
+        svg.appendChild(radiatorHandle);
+      } else {
+        radiatorHandleElements[radiatorIndex] = null;
+      }
+
+      radiatorRenderStates[radiatorIndex] = {
+        line: radiatorLine,
+        label: radiatorLabel,
+        handle: radiatorHandle
+      };
+      updateRadiatorRenderState(radiatorRenderStates[radiatorIndex], seg, seg.radiatorType.replace(/^type_/i, ''), centroid);
     });
 
     const edgeElements = [];
@@ -1762,7 +2229,8 @@ export function renderAlternativeViz(demo, opts = {}) {
 
       const openingsOnEdge = [];
       if (shouldRenderOpeningsForWallEdge(wallElement, zone.id)) {
-        getWallOpeningsForRender(wallElement).forEach(({ kind, opening }) => {
+        getWallOpeningsForRender(wallElement).forEach(({ kind, opening, ownerZoneId }, openingIndex) => {
+        if (ownerZoneId && ownerZoneId !== zone.id) return;
         const segment = computeOpeningSegmentOnEdge(opening, worldP0, worldP1, p0, p1);
         if (!segment) return;
         const openingLine = document.createElementNS(ns, 'line');
@@ -1790,7 +2258,78 @@ export function renderAlternativeViz(demo, opts = {}) {
             svg.appendChild(openingLeaf);
           }
         }
-        openingsOnEdge.push({ line: openingLine, arc: openingArc, leaf: openingLeaf, opening, kind });
+
+        let openingHandle = null;
+        if (onObjectMoved || onOpeningSelected) {
+          const handlePos = getOffsetHandlePositionFromSegment(
+            segment,
+            OPENING_HANDLE_OFFSET_ALONG_PX,
+            OPENING_HANDLE_OFFSET_NORMAL_PX,
+            centroid
+          );
+          openingHandle = document.createElementNS(ns, 'circle');
+          openingHandle.setAttribute('cx', String(handlePos.x));
+          openingHandle.setAttribute('cy', String(handlePos.y));
+          openingHandle.setAttribute('r', String(OBJECT_HANDLE_RADIUS_PX));
+          openingHandle.setAttribute('class', kind === 'door' ? 'alt-object-handle alt-door-handle' : 'alt-object-handle alt-window-handle');
+          openingHandle.style.cursor = 'grab';
+
+          const openingId = getOpeningId(opening, openingIndex);
+          openingHandle.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            const startSvgPoint = getSVGPoint(svg, e);
+            const startWorldPoint = svgPointToWorld(startSvgPoint, bounds, scale, pad);
+            const centerRatio = getOpeningPositionRatio(opening);
+            const centerWorld = {
+              x: lerp(worldP0.x, worldP1.x, centerRatio),
+              y: lerp(worldP0.y, worldP1.y, centerRatio)
+            };
+            objectDragState = {
+              kind: 'opening',
+              openingKind: kind,
+              openingId,
+              sourceZoneId: zone.id,
+              sourceWallElementId: wallElement?.id || null,
+              opening,
+              openingState: null,
+              bounds,
+              scale,
+              pad,
+              startWorldPoint,
+              currentWorldPoint: startWorldPoint,
+              currentSvgPoint: startSvgPoint,
+              objectCenterWorld: centerWorld,
+              handleElement: openingHandle,
+              startSvgPoint,
+              originalSegment: { ...segment },
+              didMove: false
+            };
+            openingHandle.style.cursor = 'grabbing';
+          });
+
+          openingHandle.addEventListener('mouseup', () => {
+            openingHandle.style.cursor = 'grab';
+          });
+
+          svg.appendChild(openingHandle);
+        }
+
+        const openingState = { line: openingLine, arc: openingArc, leaf: openingLeaf, opening, kind, handle: openingHandle };
+        openingsOnEdge.push(openingState);
+        if (openingHandle) {
+          openingHandle.addEventListener('mousedown', () => {
+            if (objectDragState) {
+              objectDragState.openingState = openingState;
+            }
+            svg.appendChild(openingLine);
+            if (openingArc) svg.appendChild(openingArc);
+            if (openingLeaf) svg.appendChild(openingLeaf);
+            svg.appendChild(openingHandle);
+          });
+        }
         svg.appendChild(openingLine);
         });
       }
@@ -1894,6 +2433,10 @@ export function renderAlternativeViz(demo, opts = {}) {
       edgeOpeningElements,
       radiatorElements,
       radiatorLabelElements,
+      radiatorHandleElements,
+      demo,
+      edgeGroups,
+      polygonMap,
       zone,
       lineCount: lines.length
     });
