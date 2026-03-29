@@ -3,6 +3,7 @@
 import { computeElementU } from './u_value_calculator.js';
 import { computeRoomHeatRequirements } from './heat_calculator.js';
 import { renderThermalViz } from './visualizer.js';
+import { renderAlternativeViz } from './alt_viz.js';
 import { initRoomEditor } from './room_editor.js';
 import { initAppUi } from './app_ui.js';
 
@@ -169,6 +170,7 @@ async function solveAndRender(demoRaw) {
 
     // Generate thermal visualization
     renderThermalViz(demoRaw, radiators);
+    renderAlternativeViz(demoRaw);
     if (roomEditorApi && typeof roomEditorApi.refreshSelectedZone === 'function') {
       roomEditorApi.refreshSelectedZone();
     }

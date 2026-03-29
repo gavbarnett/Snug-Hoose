@@ -190,6 +190,62 @@ a#download:hover {
   border: 1px dashed var(--input-border);
   border-radius: 8px;
   background: linear-gradient(180deg, rgba(0, 212, 255, 0.03) 0%, rgba(0, 0, 0, 0.08) 100%);
+  padding: 0.9rem;
+}
+
+.alt-viz-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.7rem;
+}
+
+.alt-viz-level-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-light);
+  font-size: 0.9em;
+  min-width: auto;
+}
+
+.alt-viz-level-select {
+  min-width: 130px;
+}
+
+.alt-viz-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.8rem;
+}
+
+.alt-viz-chip {
+  color: #fff;
+  padding: 0.28rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.75em;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.alt-viz-message {
+  color: var(--text-muted);
+  font-size: 0.92em;
+  padding: 0.6rem 0.1rem;
+}
+
+.alt-viz-svg-wrap {
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.15);
+  padding: 0.25rem;
+}
+
+.alt-viz-svg {
+  width: 100%;
+  height: auto;
+  display: block;
 }
 
 .content-right {
