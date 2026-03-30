@@ -202,6 +202,14 @@ a#download:hover {
   z-index: 10;
 }
 
+.alt-viz-menubar.is-busy {
+  pointer-events: none;
+}
+
+.alt-viz-menubar.is-busy .alt-viz-submenu-list {
+  display: none !important;
+}
+
 .alt-viz-project-summary {
   border: 1px solid rgba(0, 212, 255, 0.35);
   border-radius: 8px;
@@ -232,6 +240,12 @@ a#download:hover {
   color: var(--text-light);
   margin-bottom: 0.2rem;
   text-align: left;
+}
+
+.alt-viz-recommendations-pending {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
 }
 
 .alt-viz-project-epc-scale {

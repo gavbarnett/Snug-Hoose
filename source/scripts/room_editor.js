@@ -119,6 +119,102 @@ export function initRoomEditor(opts) {
     }
   }
 
+  function countOpeningsForZoneOnWall(wall, zoneId, kind) {
+    const list = kind === 'door'
+      ? (Array.isArray(wall?.doors) ? wall.doors : [])
+      : (Array.isArray(wall?.windows) ? wall.windows : []);
+    const ownerZoneId = Array.isArray(wall?.nodes) && wall.nodes.length > 0 ? wall.nodes[0] : null;
+    return list.filter(opening => (opening?.zone_id || ownerZoneId) === zoneId).length;
+  }
+
+  function findPreferredRadiatorWallForZone(demo, zoneId, zoneRadiators) {
+    const elements = Array.isArray(demo?.elements) ? demo.elements : [];
+    const zones = Array.isArray(demo?.zones) ? demo.zones : [];
+    const boundaryIds = new Set(zones.filter(zone => zone?.type === 'boundary').map(zone => zone.id));
+
+    const radiatorCountByWallId = new Map();
+    (Array.isArray(zoneRadiators) ? zoneRadiators : []).forEach(radiator => {
+      const wallId = radiator?.wall_element_id;
+      if (!wallId) return;
+      radiatorCountByWallId.set(wallId, (radiatorCountByWallId.get(wallId) || 0) + 1);
+    });
+
+    const walls = elements.filter(element => {
+      if (!element || String(element.type || '').toLowerCase() !== 'wall') return false;
+      const nodes = Array.isArray(element.nodes) ? element.nodes : [];
+      return nodes.includes(zoneId);
+    });
+    if (walls.length === 0) return null;
+
+    const scored = walls.map(wall => {
+      const windowsCount = countOpeningsForZoneOnWall(wall, zoneId, 'window');
+      const doorsCount = countOpeningsForZoneOnWall(wall, zoneId, 'door');
+      const radiatorCount = radiatorCountByWallId.get(wall.id) || 0;
+      const hasWindow = windowsCount > 0;
+      const hasDoor = doorsCount > 0;
+      const isExternal = Array.isArray(wall.nodes) && wall.nodes.some(nodeId => boundaryIds.has(nodeId));
+      return {
+        wall,
+        radiatorCount,
+        hasWindow,
+        hasDoor,
+        openingOccupancy: windowsCount + doorsCount,
+        isExternal
+      };
+    });
+
+    scored.sort((a, b) => {
+      const aHasRadiator = a.radiatorCount > 0;
+      const bHasRadiator = b.radiatorCount > 0;
+      if (aHasRadiator !== bHasRadiator) return aHasRadiator ? 1 : -1;
+      if (a.hasWindow !== b.hasWindow) return a.hasWindow ? -1 : 1;
+      if (a.hasDoor !== b.hasDoor) return a.hasDoor ? 1 : -1;
+      if (a.radiatorCount !== b.radiatorCount) return a.radiatorCount - b.radiatorCount;
+      if (a.isExternal !== b.isExternal) return a.isExternal ? -1 : 1;
+      if (a.openingOccupancy !== b.openingOccupancy) return a.openingOccupancy - b.openingOccupancy;
+      return 0;
+    });
+
+    return scored[0]?.wall || null;
+  }
+
+  function chooseRadiatorPositionRatioOnWall(wall, zoneId, zoneRadiators) {
+    const ownerZoneId = Array.isArray(wall?.nodes) && wall.nodes.length > 0 ? wall.nodes[0] : null;
+    const occupied = [];
+
+    const collectOpeningRatios = (list) => {
+      (Array.isArray(list) ? list : []).forEach(opening => {
+        if ((opening?.zone_id || ownerZoneId) !== zoneId) return;
+        const ratio = Number(opening?.position_ratio);
+        if (Number.isFinite(ratio)) occupied.push(Math.max(0, Math.min(1, ratio)));
+      });
+    };
+
+    collectOpeningRatios(wall?.doors);
+    collectOpeningRatios(wall?.windows);
+
+    (Array.isArray(zoneRadiators) ? zoneRadiators : []).forEach(radiator => {
+      if (String(radiator?.wall_element_id || '') !== String(wall?.id || '')) return;
+      const ratio = Number(radiator?.position_ratio);
+      if (Number.isFinite(ratio)) occupied.push(Math.max(0, Math.min(1, ratio)));
+    });
+
+    const candidates = [0.2, 0.35, 0.5, 0.65, 0.8];
+    if (occupied.length === 0) return 0.5;
+
+    let best = candidates[0];
+    let bestDistance = -1;
+    candidates.forEach(candidate => {
+      const minDistance = occupied.reduce((min, point) => Math.min(min, Math.abs(candidate - point)), 1);
+      if (minDistance > bestDistance) {
+        bestDistance = minDistance;
+        best = candidate;
+      }
+    });
+
+    return Number(best.toFixed(3));
+  }
+
   if (editorTab && roomEditorPanel) {
     editorTab.addEventListener('click', () => {
       editorTab.classList.add('active');
@@ -147,13 +243,20 @@ export function initRoomEditor(opts) {
       const zone = demo.zones.find(z => z.id === selectedZoneId);
       if (!zone) return;
       if (!zone.radiators) zone.radiators = [];
+      const wall = findPreferredRadiatorWallForZone(demo, selectedZoneId, zone.radiators);
+      const positionRatio = wall
+        ? chooseRadiatorPositionRatioOnWall(wall, selectedZoneId, zone.radiators)
+        : 0.5;
 
       zone.radiators.push({
         id: generateUniqueId(),
         radiator_id: 'type_11',
         surface_area: 1.0,
         width: 800,
-        height: 500
+        height: 500,
+        wall_element_id: wall?.id || null,
+        position_ratio: positionRatio,
+        trv_enabled: true
       });
 
       populateRoomEditor(selectedZoneId);

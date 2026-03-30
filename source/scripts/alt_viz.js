@@ -344,10 +344,19 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
   recommendationsWrap.appendChild(recommendationsTitle);
 
   const recommendations = Array.isArray(demo?.recommendations) ? demo.recommendations : [];
+  const recommendationsPending = demo?.recommendationsPending === true;
+  if (recommendationsPending) {
+    const pending = document.createElement('div');
+    pending.className = 'alt-viz-recommendations-pending';
+    pending.textContent = 'Refreshing recommendations...';
+    recommendationsWrap.appendChild(pending);
+  }
   if (recommendations.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'alt-viz-recommendations-empty';
-    empty.textContent = 'No cost-effective measures identified yet.';
+    empty.textContent = recommendationsPending
+      ? 'Using previous recommendations while the latest options are recalculated.'
+      : 'No cost-effective measures identified yet.';
     recommendationsWrap.appendChild(empty);
   } else {
     const tableWrap = document.createElement('div');
@@ -783,17 +792,30 @@ function buildAltVizMenuSpec(context = {}) {
     }));
   };
 
-  const radiatorTypeMenus = mapTypesToMenu(
-    radiatorLibrary,
-    (radiatorId) => mapRadiatorSizeItems(false, radiatorId),
-    'No radiator types loaded'
-  );
+  const defaultRadiatorWidth = radiatorWidths[2] || radiatorWidths[0] || 800;
+  const radiatorTypeMenus = Array.isArray(radiatorLibrary) && radiatorLibrary.length > 0
+    ? radiatorLibrary.map(type => ({
+      label: type.name || type.id,
+      action: 'hvac.radiators.add',
+      payload: { width: defaultRadiatorWidth, trvEnabled: false, radiatorId: type.id },
+      items: mapRadiatorSizeItems(false, type.id)
+    }))
+    : [{
+      label: 'No radiator types loaded',
+      disabled: true
+    }];
 
-  const radiatorTypeMenusWithTrv = mapTypesToMenu(
-    radiatorLibrary,
-    (radiatorId) => mapRadiatorSizeItems(true, radiatorId),
-    'No radiator types loaded'
-  );
+  const radiatorTypeMenusWithTrv = Array.isArray(radiatorLibrary) && radiatorLibrary.length > 0
+    ? radiatorLibrary.map(type => ({
+      label: type.name || type.id,
+      action: 'hvac.radiators.add',
+      payload: { width: defaultRadiatorWidth, trvEnabled: true, radiatorId: type.id },
+      items: mapRadiatorSizeItems(true, type.id)
+    }))
+    : [{
+      label: 'No radiator types loaded',
+      disabled: true
+    }];
 
   const windowGlazingMenus = mapTypesToMenu(
     windowLibrary,
@@ -902,6 +924,17 @@ function createAltVizMenuBar(onMenuAction, getContext) {
   const context = typeof getContext === 'function' ? getContext() : {};
   const menuSpec = buildAltVizMenuSpec(context);
 
+  const dispatchMenuAction = (action, item) => {
+    if (typeof onMenuAction !== 'function' || !action) return;
+    bar.classList.add('is-busy');
+    const run = () => onMenuAction(action, item, typeof getContext === 'function' ? getContext() : {});
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(run);
+      return;
+    }
+    window.setTimeout(run, 0);
+  };
+
   const renderMenuItems = (items, level = 0, pathPrefix = []) => {
     const list = document.createElement('ul');
     list.className = level === 0 ? 'alt-viz-menu-list' : 'alt-viz-submenu-list';
@@ -978,8 +1011,8 @@ function createAltVizMenuBar(onMenuAction, getContext) {
       trigger.addEventListener('click', (e) => {
         e.stopPropagation();
         if (item.disabled) return;
-        if (!item.items && item.action && typeof onMenuAction === 'function') {
-          onMenuAction(item.action, item, typeof getContext === 'function' ? getContext() : {});
+        if (item.action && typeof onMenuAction === 'function') {
+          dispatchMenuAction(item.action, item);
         }
       });
 

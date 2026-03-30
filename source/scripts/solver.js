@@ -20,11 +20,164 @@ let undoStack = [];
 let redoStack = [];
 let isApplyingHistory = false;
 let variantState = null;
+let scheduledSolveHandle = null;
+let isSolveRunning = false;
+let solveRequestedWhileRunning = false;
+let latestSolveRevision = 0;
+let latestRenderedVizDemo = null;
+let latestRenderedVariantMenuState = null;
+let latestRenderedRecommendations = [];
+let recommendationsRefreshHandle = null;
 
 const MAX_HISTORY_STEPS = 100;
 
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function scheduleAnimationFrame(callback) {
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    return window.requestAnimationFrame(callback);
+  }
+  return window.setTimeout(callback, 0);
+}
+
+function scheduleLowPriority(callback) {
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    return window.requestIdleCallback(callback, { timeout: 250 });
+  }
+  return window.setTimeout(callback, 50);
+}
+
+function cancelLowPriority(handle) {
+  if (handle === null || handle === undefined) return;
+  if (typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function') {
+    window.cancelIdleCallback(handle);
+    return;
+  }
+  clearTimeout(handle);
+}
+
+function renderCurrentAlternativeViz(demoPayload, variantMenuState, recommendations, recommendationsPending) {
+  latestRenderedVizDemo = demoPayload;
+  latestRenderedVariantMenuState = variantMenuState;
+  latestRenderedRecommendations = Array.isArray(recommendations) ? recommendations : [];
+
+  renderAlternativeViz({
+    ...demoPayload,
+    openings: currentOpenings,
+    radiators: currentRadiators,
+    ventilation: currentVentilation,
+    variant_state: variantMenuState,
+    recommendations: latestRenderedRecommendations,
+    recommendationsPending: recommendationsPending === true
+  }, {
+    canUndo: undoStack.length > 0,
+    canRedo: redoStack.length > 0,
+    onMenuAction: handleAltVizMenuAction,
+    onZoneSelected: (zoneId) => {
+      lastFocusedZoneId = zoneId;
+      if (roomEditorApi && typeof roomEditorApi.focusZone === 'function') {
+        roomEditorApi.focusZone(zoneId);
+      }
+    },
+    onWallSelected: (zoneId, elementId) => {
+      lastFocusedZoneId = zoneId;
+      if (roomEditorApi && typeof roomEditorApi.focusElement === 'function') {
+        roomEditorApi.focusElement(zoneId, elementId);
+        return;
+      }
+      if (roomEditorApi && typeof roomEditorApi.focusZone === 'function') {
+        roomEditorApi.focusZone(zoneId);
+      }
+    },
+    onOpeningSelected: (zoneId, openingId) => {
+      lastFocusedZoneId = zoneId;
+      if (roomEditorApi && typeof roomEditorApi.focusOpening === 'function') {
+        roomEditorApi.focusOpening(zoneId, openingId);
+        return;
+      }
+      if (roomEditorApi && typeof roomEditorApi.focusZone === 'function') {
+        roomEditorApi.focusZone(zoneId);
+      }
+    },
+    onRadiatorSelected: (zoneId, radiatorId) => {
+      lastFocusedZoneId = zoneId;
+      if (roomEditorApi && typeof roomEditorApi.focusRadiator === 'function') {
+        roomEditorApi.focusRadiator(zoneId, radiatorId);
+        return;
+      }
+      if (roomEditorApi && typeof roomEditorApi.focusZone === 'function') {
+        roomEditorApi.focusZone(zoneId);
+      }
+    },
+    onObjectMoved: (payload) => {
+      if (!payload || !currentDemo) return;
+      const before = deepClone(currentDemo);
+      let changed = false;
+      if (payload.kind === 'opening') {
+        changed = moveOpeningAcrossWalls(payload);
+      } else if (payload.kind === 'radiator') {
+        changed = moveRadiatorAcrossZones(payload);
+      }
+      if (changed) {
+        pushUndoSnapshot(before);
+        triggerSolve();
+      }
+    },
+    onSeedLevelPolygons: (_level, polygonsByZoneId) => {
+      if (!currentDemo || !Array.isArray(currentDemo.zones) || !polygonsByZoneId) return;
+
+      for (const zone of currentDemo.zones) {
+        if (!zone || !zone.id) continue;
+        const polygon = polygonsByZoneId[zone.id];
+        if (!Array.isArray(polygon) || polygon.length < 3) continue;
+        zone.layout = zone.layout || {};
+        zone.layout.polygon = polygon.map(pt => ({ x: Number(pt.x), y: Number(pt.y) }));
+      }
+
+      triggerSolve();
+    },
+    onDataChanged: (changedPolygons, maybePolygon) => {
+      if (!currentDemo || !Array.isArray(currentDemo.zones)) return;
+      const before = deepClone(currentDemo);
+
+      const polygonsByZoneId = Array.isArray(maybePolygon)
+        ? { [changedPolygons]: maybePolygon }
+        : changedPolygons;
+
+      if (!polygonsByZoneId || typeof polygonsByZoneId !== 'object') return;
+
+      for (const zone of currentDemo.zones) {
+        if (!zone || !zone.id) continue;
+        const polygon = polygonsByZoneId[zone.id];
+        if (!Array.isArray(polygon) || polygon.length < 3) continue;
+        zone.layout = zone.layout || {};
+        zone.layout.polygon = polygon.map(pt => ({ x: Number(pt.x), y: Number(pt.y) }));
+      }
+
+      reconcileWallElementsFromPolygons(currentDemo, polygonsByZoneId);
+
+      pushUndoSnapshot(before);
+      triggerSolve();
+    }
+  });
+}
+
+function scheduleRecommendationsRefresh(demoForRecommendations, solveRevision) {
+  cancelLowPriority(recommendationsRefreshHandle);
+  recommendationsRefreshHandle = scheduleLowPriority(() => {
+    recommendationsRefreshHandle = null;
+    const recommendations = buildPerformanceRecommendations(demoForRecommendations);
+    if (solveRevision !== latestSolveRevision) return;
+    if (!latestRenderedVizDemo || !latestRenderedVariantMenuState) return;
+    renderCurrentAlternativeViz(
+      latestRenderedVizDemo,
+      latestRenderedVariantMenuState,
+      recommendations,
+      false
+    );
+  });
 }
 
 function generateId(prefix = 'id') {
@@ -888,7 +1041,11 @@ function normalizeRadiatorSpec(spec, preferredTypeId, sizing, fallbackWidthMm = 
   const normalized = {
     id: spec?.id,
     radiator_id: String(spec?.radiator_id || preferredTypeId),
-    trv_enabled: spec?.trv_enabled === true
+    trv_enabled: spec?.trv_enabled === true,
+    wall_element_id: spec?.wall_element_id || null,
+    position_ratio: Number.isFinite(Number(spec?.position_ratio))
+      ? Number(Math.max(0, Math.min(1, Number(spec.position_ratio))).toFixed(3))
+      : 0.5
   };
   if (!sizing.coeffByType.has(normalized.radiator_id)) {
     normalized.radiator_id = preferredTypeId;
@@ -908,6 +1065,69 @@ function radiatorCoefficient(spec, sizing) {
   const area = Number(spec?.surface_area || 0);
   if (!isFinite(coeff) || coeff <= 0 || !isFinite(area) || area <= 0) return 0;
   return coeff * area;
+}
+
+function isValidZoneWallElement(demo, zoneId, wallId) {
+  if (!wallId) return false;
+  const elements = Array.isArray(demo?.elements) ? demo.elements : [];
+  return elements.some(element => {
+    if (!element || String(element?.type || '').toLowerCase() !== 'wall') return false;
+    if (String(element?.id || '') !== String(wallId)) return false;
+    const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
+    return nodes.includes(zoneId);
+  });
+}
+
+function assignRadiatorPlacementsForZone(demo, zoneId, afterSpecs, beforeSpecs) {
+  const zone = getZoneById(demo, zoneId);
+  if (!zone) return Array.isArray(afterSpecs) ? deepClone(afterSpecs) : [];
+
+  const before = Array.isArray(beforeSpecs) ? beforeSpecs : [];
+  const beforeById = new Map(
+    before
+      .filter(rad => rad && rad.id)
+      .map(rad => [String(rad.id), rad])
+  );
+
+  const result = [];
+  const originalZoneRadiators = Array.isArray(zone.radiators) ? zone.radiators : [];
+
+  try {
+    zone.radiators = [];
+
+    const specs = Array.isArray(afterSpecs) ? afterSpecs : [];
+    for (let i = 0; i < specs.length; i += 1) {
+      const spec = { ...specs[i] };
+      const byId = spec?.id ? beforeById.get(String(spec.id)) : null;
+      const byIndex = before[i] || null;
+      const prior = byId || byIndex;
+
+      const priorWallId = prior?.wall_element_id;
+      if (!spec.wall_element_id && isValidZoneWallElement(demo, zoneId, priorWallId)) {
+        spec.wall_element_id = priorWallId;
+      }
+
+      if (!isValidZoneWallElement(demo, zoneId, spec.wall_element_id)) {
+        const wall = pickPreferredWallForZone(demo, zoneId, 'radiator');
+        if (wall?.id) spec.wall_element_id = wall.id;
+      }
+
+      if (Number.isFinite(Number(spec?.position_ratio))) {
+        spec.position_ratio = Number(Math.max(0, Math.min(1, Number(spec.position_ratio))).toFixed(3));
+      } else if (Number.isFinite(Number(prior?.position_ratio))) {
+        spec.position_ratio = Number(Math.max(0, Math.min(1, Number(prior.position_ratio))).toFixed(3));
+      } else {
+        spec.position_ratio = choosePreferredRadiatorPositionRatio(demo, zoneId, spec.wall_element_id, result);
+      }
+
+      result.push(spec);
+      zone.radiators = result;
+    }
+  } finally {
+    zone.radiators = originalZoneRadiators;
+  }
+
+  return result;
 }
 
 export function designRoomRadiators(requiredCoeff, existingRads, preferredTypeId, widthHintMm, sizing) {
@@ -1128,10 +1348,11 @@ function applyRadiatorComfortUpgrade(demo, options = {}) {
       || nearestStandardWidthMm(1000, sizing.standardWidths);
 
     const design = designRoomRadiators(requiredCoeff, existingRads, dominantTypeId, widthHintMm, sizing);
+    const placedSpecs = assignRadiatorPlacementsForZone(demo, zoneId, design.specs, existingRads);
     const beforeArea = existingRads.reduce((sum, rad) => sum + Number(rad?.surface_area || 0), 0);
-    const afterArea = design.specs.reduce((sum, rad) => sum + Number(rad?.surface_area || 0), 0);
+    const afterArea = placedSpecs.reduce((sum, rad) => sum + Number(rad?.surface_area || 0), 0);
     const deltaArea = Math.max(0, afterArea - beforeArea);
-    if (deltaArea <= 0.001 && design.specs.length === existingRads.length) {
+    if (deltaArea <= 0.001 && placedSpecs.length === existingRads.length) {
       continue;
     }
 
@@ -1140,7 +1361,7 @@ function applyRadiatorComfortUpgrade(demo, options = {}) {
       zoneName,
       addArea: deltaArea,
       before: existingRads,
-      after: design.specs
+      after: placedSpecs
     });
     totalAddedSurfaceArea += deltaArea;
   }
@@ -2525,6 +2746,63 @@ function countOpeningsForZoneOnWall(wall, zoneId, kind) {
   }).length;
 }
 
+function getWallElementByIdForZone(demo, zoneId, wallId) {
+  if (!wallId) return null;
+  const elements = Array.isArray(demo?.elements) ? demo.elements : [];
+  return elements.find(element => {
+    if (!element || String(element?.type || '').toLowerCase() !== 'wall') return false;
+    if (String(element?.id || '') !== String(wallId)) return false;
+    const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
+    return nodes.includes(zoneId);
+  }) || null;
+}
+
+function getOpeningPositionRatiosForZoneOnWall(wall, zoneId, kind) {
+  const list = kind === 'door'
+    ? (Array.isArray(wall?.doors) ? wall.doors : [])
+    : (Array.isArray(wall?.windows) ? wall.windows : []);
+
+  const ownerZoneId = Array.isArray(wall?.nodes) && wall.nodes.length > 0 ? wall.nodes[0] : null;
+  return list
+    .filter(opening => {
+      const openingZone = opening?.zone_id || ownerZoneId;
+      return openingZone === zoneId;
+    })
+    .map(opening => Number(opening?.position_ratio))
+    .filter(value => Number.isFinite(value))
+    .map(value => Number(Math.max(0, Math.min(1, value)).toFixed(3)));
+}
+
+function choosePreferredRadiatorPositionRatio(demo, zoneId, wallId, zoneRadiators = []) {
+  const wall = getWallElementByIdForZone(demo, zoneId, wallId);
+  if (!wall) return 0.5;
+
+  const occupied = [];
+  occupied.push(...getOpeningPositionRatiosForZoneOnWall(wall, zoneId, 'door'));
+  occupied.push(...getOpeningPositionRatiosForZoneOnWall(wall, zoneId, 'window'));
+
+  (Array.isArray(zoneRadiators) ? zoneRadiators : []).forEach(radiator => {
+    if (String(radiator?.wall_element_id || '') !== String(wallId)) return;
+    const ratio = Number(radiator?.position_ratio);
+    if (Number.isFinite(ratio)) occupied.push(Number(Math.max(0, Math.min(1, ratio)).toFixed(3)));
+  });
+
+  const candidates = [0.2, 0.35, 0.5, 0.65, 0.8];
+  if (occupied.length === 0) return 0.5;
+
+  let best = candidates[0];
+  let bestDistance = -1;
+  candidates.forEach(candidate => {
+    const minDistance = occupied.reduce((min, point) => Math.min(min, Math.abs(candidate - point)), 1);
+    if (minDistance > bestDistance) {
+      bestDistance = minDistance;
+      best = candidate;
+    }
+  });
+
+  return Number(best.toFixed(3));
+}
+
 function pickPreferredWallForZone(demo, zoneId, purpose = 'generic') {
   const elements = Array.isArray(demo?.elements) ? demo.elements : [];
   const boundaryIds = new Set(
@@ -2579,7 +2857,11 @@ function pickPreferredWallForZone(demo, zoneId, purpose = 'generic') {
     });
   } else if (purpose === 'radiator') {
     scored.sort((a, b) => {
+      const aHasRadiator = a.radiatorCount > 0;
+      const bHasRadiator = b.radiatorCount > 0;
+      if (aHasRadiator !== bHasRadiator) return aHasRadiator ? 1 : -1;
       if (a.hasWindow !== b.hasWindow) return a.hasWindow ? -1 : 1;
+      if (a.hasDoor !== b.hasDoor) return a.hasDoor ? 1 : -1;
       if (a.radiatorCount !== b.radiatorCount) return a.radiatorCount - b.radiatorCount;
       if (a.isExternal !== b.isExternal) return a.isExternal ? -1 : 1;
       if (a.openingOccupancy !== b.openingOccupancy) return a.openingOccupancy - b.openingOccupancy;
@@ -2654,11 +2936,14 @@ function addDoorToZoneWall(demo, openingsData, zoneId, opts = {}) {
 }
 
 function addRadiatorToZone(demo, radiatorsData, zoneId, trvEnabled, opts = {}) {
-  const zone = getZoneById(demo, zoneId);
+  let zone = getZoneById(demo, zoneId);
+  if (!zone || zone.type === 'boundary') {
+    zone = (Array.isArray(demo?.zones) ? demo.zones : []).find(z => z && z.type !== 'boundary') || null;
+  }
   if (!zone) return false;
   if (!Array.isArray(zone.radiators)) zone.radiators = [];
-  const wall = pickPreferredWallForZone(demo, zoneId, 'radiator');
-  if (!wall) return false;
+  const effectiveZoneId = zone.id;
+  const wall = pickPreferredWallForZone(demo, effectiveZoneId, 'radiator');
 
   const defaultType = Array.isArray(radiatorsData?.radiators) && radiatorsData.radiators.length > 0
     ? radiatorsData.radiators[0].id
@@ -2670,12 +2955,19 @@ function addRadiatorToZone(demo, radiatorsData, zoneId, trvEnabled, opts = {}) {
   zone.radiators.push({
     id: generateId('id'),
     radiator_id: opts.radiatorId || defaultType,
-    wall_element_id: wall.id,
+    wall_element_id: wall?.id || null,
     width,
     height,
     surface_area: Number(((width / 1000) * (height / 1000)).toFixed(3)),
     trv_enabled: !!trvEnabled,
-    position_ratio: 0.5
+    position_ratio: wall?.id
+      ? choosePreferredRadiatorPositionRatio(demo, effectiveZoneId, wall.id, zone.radiators)
+      : 0.5
+  });
+  console.info('[hvac.radiators.add] added radiator', {
+    requestedZoneId: zoneId,
+    targetZoneId: effectiveZoneId,
+    radiatorCount: zone.radiators.length
   });
   return true;
 }
@@ -2718,7 +3010,23 @@ function addVentilationToZone(demo, ventilationData, zoneId, opts = {}) {
 function getTargetZoneId(context = {}) {
   const selectedZoneId = context.selectedZoneId || null;
   if (selectedZoneId) return selectedZoneId;
+  const contextDemo = context?.demo;
+  const selectedLevel = Number.isFinite(context?.selectedLevel) ? Number(context.selectedLevel) : null;
+  if (contextDemo && Array.isArray(contextDemo.zones)) {
+    const roomZones = contextDemo.zones.filter(zone => zone && zone.type !== 'boundary');
+    if (selectedLevel !== null) {
+      const onLevel = roomZones.find(zone => (Number.isFinite(zone?.level) ? zone.level : 0) === selectedLevel);
+      if (onLevel?.id) return onLevel.id;
+    }
+    if (roomZones[0]?.id) return roomZones[0].id;
+  }
   return lastFocusedZoneId || null;
+}
+
+function getFallbackEditableZoneId(demo) {
+  const zones = Array.isArray(demo?.zones) ? demo.zones : [];
+  const firstRoom = zones.find(zone => zone && zone.type !== 'boundary');
+  return firstRoom?.id || null;
 }
 
 function saveCurrentProject() {
@@ -2797,7 +3105,8 @@ function handleAltVizMenuAction(action, item, context = {}) {
   const selectedLevel = Number.isFinite(context.selectedLevel) ? context.selectedLevel : 0;
   const payload = item?.payload || {};
 
-  switch (action) {
+  try {
+    switch (action) {
     case 'edit.undo':
       handleUndo();
       return;
@@ -3003,18 +3312,26 @@ function handleAltVizMenuAction(action, item, context = {}) {
     case 'hvac.radiators.add':
     case 'hvac.radiators.standard_sizes.trv':
     case 'hvac.radiators.standard_sizes.no_trv': {
-      if (!currentDemo || !selectedZoneId) return;
+      if (!currentDemo) return;
+      const targetZoneId = selectedZoneId || getFallbackEditableZoneId(currentDemo);
+      if (!targetZoneId) {
+        if (appUiApi?.setStatus) appUiApi.setStatus('Select a room before adding a radiator.');
+        return;
+      }
       const before = deepClone(currentDemo);
       const trv = typeof payload.trvEnabled === 'boolean' ? payload.trvEnabled : action.endsWith('.trv');
-      if (addRadiatorToZone(currentDemo, currentRadiators, selectedZoneId, trv, {
+      if (addRadiatorToZone(currentDemo, currentRadiators, targetZoneId, trv, {
         width: Number(payload.width),
         height: Number(payload.height),
         radiatorId: payload.radiatorId
       })) {
         pushUndoSnapshot(before);
-        lastFocusedZoneId = selectedZoneId;
+        lastFocusedZoneId = targetZoneId;
+        if (appUiApi?.setStatus) appUiApi.setStatus('Radiator added.');
         triggerSolve();
-        if (roomEditorApi?.focusZone) roomEditorApi.focusZone(selectedZoneId);
+        if (roomEditorApi?.focusZone) roomEditorApi.focusZone(targetZoneId);
+      } else if (appUiApi?.setStatus) {
+        appUiApi.setStatus('Could not add radiator to the selected room.');
       }
       return;
     }
@@ -3101,6 +3418,12 @@ function handleAltVizMenuAction(action, item, context = {}) {
     }
     default:
       console.info(`[alt-viz menu] action selected: ${action}`);
+    }
+  } catch (error) {
+    console.error(`[alt-viz menu] failed action: ${action}`, error);
+    if (appUiApi?.setStatus) {
+      appUiApi.setStatus(`Action failed (${action}): ${String(error?.message || error)}`);
+    }
   }
 }
 
@@ -3484,7 +3807,8 @@ async function solveAndRender(demoRaw) {
     }
 
     const variantMenuState = getVariantStateForMenu();
-    const recommendations = buildPerformanceRecommendations(demoRaw);
+    latestSolveRevision += 1;
+    const solveRevision = latestSolveRevision;
     demoRaw.meta = demoRaw.meta || {};
     if (variantMenuState.activeVariantId) {
       demoRaw.meta.active_variant_id = variantMenuState.activeVariantId;
@@ -3493,108 +3817,13 @@ async function solveAndRender(demoRaw) {
       demoRaw.meta.active_variant_name = variantMenuState.activeVariantName;
     }
 
-    renderAlternativeViz({
-      ...demoRaw,
-      openings: currentOpenings,
-      radiators: currentRadiators,
-      ventilation: currentVentilation,
-      variant_state: variantMenuState,
-      recommendations
-    }, {
-      canUndo: undoStack.length > 0,
-      canRedo: redoStack.length > 0,
-      onMenuAction: handleAltVizMenuAction,
-      onZoneSelected: (zoneId) => {
-        lastFocusedZoneId = zoneId;
-        if (roomEditorApi && typeof roomEditorApi.focusZone === 'function') {
-          roomEditorApi.focusZone(zoneId);
-        }
-      },
-      onWallSelected: (zoneId, elementId) => {
-        lastFocusedZoneId = zoneId;
-        if (roomEditorApi && typeof roomEditorApi.focusElement === 'function') {
-          roomEditorApi.focusElement(zoneId, elementId);
-          return;
-        }
-        if (roomEditorApi && typeof roomEditorApi.focusZone === 'function') {
-          roomEditorApi.focusZone(zoneId);
-        }
-      },
-      onOpeningSelected: (zoneId, elementId, kind, openingId) => {
-        lastFocusedZoneId = zoneId;
-        if (roomEditorApi && typeof roomEditorApi.focusOpening === 'function') {
-          roomEditorApi.focusOpening(zoneId, elementId, kind, openingId);
-          return;
-        }
-        if (roomEditorApi && typeof roomEditorApi.focusElement === 'function') {
-          roomEditorApi.focusElement(zoneId, elementId);
-          return;
-        }
-        if (roomEditorApi && typeof roomEditorApi.focusZone === 'function') {
-          roomEditorApi.focusZone(zoneId);
-        }
-      },
-      onRadiatorSelected: (zoneId, radiatorId) => {
-        lastFocusedZoneId = zoneId;
-        if (roomEditorApi && typeof roomEditorApi.focusRadiator === 'function') {
-          roomEditorApi.focusRadiator(zoneId, radiatorId);
-          return;
-        }
-        if (roomEditorApi && typeof roomEditorApi.focusZone === 'function') {
-          roomEditorApi.focusZone(zoneId);
-        }
-      },
-      onObjectMoved: (payload) => {
-        if (!payload || !currentDemo) return;
-        const before = deepClone(currentDemo);
-        let changed = false;
-        if (payload.kind === 'opening') {
-          changed = moveOpeningAcrossWalls(payload);
-        } else if (payload.kind === 'radiator') {
-          changed = moveRadiatorAcrossZones(payload);
-        }
-        if (changed) {
-          pushUndoSnapshot(before);
-          triggerSolve();
-        }
-      },
-      onSeedLevelPolygons: (_level, polygonsByZoneId) => {
-        if (!currentDemo || !Array.isArray(currentDemo.zones) || !polygonsByZoneId) return;
-
-        for (const zone of currentDemo.zones) {
-          if (!zone || !zone.id) continue;
-          const polygon = polygonsByZoneId[zone.id];
-          if (!Array.isArray(polygon) || polygon.length < 3) continue;
-          zone.layout = zone.layout || {};
-          zone.layout.polygon = polygon.map(pt => ({ x: Number(pt.x), y: Number(pt.y) }));
-        }
-
-        triggerSolve();
-      },
-      onDataChanged: (changedPolygons, maybePolygon) => {
-        if (!currentDemo || !Array.isArray(currentDemo.zones)) return;
-        const before = deepClone(currentDemo);
-
-        const polygonsByZoneId = Array.isArray(maybePolygon)
-          ? { [changedPolygons]: maybePolygon }
-          : changedPolygons;
-
-        if (!polygonsByZoneId || typeof polygonsByZoneId !== 'object') return;
-
-        for (const zone of currentDemo.zones) {
-          if (!zone || !zone.id) continue;
-          const polygon = polygonsByZoneId[zone.id];
-          if (!Array.isArray(polygon) || polygon.length < 3) continue;
-          zone.layout = zone.layout || {};
-          zone.layout.polygon = polygon.map(pt => ({ x: Number(pt.x), y: Number(pt.y) }));
-        }
-
-        reconcileWallElementsFromPolygons(currentDemo, polygonsByZoneId);
-
-        pushUndoSnapshot(before);
-        triggerSolve();
-      }
-    });
+    renderCurrentAlternativeViz(
+      demoRaw,
+      variantMenuState,
+      latestRenderedRecommendations,
+      true
+    );
+    scheduleRecommendationsRefresh(deepClone(demoRaw), solveRevision);
     if (roomEditorApi && typeof roomEditorApi.refreshSelectedZone === 'function') {
       roomEditorApi.refreshSelectedZone();
     }
@@ -3609,15 +3838,48 @@ async function solveAndRender(demoRaw) {
 }
 
 function triggerSolve() {
-  if (currentDemo) {
-    syncActiveVariantSnapshot();
-    const polygonsByZoneId = collectLayoutPolygonsByZoneId(currentDemo);
-    if (Object.keys(polygonsByZoneId).length > 0) {
-      reconcileWallElementsFromPolygons(currentDemo, polygonsByZoneId);
-      reconcileInterlevelElementsFromPolygons(currentDemo, polygonsByZoneId);
-    }
-    solveAndRender(JSON.parse(JSON.stringify(currentDemo)));
+  if (!currentDemo) return;
+
+  if (isSolveRunning) {
+    solveRequestedWhileRunning = true;
+    return;
   }
+
+  if (scheduledSolveHandle !== null) return;
+
+  scheduledSolveHandle = scheduleAnimationFrame(() => {
+    scheduledSolveHandle = null;
+    if (!currentDemo) return;
+
+    isSolveRunning = true;
+    solveRequestedWhileRunning = false;
+
+    try {
+      syncActiveVariantSnapshot();
+      const polygonsByZoneId = collectLayoutPolygonsByZoneId(currentDemo);
+      if (Object.keys(polygonsByZoneId).length > 0) {
+        reconcileWallElementsFromPolygons(currentDemo, polygonsByZoneId);
+        reconcileInterlevelElementsFromPolygons(currentDemo, polygonsByZoneId);
+      }
+
+      Promise.resolve(solveAndRender(JSON.parse(JSON.stringify(currentDemo))))
+        .finally(() => {
+          isSolveRunning = false;
+          if (solveRequestedWhileRunning) {
+            solveRequestedWhileRunning = false;
+            triggerSolve();
+          }
+        });
+    } catch (error) {
+      isSolveRunning = false;
+      if (appUiApi) appUiApi.setStatus('Solver error: ' + String(error));
+      console.error(error);
+      if (solveRequestedWhileRunning) {
+        solveRequestedWhileRunning = false;
+        triggerSolve();
+      }
+    }
+  });
 }
 
 function isValidLayoutPolygon(polygon) {
