@@ -244,6 +244,84 @@ a#download:hover {
   padding: 0.11rem 0;
 }
 
+.alt-viz-variants {
+  margin-top: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.24rem;
+}
+
+.alt-viz-variant-row {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 180px) 1fr auto;
+  gap: 0.45rem;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  padding: 0.26rem 0.38rem;
+  background: rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+}
+
+.alt-viz-variant-row.is-active {
+  border-color: rgba(0, 212, 255, 0.75);
+  background: rgba(0, 212, 255, 0.14);
+}
+
+.alt-viz-variant-icon {
+  font-size: 0.76rem;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.alt-viz-variant-name-input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+  color: var(--text-light);
+  font-size: 0.72rem;
+  padding: 0.16rem 0.28rem;
+  width: 100%;
+}
+
+.alt-viz-variant-name-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.18);
+}
+
+.alt-viz-variant-metrics {
+  color: var(--text-light);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.alt-viz-variant-delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted, rgba(255,255,255,0.35));
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 0.15s;
+}
+
+.alt-viz-variant-delete-btn:hover {
+  color: #ff6b6b;
+}
+
+.alt-viz-variant-add-btn {
+  margin-top: 0.18rem;
+  width: fit-content;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.72rem;
+}
+
 .alt-env-strip {
   border: 1px solid var(--input-border);
   border-radius: 8px;

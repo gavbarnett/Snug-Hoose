@@ -18,6 +18,7 @@ let lastFocusedZoneId = null;
 let undoStack = [];
 let redoStack = [];
 let isApplyingHistory = false;
+let variantState = null;
 
 const MAX_HISTORY_STEPS = 100;
 
@@ -27,6 +28,293 @@ function deepClone(value) {
 
 function generateId(prefix = 'id') {
   return `${prefix}_${Math.random().toString(16).slice(2, 14)}`;
+}
+
+function getIsoTimestamp() {
+  try {
+    return new Date().toISOString();
+  } catch (_) {
+    return '';
+  }
+}
+
+function sanitizeVariantName(raw, fallback = 'Variant') {
+  const trimmed = String(raw || '').trim();
+  return trimmed || fallback;
+}
+
+function stripVariantPayload(demo) {
+  const cloned = deepClone(demo || {});
+  if (cloned?.meta?.variants) {
+    delete cloned.meta.variants;
+  }
+  if (cloned?.meta?.active_variant_id) {
+    delete cloned.meta.active_variant_id;
+  }
+  if (cloned?.meta?.active_variant_name) {
+    delete cloned.meta.active_variant_name;
+  }
+  return cloned;
+}
+
+function buildVariantSnapshotFromDemo(demo) {
+  return stripVariantPayload(demo || {});
+}
+
+function listVariantEntries(state) {
+  return Array.isArray(state?.variants) ? state.variants : [];
+}
+
+function getActiveVariantEntry(state = variantState) {
+  const entries = listVariantEntries(state);
+  if (entries.length === 0) return null;
+  return entries.find(item => item?.id === state?.activeVariantId) || entries[0];
+}
+
+function getVariantStateForMenu() {
+  const entries = listVariantEntries(variantState).map(item => ({
+    id: item.id,
+    name: item.name,
+    metrics: getComparisonMetricsForDemo(item.snapshot)
+  }));
+  const active = getActiveVariantEntry(variantState);
+  return {
+    activeVariantId: active?.id || null,
+    activeVariantName: active?.name || null,
+    variants: entries,
+    canDelete: entries.length > 1
+  };
+}
+
+function syncActiveVariantSnapshot() {
+  if (!variantState || !currentDemo) return;
+  const active = getActiveVariantEntry(variantState);
+  if (!active) return;
+  active.snapshot = buildVariantSnapshotFromDemo(currentDemo);
+  active.updatedAt = getIsoTimestamp();
+}
+
+function ensureVariantStateFromDemo(demo) {
+  if (!demo || typeof demo !== 'object') {
+    variantState = null;
+    return;
+  }
+
+  const embedded = demo?.meta?.variants;
+  if (embedded && Array.isArray(embedded.items) && embedded.items.length > 0) {
+    const hydrated = embedded.items
+      .map(item => {
+        if (!item || !item.id || !item.snapshot) return null;
+        return {
+          id: String(item.id),
+          name: sanitizeVariantName(item.name, 'Variant'),
+          createdAt: String(item.created_at || item.createdAt || ''),
+          updatedAt: String(item.updated_at || item.updatedAt || ''),
+          snapshot: buildVariantSnapshotFromDemo(item.snapshot)
+        };
+      })
+      .filter(Boolean);
+
+    if (hydrated.length > 0) {
+      const activeId = String(embedded.active_variant_id || hydrated[0].id);
+      variantState = {
+        activeVariantId: hydrated.some(item => item.id === activeId) ? activeId : hydrated[0].id,
+        variants: hydrated
+      };
+      const active = getActiveVariantEntry(variantState);
+      currentDemo = deepClone(active.snapshot);
+      ensureBoundaryZones(currentDemo);
+      return;
+    }
+  }
+
+  const baselineId = 'variant_baseline';
+  variantState = {
+    activeVariantId: baselineId,
+    variants: [{
+      id: baselineId,
+      name: 'Baseline',
+      createdAt: getIsoTimestamp(),
+      updatedAt: getIsoTimestamp(),
+      snapshot: buildVariantSnapshotFromDemo(demo)
+    }]
+  };
+  currentDemo = deepClone(variantState.variants[0].snapshot);
+  ensureBoundaryZones(currentDemo);
+}
+
+function createVariantFromCurrent(name, switchToNew = true) {
+  if (!currentDemo) return null;
+  if (!variantState) ensureVariantStateFromDemo(currentDemo);
+  syncActiveVariantSnapshot();
+
+  const entry = {
+    id: generateId('variant'),
+    name: sanitizeVariantName(name, `Variant ${listVariantEntries(variantState).length + 1}`),
+    createdAt: getIsoTimestamp(),
+    updatedAt: getIsoTimestamp(),
+    snapshot: buildVariantSnapshotFromDemo(currentDemo)
+  };
+  variantState.variants.push(entry);
+  if (switchToNew) {
+    variantState.activeVariantId = entry.id;
+  }
+  return entry;
+}
+
+function switchActiveVariant(nextVariantId) {
+  if (!variantState || !nextVariantId) return false;
+  const next = listVariantEntries(variantState).find(item => item.id === nextVariantId);
+  if (!next) return false;
+  syncActiveVariantSnapshot();
+  variantState.activeVariantId = next.id;
+  currentDemo = deepClone(next.snapshot);
+  ensureBoundaryZones(currentDemo);
+  clearHistory();
+  return true;
+}
+
+function renameVariantById(variantId, nextName) {
+  if (!variantState || !variantId) return false;
+  const target = listVariantEntries(variantState).find(item => item.id === variantId);
+  if (!target) return false;
+  target.name = sanitizeVariantName(nextName, target.name || 'Variant');
+  target.updatedAt = getIsoTimestamp();
+  return true;
+}
+
+function renameActiveVariant(nextName) {
+  const active = getActiveVariantEntry(variantState);
+  if (!active) return false;
+  return renameVariantById(active.id, nextName);
+}
+
+function deleteVariantById(variantId) {
+  if (!variantState) return false;
+  const entries = listVariantEntries(variantState);
+  if (entries.length <= 1) return false;
+  const index = entries.findIndex(item => item.id === String(variantId));
+  if (index < 0) return false;
+  const wasActive = variantState.activeVariantId === String(variantId);
+  entries.splice(index, 1);
+  if (wasActive) {
+    const fallback = entries[Math.max(0, index - 1)] || entries[0];
+    variantState.activeVariantId = fallback.id;
+    currentDemo = deepClone(fallback.snapshot);
+    ensureBoundaryZones(currentDemo);
+    clearHistory();
+  }
+  return true;
+}
+
+function deleteActiveVariant() {
+  const active = getActiveVariantEntry(variantState);
+  if (!active) return false;
+  return deleteVariantById(active.id);
+}
+
+function serializeProjectWithVariants() {
+  syncActiveVariantSnapshot();
+  const active = getActiveVariantEntry(variantState);
+  const base = buildVariantSnapshotFromDemo(active?.snapshot || currentDemo || {});
+  base.meta = base.meta || {};
+
+  base.meta.variants = {
+    active_variant_id: active?.id || null,
+    items: listVariantEntries(variantState).map(item => ({
+      id: item.id,
+      name: item.name,
+      created_at: item.createdAt || '',
+      updated_at: item.updatedAt || '',
+      snapshot: buildVariantSnapshotFromDemo(item.snapshot)
+    }))
+  };
+  return base;
+}
+
+function getComparisonMetricsForDemo(demoRaw) {
+  if (!demoRaw) return null;
+  const working = deepClone(demoRaw);
+  ensureBoundaryZones(working);
+  const baseMaterials = currentMaterials ? (currentMaterials.materials || currentMaterials) : [];
+  const openingMaterials = getOpeningMaterials(currentOpenings);
+  const materials = [...baseMaterials, ...openingMaterials];
+  const radiators = currentRadiators ? (currentRadiators.radiators || []) : [];
+  const elements = Array.isArray(working.elements) ? working.elements : [];
+  const buildupTemplates = (working.meta && working.meta.build_up_templates) || {};
+
+  for (const el of elements) {
+    try {
+      computeElementU(el, materials, buildupTemplates);
+    } catch (_) {
+      // Ignore per-element calculation failures in compare mode.
+    }
+  }
+
+  const indoorTemp = Number.isFinite(working?.meta?.indoorTemp) ? Number(working.meta.indoorTemp) : 21;
+  const externalTemp = Number.isFinite(working?.meta?.externalTemp) ? Number(working.meta.externalTemp) : 3;
+  const flowTemp = Number.isFinite(working?.meta?.flowTemp) ? Number(working.meta.flowTemp) : 55;
+  const heat = computeRoomHeatRequirements(working, radiators, { indoorTemp, externalTemp, flowTemp });
+  const annualDemand = Math.max(0, (Number(heat.total_delivered_heat || 0) * 24 * 365) / 1000);
+  const roomCount = Array.isArray(heat.rooms) ? heat.rooms.length : 0;
+
+  const totalFloorArea = (Array.isArray(heat.rooms) ? heat.rooms : [])
+    .filter(r => !r.is_unheated)
+    .reduce((sum, r) => {
+      const area = Number(r.floorArea);
+      return sum + (isFinite(area) && area > 0 ? area : 0);
+    }, 0);
+  const intensityKwhM2Yr = totalFloorArea > 0 ? (annualDemand / totalFloorArea) : null;
+
+  let epcLetter = 'N/A';
+  if (intensityKwhM2Yr !== null && isFinite(intensityKwhM2Yr)) {
+    if (intensityKwhM2Yr <= 50) epcLetter = 'A';
+    else if (intensityKwhM2Yr <= 90) epcLetter = 'B';
+    else if (intensityKwhM2Yr <= 150) epcLetter = 'C';
+    else if (intensityKwhM2Yr <= 230) epcLetter = 'D';
+    else if (intensityKwhM2Yr <= 330) epcLetter = 'E';
+    else if (intensityKwhM2Yr <= 450) epcLetter = 'F';
+    else epcLetter = 'G';
+  }
+
+  return {
+    roomCount,
+    epcLetter,
+    totalHeatLoss: Number(heat.total_heat_loss || 0),
+    totalDeliveredHeat: Number(heat.total_delivered_heat || 0),
+    totalAch: Number(heat.total_air_changes_per_hour || 0),
+    totalVentilationConductance: Number(heat.total_ventilation_conductance || 0),
+    annualDemandKwhYr: annualDemand
+  };
+}
+
+function formatVariantCompareReport() {
+  if (!variantState || listVariantEntries(variantState).length === 0) {
+    return 'No variants are available to compare.';
+  }
+  const rows = listVariantEntries(variantState).map(item => {
+    const metrics = getComparisonMetricsForDemo(item.snapshot);
+    return {
+      name: item.name,
+      metrics
+    };
+  });
+
+  const lines = [];
+  lines.push('Variant Comparison (Whole Home)');
+  lines.push('');
+  lines.push('Name | Rooms | Heat Loss (W) | Delivered (W) | Annual (kWh/yr) | ACH | Vent Conductance (W/K)');
+  lines.push('-----|-------|---------------|---------------|------------------|-----|-----------------------');
+  rows.forEach(row => {
+    if (!row.metrics) {
+      lines.push(`${row.name} | n/a | n/a | n/a | n/a | n/a | n/a`);
+      return;
+    }
+    lines.push(
+      `${row.name} | ${row.metrics.roomCount} | ${row.metrics.totalHeatLoss.toFixed(0)} | ${row.metrics.totalDeliveredHeat.toFixed(0)} | ${row.metrics.annualDemandKwhYr.toFixed(0)} | ${row.metrics.totalAch.toFixed(2)} | ${row.metrics.totalVentilationConductance.toFixed(1)}`
+    );
+  });
+  return lines.join('\n');
 }
 
 function clearHistory() {
@@ -509,7 +797,8 @@ function getTargetZoneId(context = {}) {
 
 function saveCurrentProject() {
   if (!currentDemo) return;
-  const blob = new Blob([JSON.stringify(currentDemo, null, 2)], { type: 'application/json' });
+  const projectJson = serializeProjectWithVariants();
+  const blob = new Blob([JSON.stringify(projectJson, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -531,7 +820,7 @@ function loadProjectFromFile() {
       const text = await file.text();
       const parsed = JSON.parse(text);
       currentDemo = parsed;
-      ensureBoundaryZones(currentDemo);
+      ensureVariantStateFromDemo(currentDemo);
       clearHistory();
       triggerSolve();
     } catch (error) {
@@ -559,6 +848,7 @@ function createNewProjectBlank() {
   };
   ensureBoundaryZones(blank);
   currentDemo = blank;
+  ensureVariantStateFromDemo(currentDemo);
   clearHistory();
   triggerSolve();
 }
@@ -569,7 +859,7 @@ function createNewProjectFromTemplate() {
     return;
   }
   currentDemo = deepClone(defaultDemoTemplate);
-  ensureBoundaryZones(currentDemo);
+  ensureVariantStateFromDemo(currentDemo);
   clearHistory();
   triggerSolve();
 }
@@ -630,6 +920,60 @@ function handleAltVizMenuAction(action, item, context = {}) {
     case 'file.load_project':
       loadProjectFromFile();
       return;
+    case 'file.variants.save_as':
+    case 'file.variants.create': {
+      if (!currentDemo) return;
+      const nextName = sanitizeVariantName(
+        payload.name,
+        `Variant ${listVariantEntries(variantState).length + 1}`
+      );
+      createVariantFromCurrent(nextName, true);
+      clearHistory();
+      triggerSolve();
+      return;
+    }
+    case 'file.variants.switch': {
+      const targetVariantId = String(payload.variantId || '');
+      if (!targetVariantId) return;
+      if (switchActiveVariant(targetVariantId)) {
+        lastFocusedZoneId = null;
+        triggerSolve();
+      }
+      return;
+    }
+    case 'file.variants.rename_active':
+    case 'file.variants.rename': {
+      const targetVariantId = String(payload.variantId || getActiveVariantEntry(variantState)?.id || '');
+      const nextName = String(payload.name || '');
+      if (!targetVariantId || !nextName.trim()) return;
+      if (renameVariantById(targetVariantId, nextName)) {
+        triggerSolve();
+      }
+      return;
+    }
+    case 'file.variants.delete_active': {
+      if (deleteActiveVariant()) {
+        lastFocusedZoneId = null;
+        triggerSolve();
+      }
+      return;
+    }
+    case 'file.variants.delete': {
+      const variantId = String(payload.variantId || '');
+      if (!variantId) return;
+      if (deleteVariantById(variantId)) {
+        lastFocusedZoneId = null;
+        triggerSolve();
+      }
+      return;
+    }
+    case 'file.variants.compare_overall': {
+      const report = formatVariantCompareReport();
+      if (appUiApi && typeof appUiApi.setStatus === 'function') {
+        appUiApi.setStatus(report);
+      }
+      return;
+    }
     case 'structure.add.room': {
       if (!currentDemo) return;
       pushUndoSnapshot(deepClone(currentDemo));
@@ -1191,11 +1535,21 @@ async function solveAndRender(demoRaw) {
       }
     }
 
+    const variantMenuState = getVariantStateForMenu();
+    demoRaw.meta = demoRaw.meta || {};
+    if (variantMenuState.activeVariantId) {
+      demoRaw.meta.active_variant_id = variantMenuState.activeVariantId;
+    }
+    if (variantMenuState.activeVariantName) {
+      demoRaw.meta.active_variant_name = variantMenuState.activeVariantName;
+    }
+
     renderAlternativeViz({
       ...demoRaw,
       openings: currentOpenings,
       radiators: currentRadiators,
-      ventilation: currentVentilation
+      ventilation: currentVentilation,
+      variant_state: variantMenuState
     }, {
       canUndo: undoStack.length > 0,
       canRedo: redoStack.length > 0,
@@ -1306,6 +1660,7 @@ async function solveAndRender(demoRaw) {
 
 function triggerSolve() {
   if (currentDemo) {
+    syncActiveVariantSnapshot();
     const polygonsByZoneId = collectLayoutPolygonsByZoneId(currentDemo);
     if (Object.keys(polygonsByZoneId).length > 0) {
       reconcileWallElementsFromPolygons(currentDemo, polygonsByZoneId);
@@ -2094,6 +2449,8 @@ if (typeof window !== 'undefined') window.addEventListener('load', async () => {
     onSolveRequested: triggerSolve,
     onUploadDemo: (uploadedDemo) => {
       currentDemo = uploadedDemo;
+      ensureVariantStateFromDemo(currentDemo);
+      clearHistory();
       triggerSolve();
     }
   });
@@ -2108,6 +2465,7 @@ if (typeof window !== 'undefined') window.addEventListener('load', async () => {
     currentOpenings = openings;
     currentVentilation = ventilation;
     defaultDemoTemplate = deepClone(demo);
+    ensureVariantStateFromDemo(currentDemo);
 
     roomEditorApi = initRoomEditor({
       getDemo: () => currentDemo,

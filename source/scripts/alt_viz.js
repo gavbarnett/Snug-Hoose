@@ -193,15 +193,23 @@ function computeWholeHouseEpcEstimate(rooms) {
   };
 }
 
-function createProjectSummaryStrip(demo, rooms) {
+function createProjectSummaryStrip(demo, rooms, opts = {}) {
   const summary = document.createElement('div');
   summary.className = 'alt-viz-project-summary';
 
+  const onMenuAction = typeof opts.onMenuAction === 'function' ? opts.onMenuAction : null;
+  const getContext = typeof opts.getContext === 'function' ? opts.getContext : (() => ({}));
+  const requestAction = (action, payload = {}) => {
+    if (typeof onMenuAction !== 'function') return;
+    onMenuAction(action, { action, payload }, getContext());
+  };
+
   const name = document.createElement('div');
   name.className = 'alt-viz-project-name';
-  name.textContent = (demo?.meta?.name && String(demo.meta.name).trim())
+  const projectName = (demo?.meta?.name && String(demo.meta.name).trim())
     ? String(demo.meta.name)
     : 'Unnamed Project';
+  name.textContent = projectName;
 
   const epc = computeWholeHouseEpcEstimate(rooms);
   const epcWrap = document.createElement('div');
@@ -227,8 +235,109 @@ function createProjectSummaryStrip(demo, rooms) {
     epcScale.appendChild(chip);
   });
 
+  const variantWrap = document.createElement('div');
+  variantWrap.className = 'alt-viz-variants';
+
+  const variantState = demo?.variant_state || {};
+  const variants = Array.isArray(variantState.variants) ? variantState.variants : [];
+  const activeVariantId = variantState.activeVariantId || null;
+  const canDelete = variants.length > 1;
+
+  variants.forEach(variant => {
+    const row = document.createElement('div');
+    row.className = 'alt-viz-variant-row';
+    row.setAttribute('role', 'button');
+    row.setAttribute('tabindex', '0');
+    if (variant.id === activeVariantId) row.classList.add('is-active');
+
+    const activeIcon = document.createElement('span');
+    activeIcon.className = 'alt-viz-variant-icon';
+    activeIcon.textContent = variant.id === activeVariantId ? '●' : '○';
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'alt-viz-variant-name-input';
+    nameInput.value = String(variant.name || 'Variant');
+
+    nameInput.addEventListener('click', (event) => event.stopPropagation());
+    nameInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        nameInput.blur();
+      }
+    });
+
+    nameInput.addEventListener('blur', () => {
+      const next = String(nameInput.value || '').trim();
+      if (!next || next === String(variant.name || '').trim()) {
+        nameInput.value = String(variant.name || 'Variant');
+        return;
+      }
+      requestAction('file.variants.rename', {
+        variantId: variant.id,
+        name: next
+      });
+    });
+
+    const metrics = variant.metrics || {};
+    const variantEpc = typeof metrics.epcLetter === 'string' && metrics.epcLetter
+      ? metrics.epcLetter
+      : 'N/A';
+    const demandText = Number.isFinite(metrics.annualDemandKwhYr)
+      ? `${Number(metrics.annualDemandKwhYr).toFixed(0)} kWh/yr`
+      : 'n/a';
+    const achText = Number.isFinite(metrics.totalAch)
+      ? Number(metrics.totalAch).toFixed(2)
+      : 'n/a';
+
+    const metricsText = document.createElement('span');
+    metricsText.className = 'alt-viz-variant-metrics';
+    metricsText.textContent = `${variantEpc} · Demand ${demandText} · ACH ${achText}`;
+
+    row.appendChild(activeIcon);
+    row.appendChild(nameInput);
+    row.appendChild(metricsText);
+
+    if (canDelete && variant.id !== activeVariantId) {
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'alt-viz-variant-delete-btn';
+      deleteBtn.title = 'Delete variant';
+      deleteBtn.textContent = '×';
+      deleteBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        requestAction('file.variants.delete', { variantId: variant.id });
+      });
+      row.appendChild(deleteBtn);
+    }
+
+    const activate = () => {
+      if (variant.id === activeVariantId) return;
+      requestAction('file.variants.switch', { variantId: variant.id });
+    };
+    row.addEventListener('click', activate);
+    row.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        activate();
+      }
+    });
+
+    variantWrap.appendChild(row);
+  });
+
+  const addVariantBtn = document.createElement('button');
+  addVariantBtn.type = 'button';
+  addVariantBtn.className = 'alt-viz-variant-add-btn';
+  addVariantBtn.textContent = 'Create New Variant';
+  addVariantBtn.addEventListener('click', () => {
+    requestAction('file.variants.create', {});
+  });
+  variantWrap.appendChild(addVariantBtn);
+
   epcWrap.appendChild(epcSummary);
   epcWrap.appendChild(epcScale);
+  epcWrap.appendChild(variantWrap);
   summary.appendChild(name);
   summary.appendChild(epcWrap);
   return summary;
@@ -2286,7 +2395,14 @@ export function renderAlternativeViz(demo, opts = {}) {
   const rooms = getRoomZones(demo);
   ensureSelectedZone(rooms);
 
-  root.appendChild(createProjectSummaryStrip(demo, rooms));
+  root.appendChild(createProjectSummaryStrip(demo, rooms, {
+    onMenuAction,
+    getContext: () => ({
+      demo,
+      selectedZoneId,
+      selectedLevel
+    })
+  }));
 
   const menuBar = createAltVizMenuBar(onMenuAction, () => ({
     demo,
