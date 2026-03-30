@@ -392,6 +392,10 @@ a#download:hover {
   margin-bottom: 0.7rem;
 }
 
+.alt-viz-main-view {
+  margin-bottom: 0.7rem;
+}
+
 .alt-viz-level-miniviews {
   display: flex;
   flex-wrap: wrap;

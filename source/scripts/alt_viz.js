@@ -2297,6 +2297,10 @@ export function renderAlternativeViz(demo, opts = {}) {
   }));
   root.appendChild(menuBar);
 
+  const mainViewHost = document.createElement('div');
+  mainViewHost.className = 'alt-viz-main-view';
+  root.appendChild(mainViewHost);
+
   const envStrip = createEnvironmentControlStrip(demo, onMenuAction, () => ({
     demo,
     selectedZoneId,
@@ -2400,8 +2404,8 @@ export function renderAlternativeViz(demo, opts = {}) {
     });
 
     emptyWrap.appendChild(emptySvg);
-    root.appendChild(emptyWrap);
-    renderEmptyMessage(root, 'No rooms on selected level.');
+    mainViewHost.appendChild(emptyWrap);
+    renderEmptyMessage(mainViewHost, 'No rooms on selected level.');
     return;
   }
 
@@ -3402,5 +3406,5 @@ export function renderAlternativeViz(demo, opts = {}) {
   }
 
   svgWrap.appendChild(svg);
-  root.appendChild(svgWrap);
+  mainViewHost.appendChild(svgWrap);
 }
