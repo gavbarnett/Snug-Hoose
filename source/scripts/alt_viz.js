@@ -13,6 +13,7 @@ const DRAG_SNAP_STEP_M = 0.1;
 const DRAG_NEAR_SNAP_THRESHOLD_M = 0.2;
 const DOOR_SWING_DEGREES = 45;
 const OBJECT_HANDLE_RADIUS_PX = 6;
+const OBJECT_HANDLE_REVEAL_DISTANCE_PX = 28;
 const OPENING_HANDLE_OFFSET_ALONG_PX = 14;
 const OPENING_HANDLE_OFFSET_NORMAL_PX = 12;
 const RADIATOR_HANDLE_OFFSET_NORMAL_PX = 14;
@@ -1717,6 +1718,7 @@ function getOffsetHandlePositionFromSegment(segment, alongPx = 0, normalPx = 0, 
 
 function updateOpeningRenderState(openingState, segment, centroidPoint) {
   if (!openingState || !segment) return;
+  openingState.currentSegment = { ...segment };
   if (openingState.line) {
     openingState.line.setAttribute('x1', String(segment.x1));
     openingState.line.setAttribute('y1', String(segment.y1));
@@ -1758,6 +1760,7 @@ function updateOpeningRenderState(openingState, segment, centroidPoint) {
 
 function updateRadiatorRenderState(renderState, segment, labelText, centroidPoint) {
   if (!renderState || !segment) return;
+  renderState.currentSegment = { ...segment };
   renderState.line.setAttribute('x1', String(segment.x1));
   renderState.line.setAttribute('y1', String(segment.y1));
   renderState.line.setAttribute('x2', String(segment.x2));
@@ -2899,8 +2902,45 @@ export function renderAlternativeViz(demo, opts = {}) {
   const ghostPolygonsForSnap = Array.from(ghostPolygonMap.values());
   const edgeGroups = buildSharedEdgeGroups(polygonMap);
   const zoneRenderStateById = new Map();
+  const objectHandleProximityEntries = [];
   let activeLengthEditor = null;
   let activeNameEditor = null;
+  const setHandleVisible = (handle, visible, dragging = false) => {
+    if (!handle) return;
+    handle.classList.toggle('is-visible', visible || dragging);
+    handle.classList.toggle('is-dragging', dragging);
+  };
+
+  const updateObjectHandleVisibility = (pointerSvgPoint = null) => {
+    objectHandleProximityEntries.forEach(entry => {
+      const handle = entry?.handle;
+      if (!handle) return;
+
+      const isDragging = objectDragState?.handleElement === handle;
+      if (isDragging) {
+        setHandleVisible(handle, true, true);
+        return;
+      }
+
+      if (!pointerSvgPoint) {
+        setHandleVisible(handle, false, false);
+        return;
+      }
+
+      const segments = typeof entry.getSegments === 'function' ? entry.getSegments() : [];
+      const nearestDistance = (Array.isArray(segments) ? segments : [])
+        .reduce((best, segment) => {
+          if (!segment) return best;
+          const nextDistance = distancePointToSegment(
+            pointerSvgPoint,
+            { x: segment.x1, y: segment.y1 },
+            { x: segment.x2, y: segment.y2 }
+          ).distance;
+          return Math.min(best, nextDistance);
+        }, Infinity);
+      setHandleVisible(handle, nearestDistance <= OBJECT_HANDLE_REVEAL_DISTANCE_PX, false);
+    });
+  };
   const closeNameEditor = () => {
     if (activeNameEditor && activeNameEditor.parentNode) {
       activeNameEditor.parentNode.removeChild(activeNameEditor);
@@ -3105,11 +3145,12 @@ export function renderAlternativeViz(demo, opts = {}) {
   };
 
   svg.addEventListener('mousemove', (e) => {
+    const svgPt = getSVGPoint(svg, e);
     if (objectDragState) {
-      const svgPt = getSVGPoint(svg, e);
       const worldPt = svgPointToWorld(svgPt, objectDragState.bounds, objectDragState.scale, objectDragState.pad);
       objectDragState.currentWorldPoint = worldPt;
       objectDragState.currentSvgPoint = svgPt;
+      updateObjectHandleVisibility(svgPt);
 
       const deltaWorld = {
         x: worldPt.x - objectDragState.startWorldPoint.x,
@@ -3213,8 +3254,9 @@ export function renderAlternativeViz(demo, opts = {}) {
       return;
     }
 
+    updateObjectHandleVisibility(svgPt);
+
     if (roomDragState) {
-      const svgPt = getSVGPoint(svg, e);
       const worldPt = svgPointToWorld(svgPt, roomDragState.bounds, roomDragState.scale, roomDragState.pad);
       const rawDeltaX = worldPt.x - roomDragState.startWorldPoint.x;
       const rawDeltaY = worldPt.y - roomDragState.startWorldPoint.y;
@@ -3258,7 +3300,6 @@ export function renderAlternativeViz(demo, opts = {}) {
     }
 
     if (!dragState) return;
-    const svgPt = getSVGPoint(svg, e);
     const worldPt = svgPointToWorld(svgPt, dragState.bounds, dragState.scale, dragState.pad);
     const delta = {
       x: worldPt.x - dragState.startWorldPoint.x,
@@ -3324,6 +3365,7 @@ export function renderAlternativeViz(demo, opts = {}) {
       const targetZoneId = dropWorldPoint ? findContainingZoneIdForPoint(dropWorldPoint, polygonMap) : null;
 
       objectDragState = null;
+      updateObjectHandleVisibility(null);
 
       if (!didMove) {
         if (kind === 'opening' && onOpeningSelected) {
@@ -3423,7 +3465,10 @@ export function renderAlternativeViz(demo, opts = {}) {
     if (didMove && onDC) onDC(changedPolygons);
   };
   svg.addEventListener('mouseup', finishDrag);
-  svg.addEventListener('mouseleave', finishDrag);
+  svg.addEventListener('mouseleave', () => {
+    finishDrag();
+    updateObjectHandleVisibility(null);
+  });
   svg.addEventListener('mousedown', () => {
     if (!dragState && !roomDragState && !objectDragState) closeLengthEditor();
   });
@@ -3655,6 +3700,13 @@ export function renderAlternativeViz(demo, opts = {}) {
         });
 
         radiatorHandleElements[radiatorIndex] = radiatorHandle;
+        objectHandleProximityEntries.push({
+          handle: radiatorHandle,
+          getSegments: () => {
+            const currentSegment = radiatorRenderStates[radiatorIndex]?.currentSegment;
+            return currentSegment ? [currentSegment] : [];
+          }
+        });
         svg.appendChild(radiatorHandle);
       } else {
         radiatorHandleElements[radiatorIndex] = null;
@@ -3791,9 +3843,25 @@ export function renderAlternativeViz(demo, opts = {}) {
             svg.appendChild(openingHandle);
           }
 
-          const openingState = { line: openingLine, arcs: openingArcs, leaves: openingLeaves, opening, kind, handle: openingHandle, thickness };
+          const openingState = {
+            line: openingLine,
+            arcs: openingArcs,
+            leaves: openingLeaves,
+            opening,
+            kind,
+            handle: openingHandle,
+            thickness,
+            currentSegment: { ...segment }
+          };
           openingsOnEdge.push(openingState);
           if (openingHandle) {
+            objectHandleProximityEntries.push({
+              handle: openingHandle,
+              getSegments: () => {
+                const currentSegment = openingState.currentSegment;
+                return currentSegment ? [currentSegment] : [];
+              }
+            });
             openingHandle.addEventListener('mousedown', () => {
               if (objectDragState) {
                 objectDragState.openingState = openingState;

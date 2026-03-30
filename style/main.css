@@ -992,14 +992,21 @@ a#download:hover {
 }
 
 .alt-object-handle {
-  pointer-events: auto;
+  pointer-events: none;
   stroke: rgba(0, 0, 0, 0.95);
   stroke-width: 1.5;
-  opacity: 0.95;
+  opacity: 0;
   transition: opacity 0.12s ease, stroke-width 0.12s ease;
 }
 
-.alt-object-handle:hover {
+.alt-object-handle.is-visible,
+.alt-object-handle.is-dragging {
+  pointer-events: auto;
+  opacity: 0.95;
+}
+
+.alt-object-handle.is-visible:hover,
+.alt-object-handle.is-dragging {
   opacity: 1;
   stroke-width: 2.5;
 }
