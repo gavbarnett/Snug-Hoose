@@ -291,6 +291,157 @@ function getComparisonMetricsForDemo(demoRaw) {
   };
 }
 
+function getComfortSnapshotForDemo(demoRaw) {
+  if (!demoRaw) return null;
+  const working = deepClone(demoRaw);
+  ensureBoundaryZones(working);
+
+  const baseMaterials = currentMaterials ? (currentMaterials.materials || currentMaterials) : [];
+  const openingMaterials = getOpeningMaterials(currentOpenings);
+  const materials = [...baseMaterials, ...openingMaterials];
+  const radiators = currentRadiators ? (currentRadiators.radiators || []) : [];
+  const elements = Array.isArray(working.elements) ? working.elements : [];
+  const buildupTemplates = (working.meta && working.meta.build_up_templates) || {};
+
+  for (const el of elements) {
+    try {
+      computeElementU(el, materials, buildupTemplates);
+    } catch (_) {
+      // Ignore per-element calculation failures in compare mode.
+    }
+  }
+
+  const indoorTemp = Number.isFinite(working?.meta?.indoorTemp) ? Number(working.meta.indoorTemp) : 21;
+  const externalTemp = Number.isFinite(working?.meta?.externalTemp) ? Number(working.meta.externalTemp) : 3;
+  const flowTemp = Number.isFinite(working?.meta?.flowTemp) ? Number(working.meta.flowTemp) : 55;
+  const heat = computeRoomHeatRequirements(working, radiators, { indoorTemp, externalTemp, flowTemp });
+  const rooms = Array.isArray(heat?.rooms) ? heat.rooms : [];
+  const conditionedRooms = rooms.filter(room => room && room.is_unheated !== true);
+
+  let below18Count = 0;
+  let belowTargetCount = 0;
+  let unmetSetpointRoomCount = 0;
+  let minDeliveredTemp = Infinity;
+  const zoneTempById = {};
+
+  conditionedRooms.forEach(room => {
+    const zoneId = String(room?.zoneId || '');
+    const delivered = Number(room?.delivered_indoor_temperature);
+    if (zoneId && isFinite(delivered)) {
+      zoneTempById[zoneId] = delivered;
+    }
+    if (isFinite(delivered)) {
+      if (delivered < 17.95) below18Count += 1;
+      const setpoint = Number(room?.setpoint_temperature);
+      const targetTemp = Math.max(18, isFinite(setpoint) ? setpoint : 18);
+      if (delivered < targetTemp - 0.1) belowTargetCount += 1;
+      minDeliveredTemp = Math.min(minDeliveredTemp, delivered);
+    }
+    if (room?.can_reach_setpoint === false) {
+      unmetSetpointRoomCount += 1;
+    }
+  });
+
+  return {
+    below18Count,
+    belowTargetCount,
+    unmetSetpointRoomCount,
+    minDeliveredTemp: isFinite(minDeliveredTemp) ? minDeliveredTemp : null,
+    zoneTempById
+  };
+}
+
+function getComfortDeficitRoomsForDemo(demoRaw) {
+  if (!demoRaw) {
+    return {
+      count: 0,
+      below18Count: 0,
+      rooms: []
+    };
+  }
+
+  const working = deepClone(demoRaw);
+  ensureBoundaryZones(working);
+  refreshElementUFabricForDemo(working);
+
+  const radiatorCatalog = currentRadiators ? (currentRadiators.radiators || []) : [];
+  const indoorTemp = Number.isFinite(working?.meta?.indoorTemp) ? Number(working.meta.indoorTemp) : 21;
+  const externalTemp = Number.isFinite(working?.meta?.externalTemp) ? Number(working.meta.externalTemp) : 3;
+  const flowTemp = Number.isFinite(working?.meta?.flowTemp) ? Number(working.meta.flowTemp) : 55;
+  const heat = computeRoomHeatRequirements(working, radiatorCatalog, { indoorTemp, externalTemp, flowTemp });
+  const rooms = Array.isArray(heat?.rooms) ? heat.rooms : [];
+
+  const deficits = rooms
+    .filter(room => room && room.is_unheated !== true)
+    .map(room => {
+      const setpoint = Number(room?.setpoint_temperature);
+      const targetTemp = Math.max(18, isFinite(setpoint) ? setpoint : 18);
+      const currentTemp = Number(room?.delivered_indoor_temperature);
+      const shortfallC = isFinite(currentTemp)
+        ? Math.max(0, targetTemp - currentTemp)
+        : Math.max(0, targetTemp - externalTemp);
+      return {
+        zoneId: String(room?.zoneId || ''),
+        zoneName: String(room?.zoneName || room?.name || room?.zoneId || 'Unnamed room'),
+        currentTemp,
+        targetTemp,
+        shortfallC,
+        below18: isFinite(currentTemp) && currentTemp < 17.95
+      };
+    })
+    .filter(room => room.shortfallC > 0.1)
+    .sort((a, b) => b.shortfallC - a.shortfallC);
+
+  return {
+    count: deficits.length,
+    below18Count: deficits.filter(room => room.below18).length,
+    rooms: deficits
+  };
+}
+
+function moveBoilerControlThermostatToZone(demo, zoneId) {
+  if (!demo || !zoneId) return false;
+  const zones = Array.isArray(demo?.zones) ? demo.zones : [];
+  let moved = false;
+  let targetFound = false;
+
+  zones.forEach(zone => {
+    if (!zone || zone.type === 'boundary') return;
+    const isTarget = String(zone.id || '') === String(zoneId);
+    if (isTarget) {
+      targetFound = true;
+      if (zone.is_boiler_control !== true) {
+        zone.is_boiler_control = true;
+        moved = true;
+      }
+      delete zone.is_unheated;
+      return;
+    }
+    if (zone.is_boiler_control === true) {
+      zone.is_boiler_control = false;
+      moved = true;
+    }
+  });
+
+  return targetFound && moved;
+}
+
+function isHeatedExternalWallElement(element, demo, outsideBoundaryId) {
+  if (!element || String(element?.type || '').toLowerCase() !== 'wall') return false;
+  if (!outsideBoundaryId) return false;
+
+  const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
+  if (!nodes.includes(outsideBoundaryId)) return false;
+
+  const zones = Array.isArray(demo?.zones) ? demo.zones : [];
+  const zoneById = new Map(zones.map(zone => [String(zone?.id || ''), zone]));
+  return nodes.some(nodeId => {
+    const zone = zoneById.get(String(nodeId || ''));
+    if (!zone || zone.type === 'boundary') return false;
+    return zone.is_unheated !== true;
+  });
+}
+
 function getEpcBandFromIntensity(intensityKwhM2Yr) {
   if (typeof intensityKwhM2Yr !== 'number' || !isFinite(intensityKwhM2Yr)) return 'N/A';
   if (intensityKwhM2Yr <= 50) return 'A';
@@ -405,6 +556,45 @@ function getElementDisplayName(element, fallbackLabel) {
   return fallbackLabel;
 }
 
+function createUniqueElementNameResolver(elements, defaultFallbackLabel = 'Element') {
+  const list = Array.isArray(elements) ? elements : [];
+  const baseNames = list.map((element, index) => getElementDisplayName(element, `${defaultFallbackLabel} ${index + 1}`));
+  const totalsByKey = new Map();
+  const seenByKey = new Map();
+  const uniqueById = new Map();
+  const uniqueByRef = new WeakMap();
+
+  baseNames.forEach(baseName => {
+    const key = String(baseName || '').trim().toLowerCase();
+    totalsByKey.set(key, Number(totalsByKey.get(key) || 0) + 1);
+  });
+
+  list.forEach((element, index) => {
+    const baseName = baseNames[index];
+    const key = String(baseName || '').trim().toLowerCase();
+    const duplicateCount = Number(totalsByKey.get(key) || 0);
+    let uniqueName = baseName;
+    if (duplicateCount > 1) {
+      const ordinal = Number(seenByKey.get(key) || 0) + 1;
+      seenByKey.set(key, ordinal);
+      uniqueName = `${baseName} (${ordinal})`;
+    }
+
+    const id = String(element?.id || '').trim();
+    if (id) uniqueById.set(id, uniqueName);
+    if (element && typeof element === 'object') uniqueByRef.set(element, uniqueName);
+  });
+
+  return (element, fallbackLabel = defaultFallbackLabel) => {
+    const id = String(element?.id || '').trim();
+    if (id && uniqueById.has(id)) return uniqueById.get(id);
+    if (element && typeof element === 'object' && uniqueByRef.has(element)) {
+      return uniqueByRef.get(element);
+    }
+    return getElementDisplayName(element, fallbackLabel);
+  };
+}
+
 function formatCountMap(countMap, emptyLabel = 'none') {
   const entries = Object.entries(countMap || {})
     .filter(([, count]) => Number(count) > 0)
@@ -504,6 +694,18 @@ function getWallRetrofitThicknessFromBuildUp(buildUp, cfg) {
   };
 }
 
+function hasRetrofitLayer(buildUp, retrofitSourceId) {
+  const layers = Array.isArray(buildUp) ? buildUp : [];
+  return layers.some(layer => String(layer?._retrofit_source || '') === String(retrofitSourceId || ''));
+}
+
+function isWallInternalRetrofitAlreadyApplied(element, templates) {
+  if (!element) return false;
+  if (element._internal_retrofit_applied === true) return true;
+  const buildUp = resolveElementBuildUpForEdit(element, templates);
+  return hasRetrofitLayer(buildUp, 'wall_internal_insulation');
+}
+
 function getFloorInsulationThicknessFromBuildUp(buildUp, cfg) {
   const joistThickness = getStructuralLayerThickness(buildUp, ['joist_wood']);
   const fallbackThickness = Number(cfg?.fallback_thickness_m || 0.08);
@@ -582,6 +784,487 @@ function applyFloorCavityInsulationRetrofit(element, templates, cfg, insulationM
   };
 }
 
+function refreshElementUFabricForDemo(demo) {
+  const openingMaterials = getOpeningMaterials(currentOpenings);
+  const baseMaterials = currentMaterials ? (currentMaterials.materials || currentMaterials) : [];
+  const allMaterials = [...baseMaterials, ...openingMaterials];
+  const elements = Array.isArray(demo?.elements) ? demo.elements : [];
+  const buildupTemplates = (demo?.meta && demo.meta.build_up_templates) || {};
+
+  for (const el of elements) {
+    try {
+      computeElementU(el, allMaterials, buildupTemplates);
+    } catch (_) {
+      // Ignore per-element failures while building recommendations.
+    }
+  }
+}
+
+function getRadiatorSizingConfig() {
+  const catalog = currentRadiators || {};
+  const list = Array.isArray(catalog?.radiators) ? catalog.radiators : [];
+  const coeffByType = new Map();
+  list.forEach(item => {
+    const id = String(item?.id || '');
+    const coeff = Number(item?.heat_transfer_coefficient);
+    if (!id || !isFinite(coeff) || coeff <= 0) return;
+    coeffByType.set(id, coeff);
+  });
+
+  const typeOrder = ['type_1', 'type_11', 'type_22', 'type_33'].filter(id => coeffByType.has(id));
+  if (typeOrder.length === 0) {
+    coeffByType.set('type_11', 6.5);
+    coeffByType.set('type_22', 8);
+    coeffByType.set('type_33', 10);
+    typeOrder.push('type_11', 'type_22', 'type_33');
+  }
+
+  const rawWidths = Array.isArray(catalog?.standard_widths_mm) ? catalog.standard_widths_mm : [400, 600, 800, 1000, 1200, 1400, 1600, 1800];
+  const widths = [...new Set(rawWidths.map(w => Number(w)).filter(w => isFinite(w) && w >= 300 && w <= 1800))].sort((a, b) => a - b);
+  const standardWidths = widths.length > 0 ? widths : [400, 600, 800, 1000, 1200, 1400, 1600, 1800];
+
+  return {
+    coeffByType,
+    typeOrder,
+    standardWidths,
+    defaultHeightMm: 600,
+    maxWidthMm: 1800,
+    minWidthMm: 400
+  };
+}
+
+function getHouseDominantRadiatorType(demo, sizing) {
+  const counts = {};
+  (Array.isArray(demo?.zones) ? demo.zones : []).forEach(zone => {
+    (Array.isArray(zone?.radiators) ? zone.radiators : []).forEach(rad => {
+      const typeId = String(rad?.radiator_id || '');
+      if (!sizing.coeffByType.has(typeId)) return;
+      counts[typeId] = Number(counts[typeId] || 0) + 1;
+    });
+  });
+
+  const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  if (ranked.length > 0) return ranked[0][0];
+  return sizing.typeOrder.includes('type_22') ? 'type_22' : sizing.typeOrder[0];
+}
+
+function nearestStandardWidthMm(widthMm, standardWidths) {
+  const target = Number(widthMm);
+  if (!isFinite(target) || target <= 0) return Number(standardWidths[0] || 1000);
+  return standardWidths.reduce((best, candidate) => {
+    return Math.abs(candidate - target) < Math.abs(best - target) ? candidate : best;
+  }, Number(standardWidths[0] || 1000));
+}
+
+function inferRoomWindowWidthMm(demo, zoneId, standardWidths) {
+  const elements = Array.isArray(demo?.elements) ? demo.elements : [];
+  let best = null;
+  elements.forEach(element => {
+    if (String(element?.type || '').toLowerCase() !== 'wall') return;
+    const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
+    if (!nodes.includes(zoneId)) return;
+    const windows = Array.isArray(element?.windows) ? element.windows : [];
+    windows.forEach(window => {
+      const explicitWidth = Number(window?.width);
+      if (isFinite(explicitWidth) && explicitWidth > 0) {
+        best = Math.max(Number(best || 0), explicitWidth);
+        return;
+      }
+      const area = Number(window?.area);
+      if (!isFinite(area) || area <= 0) return;
+      const heightMm = Number(window?.height);
+      const heightM = isFinite(heightMm) && heightMm > 0 ? (heightMm / 1000) : 1.2;
+      const inferredWidthMm = (area / Math.max(0.4, heightM)) * 1000;
+      if (isFinite(inferredWidthMm) && inferredWidthMm > 0) {
+        best = Math.max(Number(best || 0), inferredWidthMm);
+      }
+    });
+  });
+  if (!isFinite(Number(best)) || Number(best) <= 0) return null;
+  return nearestStandardWidthMm(best, standardWidths);
+}
+
+function normalizeRadiatorSpec(spec, preferredTypeId, sizing, fallbackWidthMm = 1000) {
+  const normalized = {
+    id: spec?.id,
+    radiator_id: String(spec?.radiator_id || preferredTypeId),
+    trv_enabled: spec?.trv_enabled === true
+  };
+  if (!sizing.coeffByType.has(normalized.radiator_id)) {
+    normalized.radiator_id = preferredTypeId;
+  }
+  const widthMmRaw = Number(spec?.width);
+  const heightMmRaw = Number(spec?.height);
+  const widthMm = isFinite(widthMmRaw) && widthMmRaw > 0 ? widthMmRaw : fallbackWidthMm;
+  const heightMm = isFinite(heightMmRaw) && heightMmRaw > 0 ? heightMmRaw : sizing.defaultHeightMm;
+  normalized.width = Math.max(sizing.minWidthMm, Math.min(sizing.maxWidthMm, nearestStandardWidthMm(widthMm, sizing.standardWidths)));
+  normalized.height = Math.max(300, Math.min(1200, Math.round(heightMm)));
+  normalized.surface_area = Number(((normalized.width / 1000) * (normalized.height / 1000)).toFixed(3));
+  return normalized;
+}
+
+function radiatorCoefficient(spec, sizing) {
+  const coeff = Number(sizing.coeffByType.get(String(spec?.radiator_id || '')) || 0);
+  const area = Number(spec?.surface_area || 0);
+  if (!isFinite(coeff) || coeff <= 0 || !isFinite(area) || area <= 0) return 0;
+  return coeff * area;
+}
+
+function designRoomRadiators(requiredCoeff, existingRads, preferredTypeId, widthHintMm, sizing) {
+  const initial = (Array.isArray(existingRads) ? existingRads : []).map(rad =>
+    normalizeRadiatorSpec(rad, preferredTypeId, sizing, widthHintMm || 1000)
+  );
+
+  let specs = initial;
+  if (specs.length === 0) {
+    specs = [normalizeRadiatorSpec({
+      radiator_id: preferredTypeId,
+      width: widthHintMm || 1000,
+      height: sizing.defaultHeightMm,
+      trv_enabled: true
+    }, preferredTypeId, sizing, widthHintMm || 1000)];
+  }
+
+  const maxTypeIndex = sizing.typeOrder.length - 1;
+  const totalCoeff = () => specs.reduce((sum, rad) => sum + radiatorCoefficient(rad, sizing), 0);
+
+  let guard = 0;
+  while (totalCoeff() + 0.01 < requiredCoeff && guard < 200) {
+    guard += 1;
+
+    let progressed = false;
+    for (let i = 0; i < specs.length; i += 1) {
+      const currentType = String(specs[i].radiator_id || preferredTypeId);
+      const idx = Math.max(0, sizing.typeOrder.indexOf(currentType));
+      if (idx < maxTypeIndex) {
+        specs[i].radiator_id = sizing.typeOrder[idx + 1];
+        progressed = true;
+        break;
+      }
+    }
+    if (progressed) continue;
+
+    for (let i = 0; i < specs.length; i += 1) {
+      const currentWidth = Number(specs[i].width || sizing.minWidthMm);
+      const nextWidth = sizing.standardWidths.find(w => w > currentWidth && w <= sizing.maxWidthMm);
+      if (isFinite(nextWidth)) {
+        specs[i].width = nextWidth;
+        specs[i].surface_area = Number(((nextWidth / 1000) * (Number(specs[i].height || sizing.defaultHeightMm) / 1000)).toFixed(3));
+        progressed = true;
+        break;
+      }
+    }
+    if (progressed) continue;
+
+    if (specs.length < 2) {
+      specs.push(normalizeRadiatorSpec({
+        radiator_id: preferredTypeId,
+        width: widthHintMm || 1000,
+        height: sizing.defaultHeightMm,
+        trv_enabled: true
+      }, preferredTypeId, sizing, widthHintMm || 1000));
+      continue;
+    }
+
+    break;
+  }
+
+  specs = specs.map(spec => ({
+    ...spec,
+    trv_enabled: true,
+    surface_area: Number(((Number(spec.width) / 1000) * (Number(spec.height) / 1000)).toFixed(3))
+  }));
+
+  return {
+    specs,
+    achievedCoeff: totalCoeff(),
+    maxSingleExceeded: specs.some(spec => String(spec.radiator_id) === 'type_33' && Number(spec.width) > 1800)
+  };
+}
+
+function applyRadiatorComfortUpgrade(demo, options = {}) {
+  const zones = Array.isArray(demo?.zones) ? demo.zones : [];
+  const radiatorCatalog = currentRadiators ? (currentRadiators.radiators || []) : [];
+  const sizing = getRadiatorSizingConfig();
+  const dominantTypeId = getHouseDominantRadiatorType(demo, sizing);
+
+  const flowTempRaw = Number(demo?.meta?.flowTemp);
+  const externalTempRaw = Number(demo?.meta?.externalTemp);
+  const flowTemp = isFinite(flowTempRaw) ? flowTempRaw : 55;
+  const externalTemp = isFinite(externalTempRaw) ? externalTempRaw : 3;
+  const targetFlowTempRaw = Number(options?.targetFlowTemp);
+  const targetFlowTemp = isFinite(targetFlowTempRaw) ? targetFlowTempRaw : flowTemp;
+  const maxComfortFlowTempRaw = Number(options?.maxComfortFlowTemp);
+  const maxComfortFlowTemp = isFinite(maxComfortFlowTempRaw)
+    ? Math.max(flowTemp, maxComfortFlowTempRaw)
+    : Math.max(flowTemp, 75);
+  const sizingOverheadFactorRaw = Number(options?.sizingOverheadFactor);
+  const sizingOverheadFactor = isFinite(sizingOverheadFactorRaw) && sizingOverheadFactorRaw >= 1
+    ? sizingOverheadFactorRaw
+    : 1.15;
+
+  const evaluateComfortAtFlow = (tempC) => {
+    refreshElementUFabricForDemo(demo);
+    const heat = computeRoomHeatRequirements(demo, radiatorCatalog, {
+      indoorTemp: 21,
+      externalTemp,
+      flowTemp: tempC
+    });
+    const rooms = Array.isArray(heat?.rooms) ? heat.rooms : [];
+    return {
+      unmet: rooms.filter(room => room && room.is_unheated !== true && room.can_reach_setpoint === false).length,
+      below18: rooms.filter(room => {
+        if (!room || room.is_unheated === true) return false;
+        const delivered = Number(room?.delivered_indoor_temperature);
+        return isFinite(delivered) && delivered < 17.95;
+      }).length,
+      belowTarget: rooms.filter(room => {
+        if (!room || room.is_unheated === true) return false;
+        const delivered = Number(room?.delivered_indoor_temperature);
+        const setpoint = Number(room?.setpoint_temperature);
+        const targetTemp = Math.max(18, isFinite(setpoint) ? setpoint : 18);
+        return isFinite(delivered) ? delivered < targetTemp - 0.1 : true;
+      }).length
+    };
+  };
+
+  refreshElementUFabricForDemo(demo);
+  const heatBefore = computeRoomHeatRequirements(demo, radiatorCatalog, {
+    indoorTemp: 21,
+    externalTemp,
+    flowTemp
+  });
+  const deficitsBefore = getComfortDeficitRoomsForDemo(demo);
+  const thermostatTargetRoom = Array.isArray(deficitsBefore?.rooms) ? deficitsBefore.rooms[0] : null;
+  const thermostatTargetZoneId = String(thermostatTargetRoom?.zoneId || '');
+  const thermostatTargetZoneName = String(thermostatTargetRoom?.zoneName || thermostatTargetZoneId || '');
+  const thermostatMoved = thermostatTargetZoneId
+    ? moveBoilerControlThermostatToZone(demo, thermostatTargetZoneId)
+    : false;
+
+  const unmetRooms = Array.isArray(heatBefore?.rooms)
+    ? heatBefore.rooms.filter(room => {
+      if (!room || room.is_unheated === true) return false;
+      const delivered = Number(room?.delivered_indoor_temperature);
+      const setpoint = Number(room?.setpoint_temperature);
+      const targetTemp = Math.max(18, isFinite(setpoint) ? setpoint : 18);
+      return isFinite(delivered)
+        ? delivered < targetTemp - 0.1
+        : true;
+    })
+    : [];
+
+  if (unmetRooms.length === 0) {
+    return {
+      changed: false,
+      totalAddedSurfaceArea: 0,
+      unmetBefore: 0,
+      unmetAfter: 0,
+      below18Before: 0,
+      below18After: 0,
+      belowTargetBefore: 0,
+      belowTargetAfter: 0,
+      trvEnabledCount: 0,
+      flowTempBefore: flowTemp,
+      flowTempAfter: flowTemp,
+      flowTempAdjusted: false,
+      upgradedRooms: []
+    };
+  }
+
+  const upgradeByZoneId = new Map();
+  let totalAddedSurfaceArea = 0;
+  for (const room of unmetRooms) {
+    const zoneId = String(room?.zoneId || '');
+    const zoneName = String(room?.zoneName || zoneId || 'Unnamed room');
+    const setpoint = Number(room?.setpoint_temperature);
+    const targetTemp = Math.max(18, isFinite(setpoint) ? setpoint : 18);
+    const totalConductance = Number(room?.total_conductance);
+    const currentCoeff = Number(room?.radiator_coefficient || 0);
+    if (!zoneId) continue;
+
+    let requiredCoeff = currentCoeff;
+    const delivered = Number(room?.delivered_indoor_temperature);
+    const shortfallC = isFinite(delivered) ? Math.max(0, targetTemp - delivered) : Math.max(0.5, targetTemp - externalTemp);
+    if (isFinite(totalConductance) && totalConductance > 0) {
+      const designDelta = Math.max(1, flowTemp - targetTemp);
+      const requiredOutput = Math.max(0, totalConductance * Math.max(0, targetTemp - externalTemp));
+      requiredCoeff = Math.max(currentCoeff, (requiredOutput * sizingOverheadFactor) / designDelta);
+    } else {
+      requiredCoeff = currentCoeff + Math.max(2, shortfallC * 8 * sizingOverheadFactor);
+    }
+
+    const zone = zones.find(z => String(z?.id || '') === zoneId);
+    if (!zone) continue;
+    const existingRads = Array.isArray(zone?.radiators) ? zone.radiators : [];
+    const widthHintMm = inferRoomWindowWidthMm(demo, zoneId, sizing.standardWidths)
+      || nearestStandardWidthMm(1000, sizing.standardWidths);
+
+    const design = designRoomRadiators(requiredCoeff, existingRads, dominantTypeId, widthHintMm, sizing);
+    const beforeArea = existingRads.reduce((sum, rad) => sum + Number(rad?.surface_area || 0), 0);
+    const afterArea = design.specs.reduce((sum, rad) => sum + Number(rad?.surface_area || 0), 0);
+    const deltaArea = Math.max(0, afterArea - beforeArea);
+    if (deltaArea <= 0.001 && design.specs.length === existingRads.length) {
+      continue;
+    }
+
+    upgradeByZoneId.set(zoneId, {
+      zoneId,
+      zoneName,
+      addArea: deltaArea,
+      before: existingRads,
+      after: design.specs
+    });
+    totalAddedSurfaceArea += deltaArea;
+  }
+
+  if (upgradeByZoneId.size === 0) {
+    return {
+      changed: thermostatMoved,
+      totalAddedSurfaceArea: 0,
+      unmetBefore: unmetRooms.length,
+      unmetAfter: unmetRooms.length,
+      below18Before: unmetRooms.filter(room => Number(room?.delivered_indoor_temperature) < 17.95).length,
+      below18After: unmetRooms.filter(room => Number(room?.delivered_indoor_temperature) < 17.95).length,
+      belowTargetBefore: unmetRooms.length,
+      belowTargetAfter: unmetRooms.length,
+      trvEnabledCount: 0,
+      flowTempBefore: flowTemp,
+      flowTempAfter: flowTemp,
+      flowTempAdjusted: false,
+      thermostatMoved,
+      thermostatTargetZoneName,
+      upgradedRooms: []
+    };
+  }
+
+  let changed = false;
+  let trvEnabledCount = 0;
+  for (const entry of upgradeByZoneId.values()) {
+    const zone = zones.find(z => String(z?.id || '') === entry.zoneId);
+    if (!zone) continue;
+    const before = Array.isArray(entry.before) ? entry.before : [];
+    const after = Array.isArray(entry.after) ? entry.after : [];
+    if (after.length === 0) continue;
+
+    const beforeTrvTrue = before.filter(rad => rad?.trv_enabled === true).length;
+    const afterTrvTrue = after.filter(rad => rad?.trv_enabled === true).length;
+    trvEnabledCount += Math.max(0, afterTrvTrue - beforeTrvTrue);
+
+    zone.radiators = deepClone(after);
+    changed = true;
+  }
+
+  if (!changed) {
+    return {
+      changed: thermostatMoved,
+      totalAddedSurfaceArea: 0,
+      unmetBefore: unmetRooms.length,
+      unmetAfter: unmetRooms.length,
+      below18Before: unmetRooms.filter(room => Number(room?.delivered_indoor_temperature) < 17.95).length,
+      below18After: unmetRooms.filter(room => Number(room?.delivered_indoor_temperature) < 17.95).length,
+      belowTargetBefore: unmetRooms.length,
+      belowTargetAfter: unmetRooms.length,
+      trvEnabledCount: 0,
+      flowTempBefore: flowTemp,
+      flowTempAfter: flowTemp,
+      flowTempAdjusted: false,
+      thermostatMoved,
+      thermostatTargetZoneName,
+      upgradedRooms: []
+    };
+  }
+
+  const baseComfortAfterUpgrade = evaluateComfortAtFlow(flowTemp);
+  let workingFlowTemp = flowTemp;
+  let workingComfort = baseComfortAfterUpgrade;
+
+  // If comfort is still not met after radiator upgrades, allow a flow increase to recover comfort.
+  if (workingComfort.belowTarget > 0 || workingComfort.unmet > 0) {
+    let bestFlow = workingFlowTemp;
+    let bestComfort = workingComfort;
+    for (let candidate = Math.ceil(workingFlowTemp + 1); candidate <= Math.ceil(maxComfortFlowTemp); candidate += 1) {
+      const comfortAtCandidate = evaluateComfortAtFlow(candidate);
+      const improves =
+        comfortAtCandidate.belowTarget < bestComfort.belowTarget
+        || (comfortAtCandidate.belowTarget === bestComfort.belowTarget && comfortAtCandidate.unmet < bestComfort.unmet)
+        || (
+          comfortAtCandidate.belowTarget === bestComfort.belowTarget
+          && comfortAtCandidate.unmet === bestComfort.unmet
+          && comfortAtCandidate.below18 < bestComfort.below18
+        );
+      if (improves) {
+        bestFlow = candidate;
+        bestComfort = comfortAtCandidate;
+      }
+      if (bestComfort.belowTarget === 0 && bestComfort.unmet === 0) break;
+    }
+    workingFlowTemp = bestFlow;
+    workingComfort = bestComfort;
+  }
+
+  // Then try reducing flow toward efficiency target while preserving achieved comfort.
+  let finalFlowTemp = workingFlowTemp;
+  if (targetFlowTemp < workingFlowTemp - 0.5) {
+    for (let candidate = Math.floor(workingFlowTemp - 1); candidate >= Math.ceil(targetFlowTemp); candidate -= 1) {
+      const comfortAtCandidate = evaluateComfortAtFlow(candidate);
+      if (
+        comfortAtCandidate.belowTarget <= workingComfort.belowTarget
+        && comfortAtCandidate.below18 <= workingComfort.below18
+        && comfortAtCandidate.unmet <= workingComfort.unmet
+      ) {
+        finalFlowTemp = candidate;
+      } else {
+        break;
+      }
+    }
+  }
+  const flowTempAdjusted = Math.abs(finalFlowTemp - flowTemp) > 0.1;
+  demo.meta = demo.meta || {};
+  demo.meta.flowTemp = Number(finalFlowTemp.toFixed(1));
+
+  const finalComfort = evaluateComfortAtFlow(finalFlowTemp);
+  const unmetAfter = finalComfort.unmet;
+  const below18Before = unmetRooms.filter(room => {
+    const delivered = Number(room?.delivered_indoor_temperature);
+    return isFinite(delivered) && delivered < 17.95;
+  }).length;
+  const below18After = finalComfort.below18;
+  const belowTargetBefore = unmetRooms.length;
+  const belowTargetAfter = Number(finalComfort?.belowTarget || 0);
+
+  const upgradedRooms = [...upgradeByZoneId.values()]
+    .sort((a, b) => String(a.zoneName).localeCompare(String(b.zoneName)))
+    .map(entry => ({
+      zoneId: entry.zoneId,
+      zoneName: entry.zoneName,
+      addArea: Number(entry.addArea || 0),
+      finalSpecs: (Array.isArray(entry.after) ? entry.after : []).map(rad => ({
+        radiatorId: String(rad?.radiator_id || ''),
+        width: Number(rad?.width || 0),
+        height: Number(rad?.height || 0)
+      }))
+    }));
+
+  return {
+    changed,
+    totalAddedSurfaceArea,
+    unmetBefore: unmetRooms.length,
+    unmetAfter,
+    below18Before,
+    below18After,
+    belowTargetBefore,
+    belowTargetAfter,
+    trvEnabledCount,
+    flowTempBefore: flowTemp,
+    flowTempAfter: finalFlowTemp,
+    flowTempAdjusted,
+    thermostatMoved,
+    thermostatTargetZoneName,
+    upgradedRooms
+  };
+}
+
 function getRecommendationCostModel() {
   return currentCosts && typeof currentCosts === 'object'
     ? currentCosts
@@ -596,6 +1279,11 @@ function getRecommendationCostModel() {
         flow_temp_optimization: {
           target_c: 45,
           commissioning_cost: 180
+        },
+        radiator_upgrade: {
+          cost_per_m2_surface_area: 45,
+          callout: 200,
+          sizing_overhead_factor: 1.15
         },
         setpoint_optimization: {
           min_setpoint_c: 18,
@@ -644,15 +1332,12 @@ function getRecommendationCostModel() {
 function buildPerformanceRecommendations(demoRaw) {
   const baseline = getComparisonMetricsForDemo(demoRaw);
   if (!baseline || !isFinite(baseline.annualDemandKwhYr)) return [];
+  const baselineComfort = getComfortSnapshotForDemo(demoRaw);
+  if (!baselineComfort) return [];
 
   const costModel = getRecommendationCostModel();
   const measures = costModel.measures || {};
   const currency = String(costModel.currency || 'GBP').toUpperCase();
-  const boundaryZoneIds = new Set(
-    (Array.isArray(demoRaw?.zones) ? demoRaw.zones : [])
-      .filter(zone => zone?.type === 'boundary')
-      .map(zone => zone.id)
-  );
   const openings = currentOpenings || {};
   const results = [];
 
@@ -662,9 +1347,36 @@ function buildPerformanceRecommendations(demoRaw) {
     if (!change || !change.changed) return;
     const metrics = getComparisonMetricsForDemo(working);
     if (!metrics || !isFinite(metrics.annualDemandKwhYr)) return;
-    if (typeof options.accept === 'function' && options.accept({ metrics, baseline, change }) !== true) return;
+    const candidateComfort = getComfortSnapshotForDemo(working);
+    if (!candidateComfort) return;
+
+    const roomTempDropsWhenCold = baselineComfort.below18Count > 0
+      && Object.entries(baselineComfort.zoneTempById || {}).some(([zoneId, baselineTemp]) => {
+        const nextTemp = Number((candidateComfort.zoneTempById || {})[zoneId]);
+        const baseTemp = Number(baselineTemp);
+        return isFinite(baseTemp) && isFinite(nextTemp) && (nextTemp < baseTemp - 0.05);
+      });
+    if (roomTempDropsWhenCold && options.allowTempDropWhenCold !== true) return;
+
+    if (typeof options.accept === 'function' && options.accept({
+      metrics,
+      baseline,
+      change,
+      baselineComfort,
+      candidateComfort
+    }) !== true) return;
     const annualSavings = Math.max(0, baseline.annualDemandKwhYr - metrics.annualDemandKwhYr);
-    if (!isFinite(annualSavings) || annualSavings < 1) return;
+    const below18Reduction = Math.max(0, Number(baselineComfort?.below18Count || 0) - Number(candidateComfort?.below18Count || 0));
+    const belowTargetReduction = Math.max(0, Number(baselineComfort?.belowTargetCount || 0) - Number(candidateComfort?.belowTargetCount || 0));
+    const unmetReduction = Math.max(0, Number(baselineComfort?.unmetSetpointRoomCount || 0) - Number(candidateComfort?.unmetSetpointRoomCount || 0));
+    const baselineMinTemp = Number(baselineComfort?.minDeliveredTemp);
+    const candidateMinTemp = Number(candidateComfort?.minDeliveredTemp);
+    const minTempLift = isFinite(baselineMinTemp) && isFinite(candidateMinTemp)
+      ? Math.max(0, candidateMinTemp - baselineMinTemp)
+      : 0;
+    const comfortImprovement = (belowTargetReduction * 200) + (below18Reduction * 100) + (unmetReduction * 10) + minTempLift;
+    if (!isFinite(annualSavings) || (annualSavings < 1 && comfortImprovement <= 0)) return;
+
     const normalizedCost = normalizeCostResult(costFn(change), currency);
     const totalCost = Number(normalizedCost.total || 0);
     results.push({
@@ -677,6 +1389,7 @@ function buildPerformanceRecommendations(demoRaw) {
       costBreakdown: Array.isArray(normalizedCost.formattedBreakdown)
         ? normalizedCost.formattedBreakdown
         : [],
+      _comfortImprovement: comfortImprovement,
       _sortCost: isFinite(totalCost) ? totalCost : Infinity
     });
   };
@@ -715,6 +1428,80 @@ function buildPerformanceRecommendations(demoRaw) {
       };
     },
     { id: 'trv_add' }
+  );
+
+  addCandidate(
+    'Add/upgrade radiators for comfort',
+    (working) => {
+      const flowCfg = measures.flow_temp_optimization || {};
+      const radCfg = measures.radiator_upgrade || {};
+      const plan = applyRadiatorComfortUpgrade(working, {
+        targetFlowTemp: Number(flowCfg.target_c || 45),
+        maxComfortFlowTemp: Number(flowCfg.max_comfort_c || 75),
+        sizingOverheadFactor: Number(radCfg.sizing_overhead_factor || 1.15)
+      });
+      if (!plan.changed) return { changed: false };
+
+      const roomNames = plan.upgradedRooms.map(item => item.zoneName).join(', ');
+      const areaByRoom = plan.upgradedRooms
+        .map(item => {
+          const specSummary = (Array.isArray(item.finalSpecs) ? item.finalSpecs : [])
+            .map(rad => `${rad.radiatorId} ${rad.width}x${rad.height}`)
+            .join(' + ');
+          return `${item.zoneName}: +${item.addArea.toFixed(2)} m2 (${specSummary || 'configured radiator'})`;
+        })
+        .join('; ');
+      const flowAdjustmentText = plan.flowTempAdjusted
+        ? `Flow temperature adjusted from ${plan.flowTempBefore.toFixed(0)}C to ${plan.flowTempAfter.toFixed(0)}C while preserving comfort.`
+        : `Flow temperature held at ${plan.flowTempBefore.toFixed(0)}C (no safe reduction available yet).`;
+      const thermostatMoveText = plan.thermostatMoved
+        ? `Boiler control thermostat moved to ${plan.thermostatTargetZoneName || 'the highest-deficit room'} to avoid warm-room throttling.`
+        : 'Boiler control thermostat location unchanged.';
+      const sizingOverheadPct = Math.max(0, (Number(radCfg.sizing_overhead_factor || 1.15) - 1) * 100);
+
+      return {
+        changed: plan.changed,
+        totalAddedSurfaceArea: plan.totalAddedSurfaceArea,
+        trvEnabledCount: plan.trvEnabledCount,
+        flowTempAdjusted: plan.flowTempAdjusted,
+        roomCount: plan.upgradedRooms.length,
+        proposal: [
+          `Rooms upgraded for comfort: ${roomNames || 'none'}.`,
+          `Radiator changes by room: ${areaByRoom || 'none'}.`,
+          `Radiator sizing overhead target: ${sizingOverheadPct.toFixed(0)}% above calculated minimum output.`,
+          thermostatMoveText,
+          `TRVs included by default on upgraded emitters: ${plan.trvEnabledCount}.`,
+          flowAdjustmentText,
+          `Comfort impact: rooms below target (target = max(18C, room setpoint)): ${plan.belowTargetBefore} -> ${plan.belowTargetAfter}; rooms below 18C: ${plan.below18Before} -> ${plan.below18After}; unmet rooms: ${plan.unmetBefore} -> ${plan.unmetAfter}.`,
+          `This allows all rooms to reach their target temperatures, or enables reduced flow temperature while maintaining comfort.`
+        ].join('\n')
+      };
+    },
+    (change) => {
+      const cfg = measures.radiator_upgrade || {};
+      const trvCfg = measures.trv || {};
+      const flowCfg = measures.flow_temp_optimization || {};
+      const costPerM2 = Number(cfg.cost_per_m2_surface_area || 45);
+      const callout = Number(cfg.callout || 0);
+      const material = change.totalAddedSurfaceArea * costPerM2;
+      const install = change.totalAddedSurfaceArea * 85; // Labour per m² (roughly £85)
+      const trvCount = Number(change.trvEnabledCount || 0);
+      const trvMaterial = trvCount * Number(trvCfg.valve_material_each || 0);
+      const trvInstall = trvCount * Number(trvCfg.install_each || 0);
+      const flowCommissioning = change.flowTempAdjusted ? Number(flowCfg.commissioning_cost || 0) : 0;
+      return {
+        total: callout + material + install + trvMaterial + trvInstall + flowCommissioning,
+        breakdown: [
+          { label: 'Plumber callout', amount: callout },
+          { label: `Radiator material (${change.totalAddedSurfaceArea.toFixed(1)} m²)`, amount: material },
+          { label: `Radiator installation labour (${change.totalAddedSurfaceArea.toFixed(1)} m²)`, amount: install },
+          { label: `TRV valves (${trvCount})`, amount: trvMaterial },
+          { label: `TRV installation labour (${trvCount})`, amount: trvInstall },
+          { label: 'Flow temperature commissioning', amount: flowCommissioning }
+        ]
+      };
+    },
+    { id: 'radiator_upgrade_unmet' }
   );
 
   addCandidate(
@@ -786,7 +1573,17 @@ function buildPerformanceRecommendations(demoRaw) {
         ]
       };
     },
-    { id: 'setpoint_reduce_min18' }
+    {
+      id: 'setpoint_reduce_min18',
+      accept: ({ baselineComfort: baseComfort, candidateComfort: nextComfort }) => {
+        const baselineBelowTarget = Number(baseComfort?.belowTargetCount || 0);
+        const candidateBelowTarget = Number(nextComfort?.belowTargetCount || 0);
+        // Only propose setpoint reduction once comfort targets are already met.
+        if (baselineBelowTarget > 0) return false;
+        // Never allow this measure to worsen target-comfort status.
+        return candidateBelowTarget <= baselineBelowTarget;
+      }
+    }
   );
 
   addCandidate(
@@ -803,9 +1600,10 @@ function buildPerformanceRecommendations(demoRaw) {
       const changedPerWall = {};
       const fromTypeCounts = {};
       const elements = Array.isArray(working?.elements) ? working.elements : [];
+      const resolveElementName = createUniqueElementNameResolver(elements, 'Wall');
       elements.forEach(element => {
         const windowsList = Array.isArray(element?.windows) ? element.windows : [];
-        const wallName = getElementDisplayName(element, 'Unknown wall');
+        const wallName = resolveElementName(element, 'Unknown wall');
         windowsList.forEach(window => {
           const previousType = String(window?.glazing_id || '');
           if (previousType === String(best.id || '')) return;
@@ -880,9 +1678,10 @@ function buildPerformanceRecommendations(demoRaw) {
       const changedPerWall = {};
       const fromTypeCounts = {};
       const elements = Array.isArray(working?.elements) ? working.elements : [];
+      const resolveElementName = createUniqueElementNameResolver(elements, 'Wall');
       elements.forEach(element => {
         const doorsList = Array.isArray(element?.doors) ? element.doors : [];
-        const wallName = getElementDisplayName(element, 'Unknown wall');
+        const wallName = resolveElementName(element, 'Unknown wall');
         doorsList.forEach(door => {
           const previousType = String(door?.material_id || door?.glazing_id || '');
           if (previousType === String(best.id || '')) return;
@@ -941,23 +1740,27 @@ function buildPerformanceRecommendations(demoRaw) {
       const cfg = measures.wall_insulation_internal_retrofit || measures.external_wall_insulation || {};
       const layerMaterialId = String(cfg.insulation_material_id || 'pir');
       const elements = Array.isArray(working?.elements) ? working.elements : [];
+      const resolveElementName = createUniqueElementNameResolver(elements, 'Wall');
       const templates = (working.meta && working.meta.build_up_templates) || {};
+      const outsideBoundaryId = getBoundaryZoneId(working, 'outside');
       const externalWalls = elements
-        .filter(element => String(element?.type || '').toLowerCase() === 'wall')
-        .filter(element => {
-          const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
-          return nodes.some(nodeId => boundaryZoneIds.has(nodeId));
-        });
+        .filter(element => isHeatedExternalWallElement(element, working, outsideBoundaryId))
+        .filter(element => !isWallInternalRetrofitAlreadyApplied(element, templates));
       if (externalWalls.length === 0) return { changed: false };
       externalWalls.sort((a, b) => Number(b?.u_fabric || 0) - Number(a?.u_fabric || 0));
       const worst = externalWalls[0];
       const buildUp = resolveElementBuildUpForEdit(worst, templates);
       const thicknessPlan = getWallRetrofitThicknessFromBuildUp(buildUp, cfg);
       const addedThickness = thicknessPlan.totalAddedThickness;
-      buildUp.push({ material_id: layerMaterialId, thickness: Number(addedThickness.toFixed(3)) });
+      buildUp.push({
+        material_id: layerMaterialId,
+        thickness: Number(addedThickness.toFixed(3)),
+        _retrofit_source: 'wall_internal_insulation'
+      });
       worst.build_up = buildUp;
       delete worst.build_up_template_id;
-      const wallName = getElementDisplayName(worst, 'Worst external wall');
+      worst._internal_retrofit_applied = true;
+      const wallName = resolveElementName(worst, 'Worst external wall');
       const layerMaterialName = getMaterialDisplayName(layerMaterialId);
       const areaM2 = getElementAreaM2(worst) || 1;
       const studCapMm = Math.round(Number(cfg.max_within_stud_thickness_m || 0.1) * 1000);
@@ -1013,6 +1816,7 @@ function buildPerformanceRecommendations(demoRaw) {
       const groundId = getBoundaryZoneId(working, 'ground');
       if (!groundId) return { changed: false };
       const elements = Array.isArray(working?.elements) ? working.elements : [];
+      const resolveElementName = createUniqueElementNameResolver(elements, 'Floor');
       const templates = (working.meta && working.meta.build_up_templates) || {};
       let areaTotal = 0;
       let volumeTotal = 0;
@@ -1029,7 +1833,7 @@ function buildPerformanceRecommendations(demoRaw) {
         areaTotal += areaM2;
         volumeTotal += areaM2 * result.thicknessM;
         impactedFloors.push({
-          name: getElementDisplayName(element, 'Ground floor element'),
+          name: resolveElementName(element, 'Ground floor element'),
           fromMaterialNames: previousIds.map(getMaterialDisplayName),
           thicknessM: result.thicknessM
         });
@@ -1085,6 +1889,7 @@ function buildPerformanceRecommendations(demoRaw) {
       const loftId = getBoundaryZoneId(working, 'loft');
       if (!loftId) return { changed: false };
       const elements = Array.isArray(working?.elements) ? working.elements : [];
+      const resolveElementName = createUniqueElementNameResolver(elements, 'Loft-facing element');
       const templates = (working.meta && working.meta.build_up_templates) || {};
       let areaTotal = 0;
       let volumeTotal = 0;
@@ -1104,7 +1909,7 @@ function buildPerformanceRecommendations(demoRaw) {
         areaTotal += areaM2;
         volumeTotal += areaM2 * addedThickness;
         impactedElements.push({
-          name: getElementDisplayName(element, 'Loft-facing element'),
+          name: resolveElementName(element, 'Loft-facing element'),
           thicknessM: addedThickness
         });
       });
@@ -1146,10 +1951,66 @@ function buildPerformanceRecommendations(demoRaw) {
     { id: 'loft_insulation_topup' }
   );
 
+  const deficits = getComfortDeficitRoomsForDemo(demoRaw);
+  const hasRadiatorComfortRecommendation = results.some(item => item.recommendationId === 'radiator_upgrade_unmet');
+  if (!hasRadiatorComfortRecommendation && Number(deficits.count || 0) > 0) {
+    const flowCfg = measures.flow_temp_optimization || {};
+    const trvCfg = measures.trv || {};
+    const radCfg = measures.radiator_upgrade || {};
+
+    const fallbackArea = (Array.isArray(deficits.rooms) ? deficits.rooms : [])
+      .reduce((sum, room) => sum + Math.max(0.8, Math.min(4.5, Number(room?.shortfallC || 0) * 0.9)), 0);
+    const trvCount = Math.max(0, Number(deficits.count || 0));
+    const callout = Number(radCfg.callout || 0);
+    const material = fallbackArea * Number(radCfg.cost_per_m2_surface_area || 45);
+    const install = fallbackArea * 85;
+    const trvMaterial = trvCount * Number(trvCfg.valve_material_each || 0);
+    const trvInstall = trvCount * Number(trvCfg.install_each || 0);
+    const flowCommissioning = Number(flowCfg.commissioning_cost || 0);
+    const costModel = {
+      total: callout + material + install + trvMaterial + trvInstall + flowCommissioning,
+      breakdown: [
+        { label: 'Plumber callout', amount: callout },
+        { label: `Radiator material (${fallbackArea.toFixed(1)} m2)`, amount: material },
+        { label: `Radiator installation labour (${fallbackArea.toFixed(1)} m2)`, amount: install },
+        { label: `TRV valves (${trvCount})`, amount: trvMaterial },
+        { label: `TRV installation labour (${trvCount})`, amount: trvInstall },
+        { label: 'Flow temperature commissioning', amount: flowCommissioning }
+      ]
+    };
+    const normalizedCost = normalizeCostResult(costModel, currency);
+    const sampleRooms = (Array.isArray(deficits.rooms) ? deficits.rooms : [])
+      .slice(0, 8)
+      .map(room => `${room.zoneName}: ${Number(room.currentTemp || 0).toFixed(1)}C -> ${Number(room.targetTemp || 18).toFixed(1)}C`)
+      .join('; ');
+
+    results.push({
+      recommendationId: 'radiator_upgrade_unmet',
+      recommendation: 'Add/upgrade radiators for comfort',
+      annualSavingsKwhYr: 0,
+      expectedEpc: baseline.epcLetter || 'N/A',
+      costEstimate: formatCurrencyEstimate(normalizedCost.total, currency),
+      proposal: [
+        `Final comfort pass found ${deficits.count} room(s) below target (including ${deficits.below18Count} below 18C).`,
+        `Rooms: ${sampleRooms || 'See room heat report for full list.'}.`,
+        `Recommend emitter upgrades with TRVs and flow temperature optimization to lift all rooms to at least 18C, ideally to setpoint.`
+      ].join('\n'),
+      costBreakdown: Array.isArray(normalizedCost.formattedBreakdown) ? normalizedCost.formattedBreakdown : [],
+      _comfortImprovement: 100000 + (Number(deficits.below18Count || 0) * 1000) + (Number(deficits.count || 0) * 100),
+      _sortCost: isFinite(Number(normalizedCost.total)) ? Number(normalizedCost.total) : Infinity
+    });
+  }
+
   results.sort((a, b) => {
+    // Priority 1: Comfort improvements (rooms reaching setpoint/18C) — higher is better
+    if (b._comfortImprovement !== a._comfortImprovement) {
+      return b._comfortImprovement - a._comfortImprovement;
+    }
+    // Priority 2: Annual energy savings — higher is better
     if (b.annualSavingsKwhYr !== a.annualSavingsKwhYr) {
       return b.annualSavingsKwhYr - a.annualSavingsKwhYr;
     }
+    // Priority 3: Cost — lower is better
     return a._sortCost - b._sortCost;
   });
 
@@ -1180,6 +2041,17 @@ function applyRecommendationById(demoRaw, recommendationId) {
       });
     });
     return changed;
+  }
+
+  if (recId === 'radiator_upgrade_unmet') {
+    const flowCfg = measures.flow_temp_optimization || {};
+    const radCfg = measures.radiator_upgrade || {};
+    const plan = applyRadiatorComfortUpgrade(demoRaw, {
+      targetFlowTemp: Number(flowCfg.target_c || 45),
+      maxComfortFlowTemp: Number(flowCfg.max_comfort_c || 75),
+      sizingOverheadFactor: Number(radCfg.sizing_overhead_factor || 1.15)
+    });
+    return plan.changed === true;
   }
 
   if (recId === 'flow_temp_reduce') {
@@ -1250,20 +2122,25 @@ function applyRecommendationById(demoRaw, recommendationId) {
   if (recId === 'wall_internal_insulation_worst') {
     const cfg = measures.wall_insulation_internal_retrofit || measures.external_wall_insulation || {};
     const layerMaterialId = String(cfg.insulation_material_id || 'pir');
-    const boundaryZoneIds = new Set((Array.isArray(demoRaw.zones) ? demoRaw.zones : []).filter(z => z?.type === 'boundary').map(z => z.id));
+    const outsideBoundaryId = getBoundaryZoneId(demoRaw, 'outside');
     const templates = (demoRaw.meta && demoRaw.meta.build_up_templates) || {};
     const externalWalls = (Array.isArray(demoRaw.elements) ? demoRaw.elements : [])
-      .filter(element => String(element?.type || '').toLowerCase() === 'wall')
-      .filter(element => (Array.isArray(element?.nodes) ? element.nodes : []).some(nodeId => boundaryZoneIds.has(nodeId)));
+      .filter(element => isHeatedExternalWallElement(element, demoRaw, outsideBoundaryId))
+      .filter(element => !isWallInternalRetrofitAlreadyApplied(element, templates));
     if (externalWalls.length === 0) return false;
     externalWalls.sort((a, b) => Number(b?.u_fabric || 0) - Number(a?.u_fabric || 0));
     const worst = externalWalls[0];
     const buildUp = resolveElementBuildUpForEdit(worst, templates);
     const thicknessPlan = getWallRetrofitThicknessFromBuildUp(buildUp, cfg);
     const addedThickness = thicknessPlan.totalAddedThickness;
-    buildUp.push({ material_id: layerMaterialId, thickness: Number(addedThickness.toFixed(3)) });
+    buildUp.push({
+      material_id: layerMaterialId,
+      thickness: Number(addedThickness.toFixed(3)),
+      _retrofit_source: 'wall_internal_insulation'
+    });
     worst.build_up = buildUp;
     delete worst.build_up_template_id;
+    worst._internal_retrofit_applied = true;
     return true;
   }
 
@@ -2119,8 +2996,7 @@ function handleAltVizMenuAction(action, item, context = {}) {
       const zone = getZoneById(currentDemo, selectedZoneId);
       if (!zone) return;
       pushUndoSnapshot(deepClone(currentDemo));
-      zone.is_boiler_control = true;
-      delete zone.is_unheated;
+      moveBoilerControlThermostatToZone(currentDemo, selectedZoneId);
       lastFocusedZoneId = selectedZoneId;
       triggerSolve();
       if (roomEditorApi?.focusZone) roomEditorApi.focusZone(selectedZoneId);
@@ -3229,6 +4105,60 @@ function buildDynamicWallName(nodes, zoneById, polygonByZoneId, boundaryIds) {
   return `${leftName} - ${rightName} Wall`;
 }
 
+function getDefaultStudPirTemplateId(demo) {
+  const templates = (demo?.meta && demo.meta.build_up_templates) || {};
+  const entries = Object.entries(templates);
+  if (entries.length === 0) return null;
+
+  const exact = entries.find(([, tpl]) => {
+    const name = String(tpl?.name || '').trim().toLowerCase();
+    return name === 'external wall - insulated (stud + pir)';
+  });
+  if (exact) return exact[0];
+
+  const contains = entries.find(([, tpl]) => {
+    const name = String(tpl?.name || '').trim().toLowerCase();
+    return name.includes('stud + pir') || (name.includes('external wall') && name.includes('insulated'));
+  });
+  if (contains) return contains[0];
+
+  if (templates.buo_02) return 'buo_02';
+  return null;
+}
+
+function getMostCommonExternalWallTemplateIdForLevel(demo, level, outsideId, zoneById) {
+  if (!outsideId) return null;
+  const counts = new Map();
+  const elements = Array.isArray(demo?.elements) ? demo.elements : [];
+
+  elements.forEach(element => {
+    if (!element || String(element?.type || '').toLowerCase() !== 'wall') return;
+    const templateId = String(element?.build_up_template_id || '');
+    if (!templateId) return;
+    const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
+    if (!nodes.includes(outsideId)) return;
+
+    const hasSameLevelHeatedNode = nodes.some(nodeId => {
+      const zone = zoneById.get(nodeId);
+      if (!zone || zone.type === 'boundary') return false;
+      return getZoneLevel(zone) === level;
+    });
+    if (!hasSameLevelHeatedNode) return;
+
+    counts.set(templateId, Number(counts.get(templateId) || 0) + 1);
+  });
+
+  let bestId = null;
+  let bestCount = -1;
+  for (const [templateId, count] of counts.entries()) {
+    if (count > bestCount) {
+      bestId = templateId;
+      bestCount = count;
+    }
+  }
+  return bestId;
+}
+
 function getOppositeOrientation(orientation) {
   const normalized = String(orientation || '').toLowerCase();
   if (normalized === 'north') return 'south';
@@ -3274,11 +4204,28 @@ function canonicalizeWallRecord(nodes, orientation, boundaryIds) {
 
 function applyDynamicNamesToWalls(demo, zoneById, polygonByZoneId, boundaryIds) {
   if (!Array.isArray(demo?.elements)) return;
+  const wallEntries = [];
+  const totalsByBaseName = new Map();
+
   for (const element of demo.elements) {
     if (!element || String(element.type || '').toLowerCase() !== 'wall') continue;
     if (!Array.isArray(element.nodes) || element.nodes.length < 2) continue;
-    element.name = buildDynamicWallName(element.nodes, zoneById, polygonByZoneId, boundaryIds);
+    const baseName = buildDynamicWallName(element.nodes, zoneById, polygonByZoneId, boundaryIds);
+    wallEntries.push({ element, baseName });
+    totalsByBaseName.set(baseName, Number(totalsByBaseName.get(baseName) || 0) + 1);
   }
+
+  const seenByBaseName = new Map();
+  wallEntries.forEach(entry => {
+    const duplicateTotal = Number(totalsByBaseName.get(entry.baseName) || 0);
+    if (duplicateTotal <= 1) {
+      entry.element.name = entry.baseName;
+      return;
+    }
+    const ordinal = Number(seenByBaseName.get(entry.baseName) || 0) + 1;
+    seenByBaseName.set(entry.baseName, ordinal);
+    entry.element.name = `${entry.baseName} (${ordinal})`;
+  });
 }
 
 export function reconcileWallElementsFromPolygons(demo, changedPolygonsByZoneId) {
@@ -3430,11 +4377,16 @@ export function reconcileWallElementsFromPolygons(demo, changedPolygonsByZoneId)
 
     if (desiredSegments.length > existingForSignature.length) {
       const desired = desiredSegments[0];
+      const zoneLevel = getZoneLevel(zoneById.get(zoneId));
+      const commonExternalTemplateId = getMostCommonExternalWallTemplateIdForLevel(demo, zoneLevel, outsideId, zoneById);
+      const defaultStudPirTemplateId = getDefaultStudPirTemplateId(demo);
+      const fallbackTemplateId = commonExternalTemplateId || defaultStudPirTemplateId || null;
       const inheritSource = existingForSignature[0]
         || existingWalls.find(wall => {
           const canonical = canonicalizeWallRecord(wall.nodes, wall.orientation, boundaryIds);
           return canonical.nodes[0] === zoneId || canonical.nodes[1] === zoneId;
         })
+        || (fallbackTemplateId ? { build_up_template_id: fallbackTemplateId } : null)
         || null;
 
       for (let i = existingForSignature.length; i < desiredSegments.length; i++) {

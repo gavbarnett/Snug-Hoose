@@ -1,6 +1,12 @@
 {
 	"currency": "GBP",
 	"measures": {
+		"radiator_upgrade": {
+			"cost_per_m2_surface_area": 45,
+			"callout": 200,
+			"sizing_overhead_factor": 1.15,
+			"notes": "Radiator sizing and upgrade to provide adequate heat output for each room to reach its target setpoint, with a configurable output overhead margin for headroom, or enables reduced flow temperature while maintaining comfort."
+		},
 		"trv": {
 			"callout": 120,
 			"valve_material_each": 22,
