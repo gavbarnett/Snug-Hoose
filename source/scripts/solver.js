@@ -2856,7 +2856,11 @@ function pickPreferredWallForZone(demo, zoneId, purpose = 'generic') {
       return 0;
     });
   } else if (purpose === 'radiator') {
-    scored.sort((a, b) => {
+    // Explicitly avoid walls with doors when at least one door-free wall is available.
+    const noDoorCandidates = scored.filter(entry => entry.hasDoor !== true);
+    const radiatorCandidates = noDoorCandidates.length > 0 ? noDoorCandidates : scored;
+
+    radiatorCandidates.sort((a, b) => {
       const aHasRadiator = a.radiatorCount > 0;
       const bHasRadiator = b.radiatorCount > 0;
       if (aHasRadiator !== bHasRadiator) return aHasRadiator ? 1 : -1;
@@ -2867,6 +2871,8 @@ function pickPreferredWallForZone(demo, zoneId, purpose = 'generic') {
       if (a.openingOccupancy !== b.openingOccupancy) return a.openingOccupancy - b.openingOccupancy;
       return 0;
     });
+
+    return radiatorCandidates[0]?.wall || null;
   } else {
     scored.sort((a, b) => {
       if (a.occupancy !== b.occupancy) return a.occupancy - b.occupancy;
