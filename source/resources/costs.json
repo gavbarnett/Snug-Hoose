@@ -32,28 +32,31 @@
 			"insulation_material_id": "pir",
 			"thickness_basis": "structural_cavity",
 			"fallback_thickness_m": 0.06,
+			"max_within_stud_thickness_m": 0.1,
 			"add_internal_service_layer": false,
 			"service_layer_thickness_m": 0.05,
 			"service_layer_install_multiplier": 1.35,
 			"install_per_m2": 95,
 			"callout": 450,
-			"notes": "Indicative internal wall insulation retrofit cost. Thickness defaults to stud cavity depth; optional additional internal service layer can be enabled for deeper retrofit."
+			"notes": "Indicative internal wall insulation retrofit cost. Insulation within studs is capped to 100mm; optional additional internal service layer can be enabled for deeper retrofit."
 		},
 		"floor_insulation": {
-			"insulation_material_id": "xps",
+			"insulation_material_id": "rockwool",
 			"thickness_basis": "structural_cavity",
 			"fallback_thickness_m": 0.08,
 			"install_per_m2": 75,
 			"callout": 400,
-			"notes": "Indicative suspended/solid floor insulation retrofit cost estimate. Thickness defaults to joist cavity depth where available."
+			"notes": "Indicative suspended floor insulation retrofit (defaulting to rockwool for joist-cavity moisture handling). Recommendation only targets joist cavity insulation and will not add insulation layers below joists."
 		},
 		"loft_insulation": {
 			"insulation_material_id": "rockwool",
 			"thickness_basis": "structural_cavity",
 			"fallback_thickness_m": 0.15,
+			"above_joist_thickness_m": 0,
+			"max_above_joist_thickness_m": 0.5,
 			"install_per_m2": 22,
 			"callout": 220,
-			"notes": "Top-up loft insulation supply and fit estimate. Thickness defaults to joist/cavity depth where available."
+			"notes": "Top-up loft insulation supply and fit estimate. Base layer follows joist/cavity depth; additional above-joist insulation can be added up to 500mm."
 		}
 	}
 }

@@ -414,6 +414,110 @@ function getStructuralLayerThickness(buildUp, structuralMaterialIds = []) {
   return null;
 }
 
+function getWallRetrofitThicknessFromBuildUp(buildUp, cfg) {
+  const cavityThickness = getStructuralLayerThickness(buildUp, ['stud_wood']);
+  const fallbackThickness = Number(cfg?.fallback_thickness_m || 0.06);
+  const maxWithinStudThickness = Number(cfg?.max_within_stud_thickness_m || 0.1);
+  const addServiceLayer = cfg?.add_internal_service_layer === true;
+  const serviceLayerThickness = Number(cfg?.service_layer_thickness_m || 0.05);
+
+  let withinStudThickness = isFinite(cavityThickness) && cavityThickness > 0
+    ? cavityThickness
+    : (isFinite(fallbackThickness) && fallbackThickness > 0 ? fallbackThickness : 0.06);
+  if (isFinite(maxWithinStudThickness) && maxWithinStudThickness > 0) {
+    withinStudThickness = Math.min(withinStudThickness, maxWithinStudThickness);
+  }
+
+  const serviceThickness = addServiceLayer && isFinite(serviceLayerThickness) && serviceLayerThickness > 0
+    ? serviceLayerThickness
+    : 0;
+
+  return {
+    withinStudThickness,
+    serviceThickness,
+    totalAddedThickness: withinStudThickness + serviceThickness,
+    addServiceLayer
+  };
+}
+
+function getFloorInsulationThicknessFromBuildUp(buildUp, cfg) {
+  const joistThickness = getStructuralLayerThickness(buildUp, ['joist_wood']);
+  const fallbackThickness = Number(cfg?.fallback_thickness_m || 0.08);
+  if (isFinite(joistThickness) && joistThickness > 0) {
+    // Floor insulation should not exceed joist depth.
+    return joistThickness;
+  }
+  return isFinite(fallbackThickness) && fallbackThickness > 0 ? fallbackThickness : 0.08;
+}
+
+function getLoftInsulationThicknessFromBuildUp(buildUp, cfg) {
+  const joistThickness = getStructuralLayerThickness(buildUp, ['joist_wood']);
+  const fallbackThickness = Number(cfg?.fallback_thickness_m || 0.15);
+  const aboveJoistThickness = Number(cfg?.above_joist_thickness_m || 0);
+  const maxAboveJoistThickness = Number(cfg?.max_above_joist_thickness_m || 0.5);
+
+  const withinJoistThickness = isFinite(joistThickness) && joistThickness > 0
+    ? joistThickness
+    : (isFinite(fallbackThickness) && fallbackThickness > 0 ? fallbackThickness : 0.15);
+  const clampedAboveJoist = isFinite(aboveJoistThickness) && aboveJoistThickness > 0
+    ? Math.min(aboveJoistThickness, isFinite(maxAboveJoistThickness) && maxAboveJoistThickness > 0 ? maxAboveJoistThickness : 0.5)
+    : 0;
+
+  return {
+    withinJoistThickness,
+    aboveJoistThickness: clampedAboveJoist,
+    totalAddedThickness: withinJoistThickness + clampedAboveJoist
+  };
+}
+
+function applyFloorCavityInsulationRetrofit(element, templates, cfg, insulationMaterialId) {
+  const buildUp = resolveElementBuildUpForEdit(element, templates);
+  const compositeIndex = buildUp.findIndex(layer => {
+    if (!layer || layer.type !== 'composite' || !Array.isArray(layer.paths)) return false;
+    return layer.paths.some(path => String(path?.material_id || '') === 'joist_wood');
+  });
+
+  // Respect joist-only strategy: do not append below-joist insulation layers.
+  if (compositeIndex < 0) {
+    return { changed: false, thicknessM: 0 };
+  }
+
+  const composite = buildUp[compositeIndex];
+  const thickness = Number(composite?.thickness);
+  const effectiveThickness = isFinite(thickness) && thickness > 0
+    ? thickness
+    : getFloorInsulationThicknessFromBuildUp(buildUp, cfg);
+
+  let changed = false;
+  const joistPaths = composite.paths.filter(path => String(path?.material_id || '') === 'joist_wood');
+  const nonJoistPaths = composite.paths.filter(path => String(path?.material_id || '') !== 'joist_wood');
+
+  if (nonJoistPaths.length === 0) {
+    const joistFrac = joistPaths.reduce((sum, path) => sum + Number(path?.fraction || 0), 0);
+    const insulationFraction = Math.max(0.01, Math.min(0.99, 1 - (isFinite(joistFrac) ? joistFrac : 0.15)));
+    composite.paths.push({ material_id: insulationMaterialId, fraction: Number(insulationFraction.toFixed(3)) });
+    changed = true;
+  } else {
+    nonJoistPaths.forEach(path => {
+      if (String(path?.material_id || '') !== insulationMaterialId) {
+        path.material_id = insulationMaterialId;
+        changed = true;
+      }
+    });
+  }
+
+  if (changed) {
+    buildUp[compositeIndex] = composite;
+    element.build_up = buildUp;
+    delete element.build_up_template_id;
+  }
+
+  return {
+    changed,
+    thicknessM: isFinite(effectiveThickness) && effectiveThickness > 0 ? effectiveThickness : 0
+  };
+}
+
 function getRecommendationCostModel() {
   return currentCosts && typeof currentCosts === 'object'
     ? currentCosts
@@ -446,6 +550,7 @@ function getRecommendationCostModel() {
           insulation_material_id: 'pir',
           thickness_basis: 'structural_cavity',
           fallback_thickness_m: 0.06,
+          max_within_stud_thickness_m: 0.1,
           add_internal_service_layer: false,
           service_layer_thickness_m: 0.05,
           service_layer_install_multiplier: 1.35,
@@ -453,7 +558,7 @@ function getRecommendationCostModel() {
           callout: 450
         },
         floor_insulation: {
-          insulation_material_id: 'xps',
+          insulation_material_id: 'rockwool',
           thickness_basis: 'structural_cavity',
           fallback_thickness_m: 0.08,
           install_per_m2: 75,
@@ -463,6 +568,8 @@ function getRecommendationCostModel() {
           insulation_material_id: 'rockwool',
           thickness_basis: 'structural_cavity',
           fallback_thickness_m: 0.15,
+          above_joist_thickness_m: 0,
+          max_above_joist_thickness_m: 0.5,
           install_per_m2: 22,
           callout: 220
         }
@@ -497,6 +604,7 @@ function buildPerformanceRecommendations(demoRaw) {
     const normalizedCost = normalizeCostResult(costFn(change), currency);
     const totalCost = Number(normalizedCost.total || 0);
     results.push({
+      recommendationId: String(options.id || label).toLowerCase().replace(/[^a-z0-9]+/g, '_'),
       recommendation: label,
       annualSavingsKwhYr: Number(annualSavings.toFixed(0)),
       expectedEpc: metrics.epcLetter || 'N/A',
@@ -541,7 +649,8 @@ function buildPerformanceRecommendations(demoRaw) {
           { label: `TRV installation labour (${change.count})`, amount: install }
         ]
       };
-    }
+    },
+    { id: 'trv_add' }
   );
 
   addCandidate(
@@ -571,6 +680,7 @@ function buildPerformanceRecommendations(demoRaw) {
       };
     },
     {
+      id: 'flow_temp_reduce',
       accept: ({ metrics, baseline: base }) => {
         const baselineFailures = Number(base?.unmetSetpointRoomCount || 0);
         const candidateFailures = Number(metrics?.unmetSetpointRoomCount || 0);
@@ -611,7 +721,8 @@ function buildPerformanceRecommendations(demoRaw) {
           { label: 'Heating controls setup and scheduling', amount: commissioning }
         ]
       };
-    }
+    },
+    { id: 'setpoint_reduce_min18' }
   );
 
   addCandidate(
@@ -667,7 +778,8 @@ function buildPerformanceRecommendations(demoRaw) {
           { label: `Window installation (${change.areaM2.toFixed(1)} m2)`, amount: install }
         ]
       };
-    }
+    },
+    { id: 'window_upgrade_best' }
   );
 
   addCandidate(
@@ -716,7 +828,8 @@ function buildPerformanceRecommendations(demoRaw) {
           { label: `Door installation labour (${change.count})`, amount: install }
         ]
       };
-    }
+    },
+    { id: 'door_upgrade_best' }
   );
 
   addCandidate(
@@ -724,9 +837,6 @@ function buildPerformanceRecommendations(demoRaw) {
     (working) => {
       const cfg = measures.wall_insulation_internal_retrofit || measures.external_wall_insulation || {};
       const layerMaterialId = String(cfg.insulation_material_id || 'pir');
-      const fallbackThickness = Number(cfg.fallback_thickness_m || 0.06);
-      const addServiceLayer = cfg.add_internal_service_layer === true;
-      const serviceLayerThickness = Number(cfg.service_layer_thickness_m || 0.05);
       const elements = Array.isArray(working?.elements) ? working.elements : [];
       const templates = (working.meta && working.meta.build_up_templates) || {};
       const externalWalls = elements
@@ -739,27 +849,27 @@ function buildPerformanceRecommendations(demoRaw) {
       externalWalls.sort((a, b) => Number(b?.u_fabric || 0) - Number(a?.u_fabric || 0));
       const worst = externalWalls[0];
       const buildUp = resolveElementBuildUpForEdit(worst, templates);
-      const cavityThickness = getStructuralLayerThickness(buildUp, ['stud_wood']);
-      const baseThickness = isFinite(cavityThickness) && cavityThickness > 0
-        ? cavityThickness
-        : (isFinite(fallbackThickness) && fallbackThickness > 0 ? fallbackThickness : 0.06);
-      const addedThickness = addServiceLayer && isFinite(serviceLayerThickness) && serviceLayerThickness > 0
-        ? (baseThickness + serviceLayerThickness)
-        : baseThickness;
+      const thicknessPlan = getWallRetrofitThicknessFromBuildUp(buildUp, cfg);
+      const addedThickness = thicknessPlan.totalAddedThickness;
       buildUp.push({ material_id: layerMaterialId, thickness: Number(addedThickness.toFixed(3)) });
       worst.build_up = buildUp;
       delete worst.build_up_template_id;
       const areaM2 = getElementAreaM2(worst) || 1;
+      const studCapMm = Math.round(Number(cfg.max_within_stud_thickness_m || 0.1) * 1000);
+      const withinStudMm = Math.round(thicknessPlan.withinStudThickness * 1000);
+      const serviceLayerMm = Math.round(thicknessPlan.serviceThickness * 1000);
+      const totalIncreaseMm = Math.round(addedThickness * 1000);
       return {
         changed: true,
         areaM2,
         materialVolumeM3: areaM2 * addedThickness,
-        installMultiplier: addServiceLayer
+        installMultiplier: thicknessPlan.addServiceLayer
           ? Number(cfg.service_layer_install_multiplier || 1.35)
           : 1,
-        proposal: addServiceLayer
-          ? `Add internal wall insulation to the poorest external wall using ${layerMaterialId}, matching cavity depth plus ${serviceLayerThickness.toFixed(2)} m service layer where required.`
-          : `Add internal wall insulation to the poorest external wall using ${layerMaterialId}, matching cavity depth.`
+        proposal: thicknessPlan.addServiceLayer
+          ? `Add internal wall insulation to the poorest external wall using ${layerMaterialId}. In-stud layer: ${withinStudMm} mm (cap ${studCapMm} mm). Service layer: ${serviceLayerMm} mm.`
+          : `Add internal wall insulation to the poorest external wall using ${layerMaterialId}. In-stud layer: ${withinStudMm} mm (cap ${studCapMm} mm).`,
+        warning: `Warning: internal wall thickness will increase by ${totalIncreaseMm} mm if this recommendation is applied.`
       };
     },
     (change) => {
@@ -779,15 +889,15 @@ function buildPerformanceRecommendations(demoRaw) {
           { label: `Wall insulation labour (${change.areaM2.toFixed(1)} m2)`, amount: install }
         ]
       };
-    }
+    },
+    { id: 'wall_internal_insulation_worst' }
   );
 
   addCandidate(
     'Insulate ground floors',
     (working) => {
       const cfg = measures.floor_insulation || {};
-      const layerMaterialId = String(cfg.insulation_material_id || 'xps');
-      const fallbackThickness = Number(cfg.fallback_thickness_m || 0.08);
+      const layerMaterialId = String(cfg.insulation_material_id || 'rockwool');
       const groundId = getBoundaryZoneId(working, 'ground');
       if (!groundId) return { changed: false };
       const elements = Array.isArray(working?.elements) ? working.elements : [];
@@ -798,23 +908,17 @@ function buildPerformanceRecommendations(demoRaw) {
         if (String(element?.type || '').toLowerCase() !== 'floor') return;
         const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
         if (!nodes.includes(groundId)) return;
-        const buildUp = resolveElementBuildUpForEdit(element, templates);
-        const cavityThickness = getStructuralLayerThickness(buildUp, ['joist_wood']);
-        const addedThickness = isFinite(cavityThickness) && cavityThickness > 0
-          ? cavityThickness
-          : (isFinite(fallbackThickness) && fallbackThickness > 0 ? fallbackThickness : 0.08);
-        buildUp.push({ material_id: layerMaterialId, thickness: Number(addedThickness.toFixed(3)) });
-        element.build_up = buildUp;
-        delete element.build_up_template_id;
+        const result = applyFloorCavityInsulationRetrofit(element, templates, cfg, layerMaterialId);
+        if (!result.changed) return;
         const areaM2 = getElementAreaM2(element);
         areaTotal += areaM2;
-        volumeTotal += areaM2 * addedThickness;
+        volumeTotal += areaM2 * result.thicknessM;
       });
       return {
         changed: areaTotal > 0,
         areaM2: areaTotal,
         materialVolumeM3: volumeTotal,
-        proposal: `Add floor insulation (${layerMaterialId}) to ground floor elements, using cavity depth where available.`
+        proposal: `Retain floor insulation within joist cavities only (no below-joist insulation build-up). Existing non-joist cavity paths are converted to ${layerMaterialId}.`
       };
     },
     (change) => {
@@ -833,7 +937,8 @@ function buildPerformanceRecommendations(demoRaw) {
           { label: `Floor insulation labour (${change.areaM2.toFixed(1)} m2)`, amount: install }
         ]
       };
-    }
+    },
+    { id: 'floor_insulation_topup' }
   );
 
   addCandidate(
@@ -841,7 +946,6 @@ function buildPerformanceRecommendations(demoRaw) {
     (working) => {
       const cfg = measures.loft_insulation || {};
       const layerMaterialId = String(cfg.insulation_material_id || 'rockwool');
-      const fallbackThickness = Number(cfg.fallback_thickness_m || 0.15);
       const loftId = getBoundaryZoneId(working, 'loft');
       if (!loftId) return { changed: false };
       const elements = Array.isArray(working?.elements) ? working.elements : [];
@@ -854,10 +958,8 @@ function buildPerformanceRecommendations(demoRaw) {
         const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
         if (!nodes.includes(loftId)) return;
         const buildUp = resolveElementBuildUpForEdit(element, templates);
-        const joistThickness = getStructuralLayerThickness(buildUp, ['joist_wood']);
-        const addedThickness = isFinite(joistThickness) && joistThickness > 0
-          ? joistThickness
-          : (isFinite(fallbackThickness) && fallbackThickness > 0 ? fallbackThickness : 0.15);
+        const loftPlan = getLoftInsulationThicknessFromBuildUp(buildUp, cfg);
+        const addedThickness = loftPlan.totalAddedThickness;
         buildUp.push({ material_id: layerMaterialId, thickness: Number(addedThickness.toFixed(3)) });
         element.build_up = buildUp;
         delete element.build_up_template_id;
@@ -869,7 +971,7 @@ function buildPerformanceRecommendations(demoRaw) {
         changed: areaTotal > 0,
         areaM2: areaTotal,
         materialVolumeM3: volumeTotal,
-        proposal: `Top up loft/ceiling insulation using ${layerMaterialId}, targeting cavity depth where available.`
+        proposal: `Top up loft/ceiling insulation using ${layerMaterialId}. Base thickness follows joist/cavity depth, and any configured above-joist top-up is capped at ${Math.round(Number(cfg.max_above_joist_thickness_m || 0.5) * 1000)} mm.`
       };
     },
     (change) => {
@@ -888,7 +990,8 @@ function buildPerformanceRecommendations(demoRaw) {
           { label: `Loft insulation labour (${change.areaM2.toFixed(1)} m2)`, amount: install }
         ]
       };
-    }
+    },
+    { id: 'loft_insulation_topup' }
   );
 
   results.sort((a, b) => {
@@ -899,13 +1002,160 @@ function buildPerformanceRecommendations(demoRaw) {
   });
 
   return results.slice(0, 8).map(item => ({
+    recommendationId: item.recommendationId,
     recommendation: item.recommendation,
     annualSavingsKwhYr: item.annualSavingsKwhYr,
     expectedEpc: item.expectedEpc || getEpcBandFromIntensity(null),
     costEstimate: item.costEstimate,
     proposal: item.proposal,
+    warning: item.warning || null,
     costBreakdown: Array.isArray(item.costBreakdown) ? item.costBreakdown : []
   }));
+}
+
+function applyRecommendationById(demoRaw, recommendationId) {
+  if (!demoRaw || !recommendationId) return false;
+  const recId = String(recommendationId);
+  const measures = (getRecommendationCostModel().measures || {});
+
+  if (recId === 'trv_add') {
+    let changed = false;
+    (Array.isArray(demoRaw.zones) ? demoRaw.zones : []).forEach(zone => {
+      (Array.isArray(zone?.radiators) ? zone.radiators : []).forEach(rad => {
+        if (rad?.trv_enabled === true) return;
+        rad.trv_enabled = true;
+        changed = true;
+      });
+    });
+    return changed;
+  }
+
+  if (recId === 'flow_temp_reduce') {
+    const cfg = measures.flow_temp_optimization || {};
+    const target = Number(cfg.target_c || 45);
+    demoRaw.meta = demoRaw.meta || {};
+    const current = Number(demoRaw.meta.flowTemp);
+    const currentSafe = isFinite(current) ? current : 55;
+    if (currentSafe <= target + 0.5) return false;
+    demoRaw.meta.flowTemp = target;
+    return true;
+  }
+
+  if (recId === 'setpoint_reduce_min18') {
+    const cfg = measures.setpoint_optimization || {};
+    const minSetpoint = Number(cfg.min_setpoint_c || 18);
+    const step = Number(cfg.step_c || 1);
+    let changed = false;
+    (Array.isArray(demoRaw.zones) ? demoRaw.zones : []).forEach(zone => {
+      if (!zone || zone.type === 'boundary' || zone.is_unheated === true) return;
+      const currentSetpoint = Number(zone.setpoint_temperature);
+      if (!isFinite(currentSetpoint) || currentSetpoint <= minSetpoint) return;
+      const nextSetpoint = Math.max(minSetpoint, currentSetpoint - step);
+      if (nextSetpoint < currentSetpoint) {
+        zone.setpoint_temperature = Number(nextSetpoint.toFixed(2));
+        changed = true;
+      }
+    });
+    return changed;
+  }
+
+  if (recId === 'window_upgrade_best') {
+    const options = Array.isArray(currentOpenings?.windows) ? currentOpenings.windows : [];
+    if (options.length === 0) return false;
+    const best = options.filter(opt => isFinite(Number(opt?.u_value))).sort((a, b) => Number(a.u_value) - Number(b.u_value))[0];
+    if (!best) return false;
+    let changed = false;
+    (Array.isArray(demoRaw.elements) ? demoRaw.elements : []).forEach(element => {
+      (Array.isArray(element?.windows) ? element.windows : []).forEach(window => {
+        if (String(window?.glazing_id || '') === String(best.id || '')) return;
+        window.glazing_id = best.id;
+        if (isFinite(Number(best.air_leakage_m3_h_m2))) window.air_leakage_m3_h_m2 = Number(best.air_leakage_m3_h_m2);
+        if (typeof best.has_trickle_vent === 'boolean') window.has_trickle_vent = best.has_trickle_vent;
+        if (isFinite(Number(best.trickle_vent_flow_m3_h))) window.trickle_vent_flow_m3_h = Number(best.trickle_vent_flow_m3_h);
+        changed = true;
+      });
+    });
+    return changed;
+  }
+
+  if (recId === 'door_upgrade_best') {
+    const options = Array.isArray(currentOpenings?.doors) ? currentOpenings.doors : [];
+    if (options.length === 0) return false;
+    const best = options.filter(opt => isFinite(Number(opt?.u_value))).sort((a, b) => Number(a.u_value) - Number(b.u_value))[0];
+    if (!best) return false;
+    let changed = false;
+    (Array.isArray(demoRaw.elements) ? demoRaw.elements : []).forEach(element => {
+      (Array.isArray(element?.doors) ? element.doors : []).forEach(door => {
+        if (String(door?.material_id || door?.glazing_id || '') === String(best.id || '')) return;
+        door.material_id = best.id;
+        if (isFinite(Number(best.air_leakage_m3_h_m2))) door.air_leakage_m3_h_m2 = Number(best.air_leakage_m3_h_m2);
+        changed = true;
+      });
+    });
+    return changed;
+  }
+
+  if (recId === 'wall_internal_insulation_worst') {
+    const cfg = measures.wall_insulation_internal_retrofit || measures.external_wall_insulation || {};
+    const layerMaterialId = String(cfg.insulation_material_id || 'pir');
+    const boundaryZoneIds = new Set((Array.isArray(demoRaw.zones) ? demoRaw.zones : []).filter(z => z?.type === 'boundary').map(z => z.id));
+    const templates = (demoRaw.meta && demoRaw.meta.build_up_templates) || {};
+    const externalWalls = (Array.isArray(demoRaw.elements) ? demoRaw.elements : [])
+      .filter(element => String(element?.type || '').toLowerCase() === 'wall')
+      .filter(element => (Array.isArray(element?.nodes) ? element.nodes : []).some(nodeId => boundaryZoneIds.has(nodeId)));
+    if (externalWalls.length === 0) return false;
+    externalWalls.sort((a, b) => Number(b?.u_fabric || 0) - Number(a?.u_fabric || 0));
+    const worst = externalWalls[0];
+    const buildUp = resolveElementBuildUpForEdit(worst, templates);
+    const thicknessPlan = getWallRetrofitThicknessFromBuildUp(buildUp, cfg);
+    const addedThickness = thicknessPlan.totalAddedThickness;
+    buildUp.push({ material_id: layerMaterialId, thickness: Number(addedThickness.toFixed(3)) });
+    worst.build_up = buildUp;
+    delete worst.build_up_template_id;
+    return true;
+  }
+
+  if (recId === 'floor_insulation_topup') {
+    const cfg = measures.floor_insulation || {};
+    const layerMaterialId = String(cfg.insulation_material_id || 'rockwool');
+    const groundId = getBoundaryZoneId(demoRaw, 'ground');
+    if (!groundId) return false;
+    const templates = (demoRaw.meta && demoRaw.meta.build_up_templates) || {};
+    let changed = false;
+    (Array.isArray(demoRaw.elements) ? demoRaw.elements : []).forEach(element => {
+      if (String(element?.type || '').toLowerCase() !== 'floor') return;
+      const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
+      if (!nodes.includes(groundId)) return;
+      const result = applyFloorCavityInsulationRetrofit(element, templates, cfg, layerMaterialId);
+      if (result.changed) changed = true;
+    });
+    return changed;
+  }
+
+  if (recId === 'loft_insulation_topup') {
+    const cfg = measures.loft_insulation || {};
+    const layerMaterialId = String(cfg.insulation_material_id || 'rockwool');
+    const loftId = getBoundaryZoneId(demoRaw, 'loft');
+    if (!loftId) return false;
+    const templates = (demoRaw.meta && demoRaw.meta.build_up_templates) || {};
+    let changed = false;
+    (Array.isArray(demoRaw.elements) ? demoRaw.elements : []).forEach(element => {
+      const type = String(element?.type || '').toLowerCase();
+      if (type !== 'ceiling' && type !== 'floor_ceiling') return;
+      const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
+      if (!nodes.includes(loftId)) return;
+      const buildUp = resolveElementBuildUpForEdit(element, templates);
+      const loftPlan = getLoftInsulationThicknessFromBuildUp(buildUp, cfg);
+      const addedThickness = loftPlan.totalAddedThickness;
+      buildUp.push({ material_id: layerMaterialId, thickness: Number(addedThickness.toFixed(3)) });
+      element.build_up = buildUp;
+      delete element.build_up_template_id;
+      changed = true;
+    });
+    return changed;
+  }
+
+  return false;
 }
 
 function formatVariantCompareReport() {
@@ -1591,6 +1841,17 @@ function handleAltVizMenuAction(action, item, context = {}) {
       const report = formatVariantCompareReport();
       if (appUiApi && typeof appUiApi.setStatus === 'function') {
         appUiApi.setStatus(report);
+      }
+      return;
+    }
+    case 'recommendations.apply': {
+      if (!currentDemo) return;
+      const recommendationId = String(payload.recommendationId || '');
+      if (!recommendationId) return;
+      const before = deepClone(currentDemo);
+      if (applyRecommendationById(currentDemo, recommendationId)) {
+        pushUndoSnapshot(before);
+        triggerSolve();
       }
       return;
     }

@@ -416,6 +416,27 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
       proposalText.textContent = String(item?.proposal || 'No proposal details available.');
       detailCell.appendChild(proposalText);
 
+      if (item?.warning) {
+        const warningText = document.createElement('div');
+        warningText.className = 'alt-viz-rec-warning';
+        warningText.textContent = String(item.warning);
+        detailCell.appendChild(warningText);
+      }
+
+      const applyRow = document.createElement('div');
+      applyRow.className = 'alt-viz-rec-apply-row';
+      const applyBtn = document.createElement('button');
+      applyBtn.type = 'button';
+      applyBtn.className = 'alt-viz-rec-apply-btn';
+      applyBtn.textContent = 'Apply Recommendation';
+      if (!item?.recommendationId) applyBtn.disabled = true;
+      applyBtn.addEventListener('click', () => {
+        if (!item?.recommendationId) return;
+        requestAction('recommendations.apply', { recommendationId: item.recommendationId });
+      });
+      applyRow.appendChild(applyBtn);
+      detailCell.appendChild(applyRow);
+
       const breakdownTitle = document.createElement('div');
       breakdownTitle.className = 'alt-viz-rec-detail-title';
       breakdownTitle.textContent = 'Cost Breakdown';

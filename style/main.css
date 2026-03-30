@@ -417,6 +417,41 @@ a#download:hover {
   margin-bottom: 0.25rem;
 }
 
+.alt-viz-rec-warning {
+  font-size: 0.68rem;
+  color: #ffb38a;
+  background: rgba(255, 122, 69, 0.14);
+  border: 1px solid rgba(255, 122, 69, 0.35);
+  border-radius: 4px;
+  padding: 0.26rem 0.35rem;
+  margin-bottom: 0.28rem;
+}
+
+.alt-viz-rec-apply-row {
+  margin-bottom: 0.28rem;
+}
+
+.alt-viz-rec-apply-btn {
+  border: 1px solid rgba(0, 212, 255, 0.45);
+  background: rgba(0, 212, 255, 0.12);
+  color: var(--text-light);
+  font-size: 0.66rem;
+  line-height: 1;
+  padding: 0.24rem 0.46rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.alt-viz-rec-apply-btn:hover {
+  border-color: rgba(0, 212, 255, 0.8);
+  background: rgba(0, 212, 255, 0.2);
+}
+
+.alt-viz-rec-apply-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .alt-viz-rec-cost-list {
   margin: 0;
   padding-left: 1rem;
