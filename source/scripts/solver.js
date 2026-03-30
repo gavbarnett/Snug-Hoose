@@ -1702,6 +1702,14 @@ function getRecommendationCostModel() {
           callout: 220
         },
         heating_system_switch: {
+          heat_pump_install_base: 4200,
+          heat_pump_install_per_kw: 650,
+          heat_pump_min_kw: 4,
+          heat_pump_sizing_factor: 1.15,
+          gas_boiler_install_base: 1800,
+          gas_boiler_install_per_kw: 220,
+          gas_boiler_min_kw: 12,
+          gas_boiler_sizing_factor: 1.1,
           heat_pump_install: 9500,
           gas_boiler_install: 3200,
           wet_system_conversion: 6500,
@@ -1733,6 +1741,34 @@ function buildPerformanceRecommendations(demoRaw) {
   const heatedRooms = (Array.isArray(demoRaw?.zones) ? demoRaw.zones : [])
     .filter(zone => zone && zone.type !== 'boundary' && zone.is_unheated !== true);
   const emitterCount = Math.max(1, heatedRooms.length);
+  const designHeatLossW = Math.max(0, Number(baseline?.totalHeatLoss || 0));
+  const resolvePlantInstallCost = (sourceKey) => {
+    const isHeatPump = sourceKey === 'heat_pump';
+    const legacyFlat = Number(isHeatPump ? systemSwitchCfg.heat_pump_install : systemSwitchCfg.gas_boiler_install);
+    const base = Number(isHeatPump ? systemSwitchCfg.heat_pump_install_base : systemSwitchCfg.gas_boiler_install_base);
+    const perKw = Number(isHeatPump ? systemSwitchCfg.heat_pump_install_per_kw : systemSwitchCfg.gas_boiler_install_per_kw);
+    const minKwRaw = Number(isHeatPump ? systemSwitchCfg.heat_pump_min_kw : systemSwitchCfg.gas_boiler_min_kw);
+    const sizingFactorRaw = Number(isHeatPump ? systemSwitchCfg.heat_pump_sizing_factor : systemSwitchCfg.gas_boiler_sizing_factor);
+
+    if (!isFinite(base) || !isFinite(perKw) || base < 0 || perKw < 0) {
+      return {
+        amount: Math.max(0, isFinite(legacyFlat) ? legacyFlat : 0),
+        requiredKw: null,
+        note: 'flat'
+      };
+    }
+
+    const sizingFactor = isFinite(sizingFactorRaw) && sizingFactorRaw > 0 ? sizingFactorRaw : 1;
+    const minKw = isFinite(minKwRaw) && minKwRaw > 0 ? minKwRaw : 0;
+    const requiredKw = Math.max(minKw, (designHeatLossW * sizingFactor) / 1000);
+    const roundedKw = Math.ceil(requiredKw * 2) / 2;
+    const amount = base + (roundedKw * perKw);
+    return {
+      amount: Math.max(0, amount),
+      requiredKw: roundedKw,
+      note: 'sized'
+    };
+  };
   const getSystemSwitchCost = (targetSource) => {
     const currentSource = String(baselineHeatingInputs?.heatSourceType || 'gas_boiler');
     if (targetSource === currentSource) {
@@ -1746,8 +1782,13 @@ function buildPerformanceRecommendations(demoRaw) {
     const breakdown = [];
 
     if (targetSource === 'heat_pump') {
-      baseInstall = Number(systemSwitchCfg.heat_pump_install || 0);
-      breakdown.push({ label: 'Heat pump installation', amount: baseInstall });
+      const plantInstall = resolvePlantInstallCost('heat_pump');
+      baseInstall = plantInstall.amount;
+      if (plantInstall.note === 'sized' && isFinite(plantInstall.requiredKw)) {
+        breakdown.push({ label: `Heat pump installation (${plantInstall.requiredKw.toFixed(1)} kW)` , amount: baseInstall });
+      } else {
+        breakdown.push({ label: 'Heat pump installation', amount: baseInstall });
+      }
       if (currentSource === 'direct_electric') {
         conversion = Number(systemSwitchCfg.wet_system_conversion || 0);
         emitterConversion = emitterCount * Number(systemSwitchCfg.wet_emitter_each || 0);
@@ -1758,8 +1799,13 @@ function buildPerformanceRecommendations(demoRaw) {
         breakdown.push({ label: 'Boiler decommission allowance', amount: decommission });
       }
     } else if (targetSource === 'gas_boiler') {
-      baseInstall = Number(systemSwitchCfg.gas_boiler_install || 0);
-      breakdown.push({ label: 'Gas boiler installation', amount: baseInstall });
+      const plantInstall = resolvePlantInstallCost('gas_boiler');
+      baseInstall = plantInstall.amount;
+      if (plantInstall.note === 'sized' && isFinite(plantInstall.requiredKw)) {
+        breakdown.push({ label: `Gas boiler installation (${plantInstall.requiredKw.toFixed(1)} kW)`, amount: baseInstall });
+      } else {
+        breakdown.push({ label: 'Gas boiler installation', amount: baseInstall });
+      }
       if (currentSource === 'direct_electric') {
         conversion = Number(systemSwitchCfg.wet_system_conversion || 0);
         emitterConversion = emitterCount * Number(systemSwitchCfg.wet_emitter_each || 0);
