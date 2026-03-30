@@ -1,5 +1,5 @@
 // Alternative floor-plan view scaffold: level selector + thermal-colored polygons.
-import { formatZoneTemperatureText, getZoneCapacitySummary, getZoneSavingsText } from './zone_text.js';
+import { formatZoneTemperatureText, getZoneAchText, getZoneCapacitySummary, getZoneSavingsText } from './zone_text.js';
 import { getThermalColorClass, THERMAL_COLOR_BY_CLASS } from './zone_thermal.js';
 
 let selectedLevel = null;
@@ -213,7 +213,10 @@ function createProjectSummaryStrip(demo, rooms) {
   const annualDemand = epc.annualHeatingDemandKwhYr === null
     ? 'n/a'
     : `${epc.annualHeatingDemandKwhYr.toFixed(0)} kWh/yr`;
-  epcSummary.textContent = `Overall EPC ${epc.letter} (${epcValue}) · Annual demand ${annualDemand}`;
+  const overallAch = typeof demo?.meta?.total_air_changes_per_hour === 'number' && isFinite(demo.meta.total_air_changes_per_hour)
+    ? demo.meta.total_air_changes_per_hour.toFixed(2)
+    : 'n/a';
+  epcSummary.textContent = `Overall EPC ${epc.letter} (${epcValue}) · Annual demand ${annualDemand} · ACH ${overallAch}`;
 
   const epcScale = document.createElement('div');
   epcScale.className = 'alt-viz-project-epc-scale';
@@ -3013,11 +3016,13 @@ export function renderAlternativeViz(demo, opts = {}) {
 
     const externalTemp = Number(demo?.meta?.externalTemp) || 3;
     const tempText = formatZoneTemperatureText(zone, externalTemp);
+    const achText = getZoneAchText(zone);
     const capacity = getZoneCapacitySummary(zone, externalTemp);
     const savingsText = getZoneSavingsText(zone);
 
     const infoLines = [];
     if (tempText) infoLines.push(tempText);
+    if (achText) infoLines.push(achText);
     if (capacity) infoLines.push(capacity.text);
     if (savingsText) infoLines.push(savingsText);
     if (zone.is_unheated !== true) {

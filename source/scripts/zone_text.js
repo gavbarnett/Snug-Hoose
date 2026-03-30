@@ -80,3 +80,9 @@ export function getZoneSavingsText(zone) {
   const annualSavings = (savingsW * 24 * 365) / 1000;
   return `Savings: ${annualSavings.toFixed(0)} kWh/yr`;
 }
+
+export function getZoneAchText(zone) {
+  if (!zone || zone.is_unheated === true) return null;
+  if (typeof zone.air_changes_per_hour !== 'number' || !isFinite(zone.air_changes_per_hour)) return null;
+  return `ACH: ${zone.air_changes_per_hour.toFixed(2)}`;
+}
