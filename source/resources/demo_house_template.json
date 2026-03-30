@@ -1,502 +1,745 @@
 {
-  "meta": {
-    "name": "Demo House - Clean Four Room House",
-    "global_target_temperature": 21,
-    "units": {
-      "area": "m2",
-      "thickness": "m",
-      "thermal_conductivity": "W/mK",
-      "u_value": "W/m2K",
-      "conductance": "W/K",
-      "heat_loss": "W",
-      "heat_loss_per_unit_area": "W/m2",
-      "radiator_surface_area": "m2",
-      "radiator_output": "W",
-      "heating_balance": "W",
-      "temperature": "C",
-      "total_heat_loss": "W",
-      "total_radiator_output": "W",
-      "total_balance": "W"
-    },
-    "build_up_templates": {
-      "buo_01": {
-        "name": "Internal Wall - Cavity (Plasterboard-Blockwork)",
-        "usage_count": 4,
-        "build_up": [
-          { "material_id": "plasterboard", "thickness": 0.0125 },
-          { "material_id": "blockwork", "thickness": 0.1 },
-          { "material_id": "plasterboard", "thickness": 0.0125 }
-        ]
-      },
-      "buo_02": {
-        "name": "External Wall - Insulated (Stud + PIR)",
-        "usage_count": 8,
-        "build_up": [
-          { "material_id": "plasterboard", "thickness": 0.0125 },
-          {
-            "type": "composite",
-            "thickness": 0.09,
-            "paths": [
-              { "material_id": "stud_wood", "fraction": 0.15 },
-              { "material_id": "pir", "fraction": 0.85 }
-            ]
-          },
-          { "material_id": "pir", "thickness": 0.05 },
-          { "material_id": "blockwork", "thickness": 0.1 }
-        ]
-      },
-      "buo_03": {
-        "name": "Loft External Wall - Uninsulated",
-        "usage_count": 4,
-        "build_up": [
-          { "material_id": "plasterboard", "thickness": 0.0125 },
-          { "material_id": "blockwork", "thickness": 0.1 }
-        ]
-      },
-      "buo_04": {
-        "name": "Ground Floor - Insulated (Joist Cavity + XPS)",
-        "usage_count": 4,
-        "build_up": [
-          { "material_id": "plywood", "thickness": 0.018 },
-          {
-            "type": "composite",
-            "thickness": 0.15,
-            "paths": [
-              { "material_id": "joist_wood", "fraction": 0.15 },
-              { "material_id": "rockwool", "fraction": 0.85 }
-            ]
-          },
-          { "material_id": "xps", "thickness": 0.1 }
-        ]
-      },
-      "buo_05": {
-        "name": "Inter-floor Ceiling - Acoustic",
-        "usage_count": 0,
-        "build_up": [
-          { "material_id": "plasterboard", "thickness": 0.0125 },
-          { "material_id": "glass_wool", "thickness": 0.15 },
-          { "material_id": "plywood", "thickness": 0.02 }
-        ]
-      },
-      "buo_06": {
-        "name": "Loft Floor - Insulation",
-        "usage_count": 4,
-        "build_up": [
-          { "material_id": "plasterboard", "thickness": 0.0125 },
-          { "material_id": "rockwool", "thickness": 0.05 }
-        ]
-      }
-    }
-  },
-  "zones": [
-    {
-      "id": "id_demo_lounge",
-      "name": "Lounge",
-      "level": 0,
-      "setpoint_temperature": 21,
-      "is_boiler_control": true,
-      "radiators": [
-        {
-          "radiator_id": "type_22",
-          "surface_area": 0.72,
-          "width": 1200,
-          "height": 600,
-          "trv_enabled": true
-        }
-      ],
-      "layout": {
-        "polygon": [
-          { "x": 0, "y": 0 },
-          { "x": 4, "y": 0 },
-          { "x": 4, "y": 4 },
-          { "x": 0, "y": 4 }
-        ]
-      }
-    },
-    {
-      "id": "id_demo_kitchen",
-      "name": "Kitchen",
-      "level": 0,
-      "setpoint_temperature": 20,
-      "is_boiler_control": false,
-      "radiators": [
-        {
-          "radiator_id": "type_22",
-          "surface_area": 0.48,
-          "width": 800,
-          "height": 600,
-          "trv_enabled": true
-        }
-      ],
-      "ventilation_elements": [
-        {
-          "id": "vent_demo_kitchen_extract",
-          "type": "extractor_kitchen",
-          "name": "Kitchen Extractor",
-          "flow_m3_h": 60,
-          "enabled": true
-        }
-      ],
-      "layout": {
-        "polygon": [
-          { "x": 4, "y": 0 },
-          { "x": 8, "y": 0 },
-          { "x": 8, "y": 4 },
-          { "x": 4, "y": 4 }
-        ]
-      }
-    },
-    {
-      "id": "id_demo_bedroom",
-      "name": "Bedroom",
-      "level": 0,
-      "setpoint_temperature": 19,
-      "is_boiler_control": false,
-      "radiators": [
-        {
-          "radiator_id": "type_11",
-          "surface_area": 0.4,
-          "width": 800,
-          "height": 500,
-          "trv_enabled": true
-        }
-      ],
-      "layout": {
-        "polygon": [
-          { "x": 0, "y": 4 },
-          { "x": 4, "y": 4 },
-          { "x": 4, "y": 8 },
-          { "x": 0, "y": 8 }
-        ]
-      }
-    },
-    {
-      "id": "id_demo_bathroom",
-      "name": "Bathroom",
-      "level": 0,
-      "setpoint_temperature": 22,
-      "is_boiler_control": false,
-      "radiators": [
-        {
-          "radiator_id": "type_11",
-          "surface_area": 0.24,
-          "width": 600,
-          "height": 400,
-          "trv_enabled": true
-        }
-      ],
-      "ventilation_elements": [
-        {
-          "id": "vent_demo_bath_extract",
-          "type": "extractor_bathroom",
-          "name": "Bathroom Extractor",
-          "flow_m3_h": 30,
-          "enabled": true
-        }
-      ],
-      "layout": {
-        "polygon": [
-          { "x": 4, "y": 4 },
-          { "x": 8, "y": 4 },
-          { "x": 8, "y": 8 },
-          { "x": 4, "y": 8 }
-        ]
-      }
-    },
-    {
-      "id": "id_demo_loft",
-      "name": "Loft",
-      "level": 1,
-      "is_unheated": true,
-      "layout": {
-        "polygon": [
-          { "x": 0, "y": 0 },
-          { "x": 8, "y": 0 },
-          { "x": 8, "y": 8 },
-          { "x": 0, "y": 8 }
-        ]
-      }
-    },
-    { "id": "id_demo_outside", "name": "Outside", "type": "boundary" },
-    { "id": "id_demo_ground", "name": "Ground", "type": "boundary" }
-  ],
-  "elements": [
-    {
-      "id": "el_lounge_north",
-      "name": "Lounge - North External Wall",
-      "type": "wall",
-      "nodes": ["id_demo_lounge", "id_demo_outside"],
-      "orientation": "north",
-      "x": 4,
-      "y": 2.4,
-      "windows": [
-        { "id": "win_lounge_north", "name": "Lounge Front Window", "glazing_id": "window_double_modern", "area": 1.8 }
-      ],
-      "build_up_template_id": "buo_02"
-    },
-    {
-      "id": "el_lounge_west",
-      "name": "Lounge - West External Wall",
-      "type": "wall",
-      "nodes": ["id_demo_lounge", "id_demo_outside"],
-      "orientation": "west",
-      "x": 4,
-      "y": 2.4,
-      "windows": [
-        { "id": "win_lounge_west", "name": "Lounge Side Window", "glazing_id": "window_double_modern", "area": 1.2 }
-      ],
-      "build_up_template_id": "buo_02"
-    },
-    {
-      "id": "el_kitchen_north",
-      "name": "Kitchen - North External Wall",
-      "type": "wall",
-      "nodes": ["id_demo_kitchen", "id_demo_outside"],
-      "orientation": "north",
-      "x": 4,
-      "y": 2.4,
-      "windows": [
-        { "id": "win_kitchen_north", "name": "Kitchen Front Window", "glazing_id": "window_double_modern", "area": 1.5 }
-      ],
-      "build_up_template_id": "buo_02"
-    },
-    {
-      "id": "el_kitchen_east",
-      "name": "Kitchen - East External Wall",
-      "type": "wall",
-      "nodes": ["id_demo_kitchen", "id_demo_outside"],
-      "orientation": "east",
-      "x": 4,
-      "y": 2.4,
-      "windows": [
-        { "id": "win_kitchen_east", "name": "Kitchen Side Window", "glazing_id": "window_double_modern", "area": 1.0 }
-      ],
-      "doors": [
-        { "id": "door_kitchen_back", "name": "Back Door", "material_id": "door_pvc_insulated" }
-      ],
-      "build_up_template_id": "buo_02"
-    },
-    {
-      "id": "el_bedroom_west",
-      "name": "Bedroom - West External Wall",
-      "type": "wall",
-      "nodes": ["id_demo_bedroom", "id_demo_outside"],
-      "orientation": "west",
-      "x": 4,
-      "y": 2.4,
-      "windows": [
-        { "id": "win_bedroom_west", "name": "Bedroom Side Window", "glazing_id": "window_double_modern", "area": 1.4 }
-      ],
-      "build_up_template_id": "buo_02"
-    },
-    {
-      "id": "el_bedroom_south",
-      "name": "Bedroom - South External Wall",
-      "type": "wall",
-      "nodes": ["id_demo_bedroom", "id_demo_outside"],
-      "orientation": "south",
-      "x": 4,
-      "y": 2.4,
-      "windows": [
-        { "id": "win_bedroom_south", "name": "Bedroom Rear Window", "glazing_id": "window_double_modern", "area": 1.0 }
-      ],
-      "build_up_template_id": "buo_02"
-    },
-    {
-      "id": "el_bathroom_east",
-      "name": "Bathroom - East External Wall",
-      "type": "wall",
-      "nodes": ["id_demo_bathroom", "id_demo_outside"],
-      "orientation": "east",
-      "x": 4,
-      "y": 2.4,
-      "build_up_template_id": "buo_02"
-    },
-    {
-      "id": "el_bathroom_south",
-      "name": "Bathroom - South External Wall",
-      "type": "wall",
-      "nodes": ["id_demo_bathroom", "id_demo_outside"],
-      "orientation": "south",
-      "x": 4,
-      "y": 2.4,
-      "windows": [
-        {
-          "id": "win_bathroom_south",
-          "name": "Bathroom Window",
-          "glazing_id": "window_pvc_double",
-          "area": 0.6,
-          "air_leakage_m3_h_m2": 1.0,
-          "has_trickle_vent": true,
-          "trickle_vent_flow_m3_h": 6
-        }
-      ],
-      "build_up_template_id": "buo_02"
-    },
-    {
-      "id": "el_lounge_kitchen",
-      "name": "Lounge - Kitchen Wall",
-      "type": "wall",
-      "nodes": ["id_demo_lounge", "id_demo_kitchen"],
-      "orientation": "east",
-      "x": 4,
-      "y": 2.4,
-      "build_up_template_id": "buo_01"
-    },
-    {
-      "id": "el_lounge_bedroom",
-      "name": "Lounge - Bedroom Wall",
-      "type": "wall",
-      "nodes": ["id_demo_lounge", "id_demo_bedroom"],
-      "orientation": "south",
-      "x": 4,
-      "y": 2.4,
-      "build_up_template_id": "buo_01"
-    },
-    {
-      "id": "el_kitchen_bathroom",
-      "name": "Kitchen - Bathroom Wall",
-      "type": "wall",
-      "nodes": ["id_demo_kitchen", "id_demo_bathroom"],
-      "orientation": "south",
-      "x": 4,
-      "y": 2.4,
-      "build_up_template_id": "buo_01"
-    },
-    {
-      "id": "el_bedroom_bathroom",
-      "name": "Bedroom - Bathroom Wall",
-      "type": "wall",
-      "nodes": ["id_demo_bedroom", "id_demo_bathroom"],
-      "orientation": "east",
-      "x": 4,
-      "y": 2.4,
-      "build_up_template_id": "buo_01"
-    },
-    {
-      "id": "el_loft_north",
-      "name": "Loft - North External Wall",
-      "type": "wall",
-      "nodes": ["id_demo_loft", "id_demo_outside"],
-      "orientation": "north",
-      "x": 8,
-      "y": 2,
-      "build_up_template_id": "buo_03"
-    },
-    {
-      "id": "el_loft_east",
-      "name": "Loft - East External Wall",
-      "type": "wall",
-      "nodes": ["id_demo_loft", "id_demo_outside"],
-      "orientation": "east",
-      "x": 8,
-      "y": 2,
-      "build_up_template_id": "buo_03"
-    },
-    {
-      "id": "el_loft_south",
-      "name": "Loft - South External Wall",
-      "type": "wall",
-      "nodes": ["id_demo_loft", "id_demo_outside"],
-      "orientation": "south",
-      "x": 8,
-      "y": 2,
-      "build_up_template_id": "buo_03"
-    },
-    {
-      "id": "el_loft_west",
-      "name": "Loft - West External Wall",
-      "type": "wall",
-      "nodes": ["id_demo_loft", "id_demo_outside"],
-      "orientation": "west",
-      "x": 8,
-      "y": 2,
-      "build_up_template_id": "buo_03"
-    },
-    {
-      "id": "el_floor_lounge",
-      "name": "Lounge - Ground Floor",
-      "type": "floor",
-      "nodes": ["id_demo_lounge", "id_demo_ground"],
-      "x": 4,
-      "y": 4,
-      "build_up_template_id": "buo_04"
-    },
-    {
-      "id": "el_floor_kitchen",
-      "name": "Kitchen - Ground Floor",
-      "type": "floor",
-      "nodes": ["id_demo_kitchen", "id_demo_ground"],
-      "x": 4,
-      "y": 4,
-      "build_up_template_id": "buo_04"
-    },
-    {
-      "id": "el_floor_bedroom",
-      "name": "Bedroom - Ground Floor",
-      "type": "floor",
-      "nodes": ["id_demo_bedroom", "id_demo_ground"],
-      "x": 4,
-      "y": 4,
-      "build_up_template_id": "buo_04"
-    },
-    {
-      "id": "el_floor_bathroom",
-      "name": "Bathroom - Ground Floor",
-      "type": "floor",
-      "nodes": ["id_demo_bathroom", "id_demo_ground"],
-      "x": 4,
-      "y": 4,
-      "build_up_template_id": "buo_04"
-    },
-    {
-      "id": "el_ceiling_lounge",
-      "name": "Lounge - Loft Floor/Ceiling",
-      "type": "floor_ceiling",
-      "nodes": ["id_demo_lounge", "id_demo_loft"],
-      "x": 4,
-      "y": 4,
-      "build_up_template_id": "buo_06"
-    },
-    {
-      "id": "el_ceiling_kitchen",
-      "name": "Kitchen - Loft Floor/Ceiling",
-      "type": "floor_ceiling",
-      "nodes": ["id_demo_kitchen", "id_demo_loft"],
-      "x": 4,
-      "y": 4,
-      "build_up_template_id": "buo_06"
-    },
-    {
-      "id": "el_ceiling_bedroom",
-      "name": "Bedroom - Loft Floor/Ceiling",
-      "type": "floor_ceiling",
-      "nodes": ["id_demo_bedroom", "id_demo_loft"],
-      "x": 4,
-      "y": 4,
-      "build_up_template_id": "buo_06"
-    },
-    {
-      "id": "el_ceiling_bathroom",
-      "name": "Bathroom - Loft Floor/Ceiling",
-      "type": "floor_ceiling",
-      "nodes": ["id_demo_bathroom", "id_demo_loft"],
-      "x": 4,
-      "y": 4,
-      "build_up_template_id": "buo_06"
-    },
-    {
-      "id": "el_loft_roof",
-      "name": "Loft - Roof To Outside",
-      "type": "ceiling",
-      "nodes": ["id_demo_loft", "id_demo_outside"],
-      "x": 8,
-      "y": 8,
-      "build_up": [
-        { "material_id": "roof_tile", "thickness": 0.02 },
-        { "material_id": "felt", "thickness": 0.005 },
-        { "material_id": "glass_wool", "thickness": 0.2 }
-      ]
-    }
-  ]
+	"meta": {
+		"name": "Demo House - Clean Four Room House",
+		"global_target_temperature": 21,
+		"units": {
+			"area": "m2",
+			"thickness": "m",
+			"thermal_conductivity": "W/mK",
+			"u_value": "W/m2K",
+			"conductance": "W/K",
+			"heat_loss": "W",
+			"heat_loss_per_unit_area": "W/m2",
+			"radiator_surface_area": "m2",
+			"radiator_output": "W",
+			"heating_balance": "W",
+			"temperature": "C",
+			"total_heat_loss": "W",
+			"total_radiator_output": "W",
+			"total_balance": "W"
+		},
+		"build_up_templates": {
+			"buo_01": {
+				"name": "Internal Wall - Cavity (Plasterboard-Blockwork)",
+				"usage_count": 4,
+				"build_up": [
+					{
+						"material_id": "plasterboard",
+						"thickness": 0.0125
+					},
+					{
+						"material_id": "blockwork",
+						"thickness": 0.1
+					},
+					{
+						"material_id": "plasterboard",
+						"thickness": 0.0125
+					}
+				]
+			},
+			"buo_02": {
+				"name": "External Wall - Insulated (Stud + PIR)",
+				"usage_count": 8,
+				"build_up": [
+					{
+						"material_id": "plasterboard",
+						"thickness": 0.0125
+					},
+					{
+						"type": "composite",
+						"thickness": 0.09,
+						"paths": [
+							{
+								"material_id": "stud_wood",
+								"fraction": 0.15
+							},
+							{
+								"material_id": "pir",
+								"fraction": 0.85
+							}
+						]
+					},
+					{
+						"material_id": "pir",
+						"thickness": 0.05
+					},
+					{
+						"material_id": "blockwork",
+						"thickness": 0.1
+					}
+				]
+			},
+			"buo_03": {
+				"name": "Loft External Wall - Uninsulated",
+				"usage_count": 4,
+				"build_up": [
+					{
+						"material_id": "plasterboard",
+						"thickness": 0.0125
+					},
+					{
+						"material_id": "blockwork",
+						"thickness": 0.1
+					}
+				]
+			},
+			"buo_04": {
+				"name": "Ground Floor - Insulated (Joist Cavity + XPS)",
+				"usage_count": 4,
+				"build_up": [
+					{
+						"material_id": "plywood",
+						"thickness": 0.018
+					},
+					{
+						"type": "composite",
+						"thickness": 0.15,
+						"paths": [
+							{
+								"material_id": "joist_wood",
+								"fraction": 0.15
+							},
+							{
+								"material_id": "rockwool",
+								"fraction": 0.85
+							}
+						]
+					},
+					{
+						"material_id": "xps",
+						"thickness": 0.1
+					}
+				]
+			},
+			"buo_05": {
+				"name": "Inter-floor Ceiling - Acoustic",
+				"usage_count": 0,
+				"build_up": [
+					{
+						"material_id": "plasterboard",
+						"thickness": 0.0125
+					},
+					{
+						"material_id": "glass_wool",
+						"thickness": 0.15
+					},
+					{
+						"material_id": "plywood",
+						"thickness": 0.02
+					}
+				]
+			},
+			"buo_06": {
+				"name": "Loft Floor - Insulation",
+				"usage_count": 4,
+				"build_up": [
+					{
+						"material_id": "plasterboard",
+						"thickness": 0.0125
+					},
+					{
+						"material_id": "rockwool",
+						"thickness": 0.05
+					}
+				]
+			}
+		}
+	},
+	"zones": [
+		{
+			"id": "id_demo_lounge",
+			"name": "Lounge",
+			"level": 0,
+			"setpoint_temperature": 21,
+			"is_boiler_control": true,
+			"radiators": [
+				{
+					"radiator_id": "type_22",
+					"surface_area": 0.72,
+					"width": 1200,
+					"height": 600,
+					"trv_enabled": true
+				}
+			],
+			"layout": {
+				"polygon": [
+					{
+						"x": 0,
+						"y": 0
+					},
+					{
+						"x": 4,
+						"y": 0
+					},
+					{
+						"x": 4,
+						"y": 4
+					},
+					{
+						"x": 0,
+						"y": 4
+					}
+				]
+			}
+		},
+		{
+			"id": "id_demo_kitchen",
+			"name": "Kitchen",
+			"level": 0,
+			"setpoint_temperature": 20,
+			"is_boiler_control": false,
+			"radiators": [
+				{
+					"radiator_id": "type_22",
+					"surface_area": 0.48,
+					"width": 800,
+					"height": 600,
+					"trv_enabled": true
+				}
+			],
+			"ventilation_elements": [
+				{
+					"id": "vent_demo_kitchen_extract",
+					"type": "extractor_kitchen",
+					"name": "Kitchen Extractor",
+					"flow_m3_h": 60,
+					"enabled": true
+				}
+			],
+			"layout": {
+				"polygon": [
+					{
+						"x": 4,
+						"y": 0
+					},
+					{
+						"x": 8,
+						"y": 0
+					},
+					{
+						"x": 8,
+						"y": 4
+					},
+					{
+						"x": 4,
+						"y": 4
+					}
+				]
+			}
+		},
+		{
+			"id": "id_demo_bedroom",
+			"name": "Bedroom",
+			"level": 0,
+			"setpoint_temperature": 19,
+			"is_boiler_control": false,
+			"radiators": [
+				{
+					"radiator_id": "type_11",
+					"surface_area": 0.4,
+					"width": 800,
+					"height": 500,
+					"trv_enabled": true
+				}
+			],
+			"layout": {
+				"polygon": [
+					{
+						"x": 0,
+						"y": 4
+					},
+					{
+						"x": 4,
+						"y": 4
+					},
+					{
+						"x": 4,
+						"y": 8
+					},
+					{
+						"x": 0,
+						"y": 8
+					}
+				]
+			}
+		},
+		{
+			"id": "id_demo_bathroom",
+			"name": "Bathroom",
+			"level": 0,
+			"setpoint_temperature": 22,
+			"is_boiler_control": false,
+			"radiators": [
+				{
+					"radiator_id": "type_11",
+					"surface_area": 0.24,
+					"width": 600,
+					"height": 400,
+					"trv_enabled": true
+				}
+			],
+			"ventilation_elements": [
+				{
+					"id": "vent_demo_bath_extract",
+					"type": "extractor_bathroom",
+					"name": "Bathroom Extractor",
+					"flow_m3_h": 30,
+					"enabled": true
+				}
+			],
+			"layout": {
+				"polygon": [
+					{
+						"x": 4,
+						"y": 4
+					},
+					{
+						"x": 8,
+						"y": 4
+					},
+					{
+						"x": 8,
+						"y": 8
+					},
+					{
+						"x": 4,
+						"y": 8
+					}
+				]
+			}
+		},
+		{
+			"id": "id_demo_loft",
+			"name": "Loft",
+			"level": 1,
+			"is_unheated": true,
+			"layout": {
+				"polygon": [
+					{
+						"x": 0,
+						"y": 0
+					},
+					{
+						"x": 8,
+						"y": 0
+					},
+					{
+						"x": 8,
+						"y": 8
+					},
+					{
+						"x": 0,
+						"y": 8
+					}
+				]
+			}
+		},
+		{
+			"id": "id_demo_outside",
+			"name": "Outside",
+			"type": "boundary"
+		},
+		{
+			"id": "id_demo_ground",
+			"name": "Ground",
+			"type": "boundary"
+		}
+	],
+	"elements": [
+		{
+			"id": "el_lounge_north",
+			"name": "Lounge - North External Wall",
+			"type": "wall",
+			"nodes": [
+				"id_demo_lounge",
+				"id_demo_outside"
+			],
+			"orientation": "north",
+			"x": 4,
+			"y": 2.4,
+			"windows": [
+				{
+					"id": "win_lounge_north",
+					"name": "Lounge Front Window",
+					"glazing_id": "window_double_modern",
+					"area": 1.8
+				}
+			],
+			"build_up_template_id": "buo_02"
+		},
+		{
+			"id": "el_lounge_west",
+			"name": "Lounge - West External Wall",
+			"type": "wall",
+			"nodes": [
+				"id_demo_lounge",
+				"id_demo_outside"
+			],
+			"orientation": "west",
+			"x": 4,
+			"y": 2.4,
+			"windows": [
+				{
+					"id": "win_lounge_west",
+					"name": "Lounge Side Window",
+					"glazing_id": "window_double_modern",
+					"area": 1.2
+				}
+			],
+			"build_up_template_id": "buo_02"
+		},
+		{
+			"id": "el_kitchen_north",
+			"name": "Kitchen - North External Wall",
+			"type": "wall",
+			"nodes": [
+				"id_demo_kitchen",
+				"id_demo_outside"
+			],
+			"orientation": "north",
+			"x": 4,
+			"y": 2.4,
+			"windows": [
+				{
+					"id": "win_kitchen_north",
+					"name": "Kitchen Front Window",
+					"glazing_id": "window_double_modern",
+					"area": 1.5
+				}
+			],
+			"build_up_template_id": "buo_02"
+		},
+		{
+			"id": "el_kitchen_east",
+			"name": "Kitchen - East External Wall",
+			"type": "wall",
+			"nodes": [
+				"id_demo_kitchen",
+				"id_demo_outside"
+			],
+			"orientation": "east",
+			"x": 4,
+			"y": 2.4,
+			"windows": [
+				{
+					"id": "win_kitchen_east",
+					"name": "Kitchen Side Window",
+					"glazing_id": "window_double_modern",
+					"area": 1.0
+				}
+			],
+			"doors": [
+				{
+					"id": "door_kitchen_back",
+					"name": "Back Door",
+					"material_id": "door_pvc_insulated"
+				}
+			],
+			"build_up_template_id": "buo_02"
+		},
+		{
+			"id": "el_bedroom_west",
+			"name": "Bedroom - West External Wall",
+			"type": "wall",
+			"nodes": [
+				"id_demo_bedroom",
+				"id_demo_outside"
+			],
+			"orientation": "west",
+			"x": 4,
+			"y": 2.4,
+			"windows": [
+				{
+					"id": "win_bedroom_west",
+					"name": "Bedroom Side Window",
+					"glazing_id": "window_double_modern",
+					"area": 1.4
+				}
+			],
+			"build_up_template_id": "buo_02"
+		},
+		{
+			"id": "el_bedroom_south",
+			"name": "Bedroom - South External Wall",
+			"type": "wall",
+			"nodes": [
+				"id_demo_bedroom",
+				"id_demo_outside"
+			],
+			"orientation": "south",
+			"x": 4,
+			"y": 2.4,
+			"windows": [
+				{
+					"id": "win_bedroom_south",
+					"name": "Bedroom Rear Window",
+					"glazing_id": "window_double_modern",
+					"area": 1.0
+				}
+			],
+			"build_up_template_id": "buo_02"
+		},
+		{
+			"id": "el_bathroom_east",
+			"name": "Bathroom - East External Wall",
+			"type": "wall",
+			"nodes": [
+				"id_demo_bathroom",
+				"id_demo_outside"
+			],
+			"orientation": "east",
+			"x": 4,
+			"y": 2.4,
+			"build_up_template_id": "buo_02"
+		},
+		{
+			"id": "el_bathroom_south",
+			"name": "Bathroom - South External Wall",
+			"type": "wall",
+			"nodes": [
+				"id_demo_bathroom",
+				"id_demo_outside"
+			],
+			"orientation": "south",
+			"x": 4,
+			"y": 2.4,
+			"windows": [
+				{
+					"id": "win_bathroom_south",
+					"name": "Bathroom Window",
+					"glazing_id": "window_pvc_double",
+					"area": 0.6,
+					"air_leakage_m3_h_m2": 1.0,
+					"has_trickle_vent": true,
+					"trickle_vent_flow_m3_h": 6
+				}
+			],
+			"build_up_template_id": "buo_02"
+		},
+		{
+			"id": "el_lounge_kitchen",
+			"name": "Lounge - Kitchen Wall",
+			"type": "wall",
+			"nodes": [
+				"id_demo_lounge",
+				"id_demo_kitchen"
+			],
+			"orientation": "east",
+			"x": 4,
+			"y": 2.4,
+			"build_up_template_id": "buo_01"
+		},
+		{
+			"id": "el_lounge_bedroom",
+			"name": "Lounge - Bedroom Wall",
+			"type": "wall",
+			"nodes": [
+				"id_demo_lounge",
+				"id_demo_bedroom"
+			],
+			"orientation": "south",
+			"x": 4,
+			"y": 2.4,
+			"build_up_template_id": "buo_01"
+		},
+		{
+			"id": "el_kitchen_bathroom",
+			"name": "Kitchen - Bathroom Wall",
+			"type": "wall",
+			"nodes": [
+				"id_demo_kitchen",
+				"id_demo_bathroom"
+			],
+			"orientation": "south",
+			"x": 4,
+			"y": 2.4,
+			"build_up_template_id": "buo_01"
+		},
+		{
+			"id": "el_bedroom_bathroom",
+			"name": "Bedroom - Bathroom Wall",
+			"type": "wall",
+			"nodes": [
+				"id_demo_bedroom",
+				"id_demo_bathroom"
+			],
+			"orientation": "east",
+			"x": 4,
+			"y": 2.4,
+			"build_up_template_id": "buo_01"
+		},
+		{
+			"id": "el_loft_north",
+			"name": "Loft - North External Wall",
+			"type": "wall",
+			"nodes": [
+				"id_demo_loft",
+				"id_demo_outside"
+			],
+			"orientation": "north",
+			"x": 8,
+			"y": 2,
+			"build_up_template_id": "buo_03"
+		},
+		{
+			"id": "el_loft_east",
+			"name": "Loft - East External Wall",
+			"type": "wall",
+			"nodes": [
+				"id_demo_loft",
+				"id_demo_outside"
+			],
+			"orientation": "east",
+			"x": 8,
+			"y": 2,
+			"build_up_template_id": "buo_03"
+		},
+		{
+			"id": "el_loft_south",
+			"name": "Loft - South External Wall",
+			"type": "wall",
+			"nodes": [
+				"id_demo_loft",
+				"id_demo_outside"
+			],
+			"orientation": "south",
+			"x": 8,
+			"y": 2,
+			"build_up_template_id": "buo_03"
+		},
+		{
+			"id": "el_loft_west",
+			"name": "Loft - West External Wall",
+			"type": "wall",
+			"nodes": [
+				"id_demo_loft",
+				"id_demo_outside"
+			],
+			"orientation": "west",
+			"x": 8,
+			"y": 2,
+			"build_up_template_id": "buo_03"
+		},
+		{
+			"id": "el_floor_lounge",
+			"name": "Lounge - Ground Floor",
+			"type": "floor",
+			"nodes": [
+				"id_demo_lounge",
+				"id_demo_ground"
+			],
+			"x": 4,
+			"y": 4,
+			"build_up_template_id": "buo_04"
+		},
+		{
+			"id": "el_floor_kitchen",
+			"name": "Kitchen - Ground Floor",
+			"type": "floor",
+			"nodes": [
+				"id_demo_kitchen",
+				"id_demo_ground"
+			],
+			"x": 4,
+			"y": 4,
+			"build_up_template_id": "buo_04"
+		},
+		{
+			"id": "el_floor_bedroom",
+			"name": "Bedroom - Ground Floor",
+			"type": "floor",
+			"nodes": [
+				"id_demo_bedroom",
+				"id_demo_ground"
+			],
+			"x": 4,
+			"y": 4,
+			"build_up_template_id": "buo_04"
+		},
+		{
+			"id": "el_floor_bathroom",
+			"name": "Bathroom - Ground Floor",
+			"type": "floor",
+			"nodes": [
+				"id_demo_bathroom",
+				"id_demo_ground"
+			],
+			"x": 4,
+			"y": 4,
+			"build_up_template_id": "buo_04"
+		},
+		{
+			"id": "el_ceiling_lounge",
+			"name": "Lounge - Loft Floor/Ceiling",
+			"type": "floor_ceiling",
+			"nodes": [
+				"id_demo_lounge",
+				"id_demo_loft"
+			],
+			"x": 4,
+			"y": 4,
+			"build_up_template_id": "buo_06"
+		},
+		{
+			"id": "el_ceiling_kitchen",
+			"name": "Kitchen - Loft Floor/Ceiling",
+			"type": "floor_ceiling",
+			"nodes": [
+				"id_demo_kitchen",
+				"id_demo_loft"
+			],
+			"x": 4,
+			"y": 4,
+			"build_up_template_id": "buo_06"
+		},
+		{
+			"id": "el_ceiling_bedroom",
+			"name": "Bedroom - Loft Floor/Ceiling",
+			"type": "floor_ceiling",
+			"nodes": [
+				"id_demo_bedroom",
+				"id_demo_loft"
+			],
+			"x": 4,
+			"y": 4,
+			"build_up_template_id": "buo_06"
+		},
+		{
+			"id": "el_ceiling_bathroom",
+			"name": "Bathroom - Loft Floor/Ceiling",
+			"type": "floor_ceiling",
+			"nodes": [
+				"id_demo_bathroom",
+				"id_demo_loft"
+			],
+			"x": 4,
+			"y": 4,
+			"build_up_template_id": "buo_06"
+		},
+		{
+			"id": "el_loft_roof",
+			"name": "Loft - Roof To Outside",
+			"type": "ceiling",
+			"nodes": [
+				"id_demo_loft",
+				"id_demo_outside"
+			],
+			"x": 8,
+			"y": 8,
+			"build_up": [
+				{
+					"material_id": "roof_tile",
+					"thickness": 0.02
+				},
+				{
+					"material_id": "felt",
+					"thickness": 0.005
+				},
+				{
+					"material_id": "glass_wool",
+					"thickness": 0.2
+				}
+			]
+		}
+	]
 }
