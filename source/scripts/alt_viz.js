@@ -10,8 +10,8 @@ let objectDragState = null;
 let suppressWallSelectionUntil = 0;
 const DRAG_START_THRESHOLD_PX = 6;
 const DRAG_SNAP_STEP_M = 0.1;
-const DRAG_NEAR_SNAP_THRESHOLD_M = 0.6;
-const DOOR_SWING_DEGREES = 20;
+const DRAG_NEAR_SNAP_THRESHOLD_M = 0.2;
+const DOOR_SWING_DEGREES = 45;
 const OBJECT_HANDLE_RADIUS_PX = 6;
 const OPENING_HANDLE_OFFSET_ALONG_PX = 14;
 const OPENING_HANDLE_OFFSET_NORMAL_PX = 12;
@@ -1717,10 +1717,12 @@ function getOffsetHandlePositionFromSegment(segment, alongPx = 0, normalPx = 0, 
 
 function updateOpeningRenderState(openingState, segment, centroidPoint) {
   if (!openingState || !segment) return;
-  openingState.line.setAttribute('x1', String(segment.x1));
-  openingState.line.setAttribute('y1', String(segment.y1));
-  openingState.line.setAttribute('x2', String(segment.x2));
-  openingState.line.setAttribute('y2', String(segment.y2));
+  if (openingState.line) {
+    openingState.line.setAttribute('x1', String(segment.x1));
+    openingState.line.setAttribute('y1', String(segment.y1));
+    openingState.line.setAttribute('x2', String(segment.x2));
+    openingState.line.setAttribute('y2', String(segment.y2));
+  }
 
   if (openingState.arc) {
     const swing = computeDoorSwingGeometry(segment, openingState.opening);
@@ -1733,6 +1735,9 @@ function updateOpeningRenderState(openingState, segment, centroidPoint) {
       openingState.leaf.setAttribute('y1', String(swing.hinge.y));
       openingState.leaf.setAttribute('x2', String(swing.openLeafEnd.x));
       openingState.leaf.setAttribute('y2', String(swing.openLeafEnd.y));
+      if (isFinite(openingState.thickness)) {
+        openingState.leaf.setAttribute('stroke-width', String(openingState.thickness));
+      }
     }
   }
 
@@ -3664,13 +3669,15 @@ export function renderAlternativeViz(demo, opts = {}) {
           if (ownerZoneId && ownerZoneId !== zone.id) return;
           const segment = computeOpeningSegmentOnEdge(opening, worldP0, worldP1, p0, p1);
           if (!segment) return;
-          const openingLine = document.createElementNS(ns, 'line');
-          openingLine.setAttribute('x1', String(segment.x1));
-          openingLine.setAttribute('y1', String(segment.y1));
-          openingLine.setAttribute('x2', String(segment.x2));
-          openingLine.setAttribute('y2', String(segment.y2));
-          openingLine.setAttribute('class', kind === 'door' ? 'alt-opening-line alt-opening-door' : 'alt-opening-line alt-opening-window');
-          openingLine.setAttribute('stroke-width', String(thickness));
+          const openingLine = kind === 'door' ? null : document.createElementNS(ns, 'line');
+          if (openingLine) {
+            openingLine.setAttribute('x1', String(segment.x1));
+            openingLine.setAttribute('y1', String(segment.y1));
+            openingLine.setAttribute('x2', String(segment.x2));
+            openingLine.setAttribute('y2', String(segment.y2));
+            openingLine.setAttribute('class', 'alt-opening-line alt-opening-window');
+            openingLine.setAttribute('stroke-width', String(thickness));
+          }
           let openingArc = null;
           let openingLeaf = null;
           if (kind === 'door') {
@@ -3687,6 +3694,7 @@ export function renderAlternativeViz(demo, opts = {}) {
               openingLeaf.setAttribute('x2', String(swing.openLeafEnd.x));
               openingLeaf.setAttribute('y2', String(swing.openLeafEnd.y));
               openingLeaf.setAttribute('class', 'alt-opening-door-leaf');
+              openingLeaf.setAttribute('stroke-width', String(thickness));
               svg.appendChild(openingLeaf);
             }
           }
@@ -3749,20 +3757,20 @@ export function renderAlternativeViz(demo, opts = {}) {
             svg.appendChild(openingHandle);
           }
 
-          const openingState = { line: openingLine, arc: openingArc, leaf: openingLeaf, opening, kind, handle: openingHandle };
+          const openingState = { line: openingLine, arc: openingArc, leaf: openingLeaf, opening, kind, handle: openingHandle, thickness };
           openingsOnEdge.push(openingState);
           if (openingHandle) {
             openingHandle.addEventListener('mousedown', () => {
               if (objectDragState) {
                 objectDragState.openingState = openingState;
               }
-              svg.appendChild(openingLine);
+              if (openingLine) svg.appendChild(openingLine);
               if (openingArc) svg.appendChild(openingArc);
               if (openingLeaf) svg.appendChild(openingLeaf);
               svg.appendChild(openingHandle);
             });
           }
-          svg.appendChild(openingLine);
+          if (openingLine) svg.appendChild(openingLine);
         });
       }
       edgeOpeningElements.push(openingsOnEdge);
