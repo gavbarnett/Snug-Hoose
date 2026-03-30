@@ -132,12 +132,44 @@
 			"air_leakage_m3_h_m2": 1.8
 		},
 		{
+			"id": "door_pvc_insulated_half_glazed",
+			"name": "PVC Insulated Door (Half Glazed)",
+			"u_value": 2.1,
+			"material_cost_each_gbp": 360,
+			"frame": "pvc",
+			"air_leakage_m3_h_m2": 2.0
+		},
+		{
+			"id": "door_pvc_insulated_full_glazed",
+			"name": "PVC Insulated Door (Full Glazed)",
+			"u_value": 2.4,
+			"material_cost_each_gbp": 410,
+			"frame": "pvc",
+			"air_leakage_m3_h_m2": 2.2
+		},
+		{
 			"id": "door_wood_solid",
 			"name": "Solid Wood Door",
 			"u_value": 2.8,
 			"material_cost_each_gbp": 280,
 			"frame": "wood",
 			"air_leakage_m3_h_m2": 3.0
+		},
+		{
+			"id": "door_wood_solid_half_glazed",
+			"name": "Solid Wood Door (Half Glazed)",
+			"u_value": 3.1,
+			"material_cost_each_gbp": 330,
+			"frame": "wood",
+			"air_leakage_m3_h_m2": 3.3
+		},
+		{
+			"id": "door_wood_solid_full_glazed",
+			"name": "Solid Wood Door (Full Glazed)",
+			"u_value": 3.4,
+			"material_cost_each_gbp": 370,
+			"frame": "wood",
+			"air_leakage_m3_h_m2": 3.6
 		},
 		{
 			"id": "door_wood_insulated",
@@ -148,6 +180,22 @@
 			"air_leakage_m3_h_m2": 2.1
 		},
 		{
+			"id": "door_wood_insulated_half_glazed",
+			"name": "Insulated Timber Door (Half Glazed)",
+			"u_value": 1.9,
+			"material_cost_each_gbp": 420,
+			"frame": "wood",
+			"air_leakage_m3_h_m2": 2.3
+		},
+		{
+			"id": "door_wood_insulated_full_glazed",
+			"name": "Insulated Timber Door (Full Glazed)",
+			"u_value": 2.2,
+			"material_cost_each_gbp": 470,
+			"frame": "wood",
+			"air_leakage_m3_h_m2": 2.5
+		},
+		{
 			"id": "door_aluminium_thermal",
 			"name": "Aluminium Door (Thermal Break)",
 			"u_value": 2.0,
@@ -156,12 +204,76 @@
 			"air_leakage_m3_h_m2": 2.2
 		},
 		{
+			"id": "door_aluminium_thermal_half_glazed",
+			"name": "Aluminium Door (Thermal Break, Half Glazed)",
+			"u_value": 2.3,
+			"material_cost_each_gbp": 470,
+			"frame": "aluminium",
+			"air_leakage_m3_h_m2": 2.4
+		},
+		{
+			"id": "door_aluminium_thermal_full_glazed",
+			"name": "Aluminium Door (Thermal Break, Full Glazed)",
+			"u_value": 2.6,
+			"material_cost_each_gbp": 520,
+			"frame": "aluminium",
+			"air_leakage_m3_h_m2": 2.6
+		},
+		{
 			"id": "door_steel_insulated",
 			"name": "Insulated Steel Door",
 			"u_value": 1.6,
 			"material_cost_each_gbp": 360,
 			"frame": "steel",
 			"air_leakage_m3_h_m2": 1.7
+		},
+		{
+			"id": "door_steel_insulated_half_glazed",
+			"name": "Insulated Steel Door (Half Glazed)",
+			"u_value": 1.9,
+			"material_cost_each_gbp": 400,
+			"frame": "steel",
+			"air_leakage_m3_h_m2": 1.9
+		},
+		{
+			"id": "door_steel_insulated_full_glazed",
+			"name": "Insulated Steel Door (Full Glazed)",
+			"u_value": 2.2,
+			"material_cost_each_gbp": 450,
+			"frame": "steel",
+			"air_leakage_m3_h_m2": 2.1
+		},
+		{
+			"id": "door_panel_mdf_4",
+			"name": "Panel Door (4 Panel MDF)",
+			"u_value": 2.9,
+			"material_cost_each_gbp": 240,
+			"frame": "wood",
+			"air_leakage_m3_h_m2": 3.1
+		},
+		{
+			"id": "door_panel_oak_6",
+			"name": "Panel Door (6 Panel Oak)",
+			"u_value": 2.6,
+			"material_cost_each_gbp": 330,
+			"frame": "wood",
+			"air_leakage_m3_h_m2": 2.8
+		},
+		{
+			"id": "opening_internal_cased",
+			"name": "Internal Cased Opening (No Door)",
+			"u_value": 5.0,
+			"material_cost_each_gbp": 120,
+			"frame": "none",
+			"air_leakage_m3_h_m2": 8.0
+		},
+		{
+			"id": "opening_internal_archway",
+			"name": "Internal Archway (No Door)",
+			"u_value": 5.2,
+			"material_cost_each_gbp": 140,
+			"frame": "none",
+			"air_leakage_m3_h_m2": 8.5
 		}
 	]
 }
