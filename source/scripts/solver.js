@@ -420,6 +420,8 @@ function getComparisonMetricsForDemo(demoRaw) {
   const flowTemp = Number.isFinite(working?.meta?.flowTemp) ? Number(working.meta.flowTemp) : 55;
   const heat = computeRoomHeatRequirements(working, radiators, { indoorTemp, externalTemp, flowTemp });
   const annualDemand = Math.max(0, (Number(heat.total_delivered_heat || 0) * 24 * 365) / 1000);
+  const heatingInputs = getNormalizedHeatingInputs(working?.meta, flowTemp, getRecommendationCostModel());
+  const runningCost = computeAnnualRunningCostFromDemand(annualDemand, heatingInputs);
   const roomCount = Array.isArray(heat.rooms) ? heat.rooms.length : 0;
   const unmetSetpointRoomCount = (Array.isArray(heat.rooms) ? heat.rooms : []).filter(room => room && room.can_reach_setpoint === false).length;
 
@@ -429,7 +431,8 @@ function getComparisonMetricsForDemo(demoRaw) {
       const area = Number(r.floorArea);
       return sum + (isFinite(area) && area > 0 ? area : 0);
     }, 0);
-  const intensityKwhM2Yr = totalFloorArea > 0 ? (annualDemand / totalFloorArea) : null;
+  const annualInputEnergy = Number(runningCost.annualInputEnergyKwh || 0);
+  const intensityKwhM2Yr = totalFloorArea > 0 ? (annualInputEnergy / totalFloorArea) : null;
 
   let epcLetter = 'N/A';
   if (intensityKwhM2Yr !== null && isFinite(intensityKwhM2Yr)) {
@@ -450,7 +453,116 @@ function getComparisonMetricsForDemo(demoRaw) {
     totalAch: Number(heat.total_air_changes_per_hour || 0),
     totalVentilationConductance: Number(heat.total_ventilation_conductance || 0),
     annualDemandKwhYr: annualDemand,
+    annualRunningCost: runningCost.annualCost,
+    annualInputEnergyKwhYr: annualInputEnergy,
+    heatSourceType: heatingInputs.heatSourceType,
+    heatSourceLabel: heatingInputs.heatSourceLabel,
+    effectiveSystemEfficiency: runningCost.effectiveSystemEfficiency,
+    effectiveScop: runningCost.effectiveScop,
     unmetSetpointRoomCount
+  };
+}
+
+function clampNumber(value, min, max) {
+  const numeric = Number(value);
+  if (!isFinite(numeric)) return min;
+  if (numeric < min) return min;
+  if (numeric > max) return max;
+  return numeric;
+}
+
+function estimateHeatPumpScopFromFlowTemp(flowTemp) {
+  const flow = clampNumber(flowTemp, 30, 75);
+  const baseScop = 4.2 - ((flow - 35) * 0.06);
+  return clampNumber(baseScop, 1.8, 5.5);
+}
+
+function getHeatingCostDefaults(costModel) {
+  const heating = costModel && typeof costModel === 'object' && costModel.heating && typeof costModel.heating === 'object'
+    ? costModel.heating
+    : {};
+  const resolveDefault = (value, fallback, min, max) => {
+    if (!Number.isFinite(Number(value))) return fallback;
+    return clampNumber(value, min, max);
+  };
+  return {
+    gasRate: resolveDefault(heating.gas_rate_per_kwh, 0.07, 0.01, 2),
+    electricRate: resolveDefault(heating.electric_rate_per_kwh, 0.24, 0.01, 2),
+    gasBoilerEfficiency: resolveDefault(heating.gas_boiler_efficiency, 0.9, 0.6, 0.99),
+    heatPumpScop: resolveDefault(heating.heat_pump_scop, 3.2, 1.8, 6)
+  };
+}
+
+function getNormalizedHeatingInputs(meta, flowTemp, costModel) {
+  const defaults = getHeatingCostDefaults(costModel);
+  const sourceRaw = String(meta?.heatSourceType || '').trim().toLowerCase();
+  const heatSourceType = sourceRaw === 'heat_pump' || sourceRaw === 'direct_electric' || sourceRaw === 'gas_boiler'
+    ? sourceRaw
+    : 'gas_boiler';
+
+  const gasRate = clampNumber(meta?.gasUnitRate, 0.01, 2);
+  const electricRate = clampNumber(meta?.electricUnitRate, 0.01, 2);
+  const gasBoilerEfficiency = clampNumber(meta?.gasBoilerEfficiency, 0.6, 0.99);
+
+  const scopModeRaw = String(meta?.heatPumpScopMode || '').trim().toLowerCase();
+  const heatPumpScopMode = scopModeRaw === 'fixed' ? 'fixed' : 'auto';
+  const fixedScop = clampNumber(meta?.heatPumpFixedScop, 1.8, 6);
+  const autoScop = estimateHeatPumpScopFromFlowTemp(flowTemp);
+  const activeScop = heatPumpScopMode === 'fixed' ? fixedScop : autoScop;
+
+  const effectiveGasRate = Number.isFinite(Number(meta?.gasUnitRate)) ? gasRate : defaults.gasRate;
+  const effectiveElectricRate = Number.isFinite(Number(meta?.electricUnitRate)) ? electricRate : defaults.electricRate;
+  const effectiveGasEfficiency = Number.isFinite(Number(meta?.gasBoilerEfficiency)) ? gasBoilerEfficiency : defaults.gasBoilerEfficiency;
+  const effectiveFixedScop = Number.isFinite(Number(meta?.heatPumpFixedScop)) ? fixedScop : defaults.heatPumpScop;
+  const effectiveActiveScop = heatPumpScopMode === 'fixed' ? effectiveFixedScop : autoScop;
+
+  return {
+    heatSourceType,
+    heatSourceLabel: heatSourceType === 'heat_pump'
+      ? 'Heat Pump'
+      : (heatSourceType === 'direct_electric' ? 'Direct Electric' : 'Gas Boiler'),
+    gasRate: effectiveGasRate,
+    electricRate: effectiveElectricRate,
+    gasBoilerEfficiency: effectiveGasEfficiency,
+    heatPumpScopMode,
+    heatPumpFixedScop: effectiveFixedScop,
+    heatPumpAutoScop: autoScop,
+    effectiveScop: effectiveActiveScop
+  };
+}
+
+function computeAnnualRunningCostFromDemand(annualHeatDemandKwhYr, heatingInputs) {
+  const demand = Math.max(0, Number(annualHeatDemandKwhYr) || 0);
+  const source = heatingInputs?.heatSourceType || 'gas_boiler';
+  if (source === 'direct_electric') {
+    const annualInput = demand;
+    const annualCost = annualInput * Number(heatingInputs?.electricRate || 0);
+    return {
+      annualInputEnergyKwh: annualInput,
+      annualCost,
+      effectiveSystemEfficiency: 1,
+      effectiveScop: null
+    };
+  }
+  if (source === 'heat_pump') {
+    const scop = clampNumber(heatingInputs?.effectiveScop, 1.8, 6);
+    const annualInput = demand / scop;
+    const annualCost = annualInput * Number(heatingInputs?.electricRate || 0);
+    return {
+      annualInputEnergyKwh: annualInput,
+      annualCost,
+      effectiveSystemEfficiency: scop,
+      effectiveScop: scop
+    };
+  }
+  const gasEfficiency = clampNumber(heatingInputs?.gasBoilerEfficiency, 0.6, 0.99);
+  const annualInput = demand / gasEfficiency;
+  const annualCost = annualInput * Number(heatingInputs?.gasRate || 0);
+  return {
+    annualInputEnergyKwh: annualInput,
+    annualCost,
+    effectiveSystemEfficiency: gasEfficiency,
+    effectiveScop: null
   };
 }
 
@@ -1528,6 +1640,12 @@ function getRecommendationCostModel() {
     ? currentCosts
     : {
       currency: 'GBP',
+      heating: {
+        gas_rate_per_kwh: 0.07,
+        electric_rate_per_kwh: 0.24,
+        gas_boiler_efficiency: 0.9,
+        heat_pump_scop: 3.2
+      },
       measures: {
         trv: {
           callout: 120,
@@ -1598,6 +1716,9 @@ function buildPerformanceRecommendations(demoRaw) {
   const currency = String(costModel.currency || 'GBP').toUpperCase();
   const openings = currentOpenings || {};
   const results = [];
+  const baselineFlowTemp = Number.isFinite(demoRaw?.meta?.flowTemp) ? Number(demoRaw.meta.flowTemp) : 55;
+  const baselineHeatingInputs = getNormalizedHeatingInputs(demoRaw?.meta, baselineFlowTemp, costModel);
+  const baselineRunningCost = computeAnnualRunningCostFromDemand(baseline.annualDemandKwhYr, baselineHeatingInputs);
 
   const addCandidate = (label, mutateFn, costFn, options = {}) => {
     const working = deepClone(demoRaw);
@@ -1624,6 +1745,7 @@ function buildPerformanceRecommendations(demoRaw) {
       candidateComfort
     }) !== true) return;
     const annualSavings = Math.max(0, baseline.annualDemandKwhYr - metrics.annualDemandKwhYr);
+    const annualCostSavings = Math.max(0, Number(baselineRunningCost.annualCost || 0) - Number(metrics.annualRunningCost || 0));
     const below18Reduction = Math.max(0, Number(baselineComfort?.below18Count || 0) - Number(candidateComfort?.below18Count || 0));
     const belowTargetReduction = Math.max(0, Number(baselineComfort?.belowTargetCount || 0) - Number(candidateComfort?.belowTargetCount || 0));
     const unmetReduction = Math.max(0, Number(baselineComfort?.unmetSetpointRoomCount || 0) - Number(candidateComfort?.unmetSetpointRoomCount || 0));
@@ -1633,14 +1755,21 @@ function buildPerformanceRecommendations(demoRaw) {
       ? Math.max(0, candidateMinTemp - baselineMinTemp)
       : 0;
     const comfortImprovement = (belowTargetReduction * 200) + (below18Reduction * 100) + (unmetReduction * 10) + minTempLift;
-    if (!isFinite(annualSavings) || (annualSavings < 1 && comfortImprovement <= 0)) return;
+    if (!isFinite(annualSavings) || (annualSavings < 1 && annualCostSavings < 0.5 && comfortImprovement <= 0)) return;
 
     const normalizedCost = normalizeCostResult(costFn(change), currency);
     const totalCost = Number(normalizedCost.total || 0);
+    const paybackYears = annualCostSavings > 0.01 && totalCost > 0
+      ? totalCost / annualCostSavings
+      : null;
     results.push({
       recommendationId: String(options.id || label).toLowerCase().replace(/[^a-z0-9]+/g, '_'),
       recommendation: label,
       annualSavingsKwhYr: Number(annualSavings.toFixed(0)),
+      annualCostSavings: Number(annualCostSavings.toFixed(0)),
+      annualCostSavingsText: formatCurrencyEstimate(annualCostSavings, currency),
+      simplePaybackYears: paybackYears,
+      simplePaybackText: Number.isFinite(paybackYears) ? `${paybackYears.toFixed(1)} years` : 'n/a',
       expectedEpc: metrics.epcLetter || 'N/A',
       costEstimate: formatCurrencyEstimate(totalCost, currency),
       proposal: String(change.proposal || `Apply measure: ${label}`),
@@ -1648,6 +1777,8 @@ function buildPerformanceRecommendations(demoRaw) {
         ? normalizedCost.formattedBreakdown
         : [],
       _comfortImprovement: comfortImprovement,
+      _annualCostSavings: annualCostSavings,
+      _annualInputSavings: Math.max(0, Number(baseline.annualInputEnergyKwhYr || 0) - Number(metrics.annualInputEnergyKwhYr || 0)),
       _sortCost: isFinite(totalCost) ? totalCost : Infinity
     });
   };
@@ -2246,6 +2377,10 @@ function buildPerformanceRecommendations(demoRaw) {
       recommendationId: 'radiator_upgrade_unmet',
       recommendation: 'Add/upgrade radiators for comfort',
       annualSavingsKwhYr: 0,
+      annualCostSavings: 0,
+      annualCostSavingsText: formatCurrencyEstimate(0, currency),
+      simplePaybackYears: null,
+      simplePaybackText: 'n/a',
       expectedEpc: baseline.epcLetter || 'N/A',
       costEstimate: formatCurrencyEstimate(normalizedCost.total, currency),
       proposal: [
@@ -2255,6 +2390,8 @@ function buildPerformanceRecommendations(demoRaw) {
       ].join('\n'),
       costBreakdown: Array.isArray(normalizedCost.formattedBreakdown) ? normalizedCost.formattedBreakdown : [],
       _comfortImprovement: 100000 + (Number(deficits.below18Count || 0) * 1000) + (Number(deficits.count || 0) * 100),
+      _annualCostSavings: 0,
+      _annualInputSavings: 0,
       _sortCost: isFinite(Number(normalizedCost.total)) ? Number(normalizedCost.total) : Infinity
     });
   }
@@ -2264,11 +2401,19 @@ function buildPerformanceRecommendations(demoRaw) {
     if (b._comfortImprovement !== a._comfortImprovement) {
       return b._comfortImprovement - a._comfortImprovement;
     }
-    // Priority 2: Annual energy savings — higher is better
+    // Priority 2: Annual bill savings — higher is better
+    if (b._annualCostSavings !== a._annualCostSavings) {
+      return b._annualCostSavings - a._annualCostSavings;
+    }
+    // Priority 3: Annual input-energy savings — higher is better
+    if (b._annualInputSavings !== a._annualInputSavings) {
+      return b._annualInputSavings - a._annualInputSavings;
+    }
+    // Priority 4: Annual delivered-energy savings — higher is better
     if (b.annualSavingsKwhYr !== a.annualSavingsKwhYr) {
       return b.annualSavingsKwhYr - a.annualSavingsKwhYr;
     }
-    // Priority 3: Cost — lower is better
+    // Priority 5: Capex — lower is better
     return a._sortCost - b._sortCost;
   });
 
@@ -2276,6 +2421,10 @@ function buildPerformanceRecommendations(demoRaw) {
     recommendationId: item.recommendationId,
     recommendation: item.recommendation,
     annualSavingsKwhYr: item.annualSavingsKwhYr,
+    annualCostSavings: item.annualCostSavings,
+    annualCostSavingsText: item.annualCostSavingsText,
+    simplePaybackYears: item.simplePaybackYears,
+    simplePaybackText: item.simplePaybackText,
     expectedEpc: item.expectedEpc || getEpcBandFromIntensity(null),
     costEstimate: item.costEstimate,
     proposal: item.proposal,
@@ -3095,6 +3244,7 @@ function loadProjectFromFile() {
 }
 
 function createNewProjectBlank() {
+  const heatingDefaults = getHeatingCostDefaults(getRecommendationCostModel());
   const blank = {
     meta: {
       name: 'Blank Project',
@@ -3102,6 +3252,12 @@ function createNewProjectBlank() {
       externalTemp: 3,
       indoorTemp: 21,
       flowTemp: 55,
+      heatSourceType: 'gas_boiler',
+      gasUnitRate: heatingDefaults.gasRate,
+      electricUnitRate: heatingDefaults.electricRate,
+      gasBoilerEfficiency: heatingDefaults.gasBoilerEfficiency,
+      heatPumpScopMode: 'auto',
+      heatPumpFixedScop: heatingDefaults.heatPumpScop,
       build_up_templates: (currentDemo?.meta?.build_up_templates && typeof currentDemo.meta.build_up_templates === 'object')
         ? deepClone(currentDemo.meta.build_up_templates)
         : {}
@@ -3169,6 +3325,67 @@ function handleAltVizMenuAction(action, item, context = {}) {
       if (!Number.isFinite(value)) return;
       pushUndoSnapshot(deepClone(currentDemo));
       currentDemo.meta.flowTemp = value;
+      triggerSolve();
+      return;
+    }
+    case 'environment.set.heat_source': {
+      if (!currentDemo) return;
+      currentDemo.meta = currentDemo.meta || {};
+      const source = String(payload.value || '').trim().toLowerCase();
+      if (!['gas_boiler', 'heat_pump', 'direct_electric'].includes(source)) return;
+      if (String(currentDemo.meta.heatSourceType || '') === source) return;
+      pushUndoSnapshot(deepClone(currentDemo));
+      currentDemo.meta.heatSourceType = source;
+      triggerSolve();
+      return;
+    }
+    case 'environment.set.gas_rate': {
+      if (!currentDemo) return;
+      currentDemo.meta = currentDemo.meta || {};
+      const value = Number(payload.value);
+      if (!Number.isFinite(value)) return;
+      pushUndoSnapshot(deepClone(currentDemo));
+      currentDemo.meta.gasUnitRate = clampNumber(value, 0.01, 2);
+      triggerSolve();
+      return;
+    }
+    case 'environment.set.electric_rate': {
+      if (!currentDemo) return;
+      currentDemo.meta = currentDemo.meta || {};
+      const value = Number(payload.value);
+      if (!Number.isFinite(value)) return;
+      pushUndoSnapshot(deepClone(currentDemo));
+      currentDemo.meta.electricUnitRate = clampNumber(value, 0.01, 2);
+      triggerSolve();
+      return;
+    }
+    case 'environment.set.gas_efficiency': {
+      if (!currentDemo) return;
+      currentDemo.meta = currentDemo.meta || {};
+      const value = Number(payload.value);
+      if (!Number.isFinite(value)) return;
+      pushUndoSnapshot(deepClone(currentDemo));
+      currentDemo.meta.gasBoilerEfficiency = clampNumber(value, 0.6, 0.99);
+      triggerSolve();
+      return;
+    }
+    case 'environment.set.hp_scop_mode': {
+      if (!currentDemo) return;
+      currentDemo.meta = currentDemo.meta || {};
+      const mode = String(payload.value || '').trim().toLowerCase() === 'fixed' ? 'fixed' : 'auto';
+      if (String(currentDemo.meta.heatPumpScopMode || 'auto') === mode) return;
+      pushUndoSnapshot(deepClone(currentDemo));
+      currentDemo.meta.heatPumpScopMode = mode;
+      triggerSolve();
+      return;
+    }
+    case 'environment.set.hp_scop_fixed': {
+      if (!currentDemo) return;
+      currentDemo.meta = currentDemo.meta || {};
+      const value = Number(payload.value);
+      if (!Number.isFinite(value)) return;
+      pushUndoSnapshot(deepClone(currentDemo));
+      currentDemo.meta.heatPumpFixedScop = clampNumber(value, 1.8, 6);
       triggerSolve();
       return;
     }
@@ -3806,6 +4023,21 @@ async function solveAndRender(demoRaw) {
     demoRaw.meta.max_flow_temp = heatResults.maxFlowTemp;
     demoRaw.meta.control_zone_id = heatResults.controlZoneId;
     demoRaw.meta.control_zone_name = heatResults.controlZoneName;
+    const annualHeatDemandKwhYr = Math.max(0, (Number(heatResults.total_delivered_heat || 0) * 24 * 365) / 1000);
+    const heatingInputs = getNormalizedHeatingInputs(demoRaw.meta, flowTemp, getRecommendationCostModel());
+    const runningCost = computeAnnualRunningCostFromDemand(annualHeatDemandKwhYr, heatingInputs);
+    demoRaw.meta.heatSourceType = heatingInputs.heatSourceType;
+    demoRaw.meta.gasUnitRate = heatingInputs.gasRate;
+    demoRaw.meta.electricUnitRate = heatingInputs.electricRate;
+    demoRaw.meta.gasBoilerEfficiency = heatingInputs.gasBoilerEfficiency;
+    demoRaw.meta.heatPumpScopMode = heatingInputs.heatPumpScopMode;
+    demoRaw.meta.heatPumpFixedScop = heatingInputs.heatPumpFixedScop;
+    demoRaw.meta.heatPumpAutoScop = heatingInputs.heatPumpAutoScop;
+    demoRaw.meta.effective_scop = heatingInputs.effectiveScop;
+    demoRaw.meta.annual_heat_demand_kwh_yr = annualHeatDemandKwhYr;
+    demoRaw.meta.annual_input_energy_kwh_yr = runningCost.annualInputEnergyKwh;
+    demoRaw.meta.annual_running_cost = runningCost.annualCost;
+    demoRaw.meta.effective_system_efficiency = runningCost.effectiveSystemEfficiency;
 
     // Merge room heat results into zones
     for (const zone of demoRaw.zones) {

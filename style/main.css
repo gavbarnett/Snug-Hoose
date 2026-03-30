@@ -364,7 +364,7 @@ a#download:hover {
 .alt-viz-recommendations-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 460px;
+  min-width: 760px;
 }
 
 .alt-viz-recommendations-table th,
@@ -485,7 +485,7 @@ a#download:hover {
   margin-bottom: 0.7rem;
   padding: 0.55rem;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.55rem;
 }
 
@@ -519,6 +519,48 @@ a#download:hover {
   width: 100%;
   accent-color: var(--accent);
   cursor: ew-resize;
+}
+
+.alt-env-select,
+.alt-env-input {
+  width: 100%;
+  margin-top: 0.25rem;
+  box-sizing: border-box;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  background: rgba(10, 18, 28, 0.75);
+  color: var(--text-light);
+  font-size: 0.76rem;
+  padding: 0.3rem 0.38rem;
+}
+
+.alt-env-help-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 212, 255, 0.55);
+  color: var(--accent);
+  background: rgba(0, 212, 255, 0.09);
+  font-size: 0.67rem;
+  font-weight: 700;
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.alt-env-help-text {
+  margin-top: 0.32rem;
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  line-height: 1.25;
+}
+
+.alt-env-select:disabled,
+.alt-env-input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .alt-viz-menu-list,

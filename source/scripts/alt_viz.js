@@ -146,7 +146,17 @@ function getEpcBand(intensityKwhM2Yr) {
   return 'G';
 }
 
-function computeZoneEpcEstimate(zone) {
+function getEpcInputEnergyMultiplier(demo) {
+  const annualDemand = Number(demo?.meta?.annual_heat_demand_kwh_yr);
+  const annualInput = Number(demo?.meta?.annual_input_energy_kwh_yr);
+  if (isFinite(annualDemand) && annualDemand > 0 && isFinite(annualInput) && annualInput >= 0) {
+    const factor = annualInput / annualDemand;
+    if (isFinite(factor) && factor > 0) return factor;
+  }
+  return 1;
+}
+
+function computeZoneEpcEstimate(zone, demo) {
   const deliveredPerM2 = typeof zone?.delivered_heat_per_unit_area === 'number'
     ? zone.delivered_heat_per_unit_area
     : (typeof zone?.heat_loss_per_unit_area === 'number' ? zone.heat_loss_per_unit_area : null);
@@ -155,20 +165,22 @@ function computeZoneEpcEstimate(zone) {
     return { letter: 'N/A', intensityKwhM2Yr: null };
   }
 
-  const intensityKwhM2Yr = Math.max(0, (deliveredPerM2 * 24 * 365) / 1000);
+  const annualDemandIntensityKwhM2Yr = Math.max(0, (deliveredPerM2 * 24 * 365) / 1000);
+  const intensityKwhM2Yr = annualDemandIntensityKwhM2Yr * getEpcInputEnergyMultiplier(demo);
   return {
     letter: getEpcBand(intensityKwhM2Yr),
     intensityKwhM2Yr
   };
 }
 
-function computeWholeHouseEpcEstimate(rooms) {
+function computeWholeHouseEpcEstimate(demo, rooms) {
   const conditioned = (Array.isArray(rooms) ? rooms : []).filter(zone => zone && zone.is_unheated !== true);
   if (conditioned.length === 0) {
     return {
       letter: 'N/A',
       intensityKwhM2Yr: null,
-      annualHeatingDemandKwhYr: null
+      annualHeatingDemandKwhYr: null,
+      annualInputEnergyKwhYr: null
     };
   }
 
@@ -185,12 +197,17 @@ function computeWholeHouseEpcEstimate(rooms) {
   }, 0);
 
   const annualHeatingDemand = Math.max(0, (totalDeliveredHeatW * 24 * 365) / 1000);
-  const intensityKwhM2Yr = totalFloorArea > 0 ? (annualHeatingDemand / totalFloorArea) : null;
+  const annualInputEnergyFromMeta = Number(demo?.meta?.annual_input_energy_kwh_yr);
+  const annualInputEnergy = isFinite(annualInputEnergyFromMeta) && annualInputEnergyFromMeta >= 0
+    ? annualInputEnergyFromMeta
+    : annualHeatingDemand;
+  const intensityKwhM2Yr = totalFloorArea > 0 ? (annualInputEnergy / totalFloorArea) : null;
 
   return {
     letter: getEpcBand(intensityKwhM2Yr),
     intensityKwhM2Yr,
-    annualHeatingDemandKwhYr: annualHeatingDemand
+    annualHeatingDemandKwhYr: annualHeatingDemand,
+    annualInputEnergyKwhYr: annualInputEnergy
   };
 }
 
@@ -212,7 +229,7 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
     : 'Unnamed Project';
   name.textContent = projectName;
 
-  const epc = computeWholeHouseEpcEstimate(rooms);
+  const epc = computeWholeHouseEpcEstimate(demo, rooms);
   const epcWrap = document.createElement('div');
   epcWrap.className = 'alt-viz-project-epc';
 
@@ -222,10 +239,23 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
   const annualDemand = epc.annualHeatingDemandKwhYr === null
     ? 'n/a'
     : `${epc.annualHeatingDemandKwhYr.toFixed(0)} kWh/yr`;
+  const annualInput = epc.annualInputEnergyKwhYr === null
+    ? 'n/a'
+    : `${epc.annualInputEnergyKwhYr.toFixed(0)} kWh/yr`;
+  const runningCost = Number.isFinite(Number(demo?.meta?.annual_running_cost))
+    ? `£${Number(demo.meta.annual_running_cost).toFixed(0)}/yr`
+    : 'n/a';
+  const heatSourceLabelByType = {
+    gas_boiler: 'Gas Boiler',
+    heat_pump: 'Heat Pump',
+    direct_electric: 'Direct Electric'
+  };
+  const heatSourceType = String(demo?.meta?.heatSourceType || 'gas_boiler');
+  const heatSourceLabel = heatSourceLabelByType[heatSourceType] || 'Gas Boiler';
   const overallAch = typeof demo?.meta?.total_air_changes_per_hour === 'number' && isFinite(demo.meta.total_air_changes_per_hour)
     ? demo.meta.total_air_changes_per_hour.toFixed(2)
     : 'n/a';
-  epcSummary.textContent = `Overall EPC ${epc.letter} (${epcValue}) · Annual demand ${annualDemand} · ACH ${overallAch}`;
+  epcSummary.textContent = `Overall EPC ${epc.letter} (${epcValue}) · Annual input ${annualInput} · Heat demand ${annualDemand} · Running cost ${runningCost} · ${heatSourceLabel} · ACH ${overallAch}`;
 
   const epcScale = document.createElement('div');
   epcScale.className = 'alt-viz-project-epc-scale';
@@ -284,16 +314,19 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
     const variantEpc = typeof metrics.epcLetter === 'string' && metrics.epcLetter
       ? metrics.epcLetter
       : 'N/A';
-    const demandText = Number.isFinite(metrics.annualDemandKwhYr)
-      ? `${Number(metrics.annualDemandKwhYr).toFixed(0)} kWh/yr`
-      : 'n/a';
+    const hasInputMetric = Number.isFinite(metrics.annualInputEnergyKwhYr);
+    const hasDemandMetric = Number.isFinite(metrics.annualDemandKwhYr);
+    const demandText = hasInputMetric
+      ? `${Number(metrics.annualInputEnergyKwhYr).toFixed(0)} kWh/yr`
+      : (hasDemandMetric ? `${Number(metrics.annualDemandKwhYr).toFixed(0)} kWh/yr` : 'n/a');
+    const demandLabel = hasInputMetric ? 'Input' : 'Demand';
     const achText = Number.isFinite(metrics.totalAch)
       ? Number(metrics.totalAch).toFixed(2)
       : 'n/a';
 
     const metricsText = document.createElement('span');
     metricsText.className = 'alt-viz-variant-metrics';
-    metricsText.textContent = `${variantEpc} · Demand ${demandText} · ACH ${achText}`;
+    metricsText.textContent = `${variantEpc} · ${demandLabel} ${demandText} · ACH ${achText}`;
 
     row.appendChild(activeIcon);
     row.appendChild(nameInput);
@@ -368,7 +401,7 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
 
     const head = table.createTHead();
     const headRow = head.insertRow();
-    ['Recommendation', 'kWhr/year savings', 'Expected EPC', 'Cost Est.'].forEach(title => {
+    ['Recommendation', 'kWh/year savings', '£/year savings', 'Simple payback', 'Expected EPC', 'Cost Est.'].forEach(title => {
       const th = document.createElement('th');
       th.textContent = title;
       headRow.appendChild(th);
@@ -401,6 +434,14 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
         : 'n/a';
       row.appendChild(savings);
 
+      const annualCostSavings = document.createElement('td');
+      annualCostSavings.textContent = String(item?.annualCostSavingsText || 'n/a');
+      row.appendChild(annualCostSavings);
+
+      const payback = document.createElement('td');
+      payback.textContent = String(item?.simplePaybackText || 'n/a');
+      row.appendChild(payback);
+
       const epc = document.createElement('td');
       epc.textContent = String(item?.expectedEpc || 'N/A');
       row.appendChild(epc);
@@ -413,7 +454,7 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
       detailRow.className = 'alt-viz-rec-detail-row';
       detailRow.style.display = 'none';
       const detailCell = detailRow.insertCell();
-      detailCell.colSpan = 4;
+      detailCell.colSpan = 6;
       detailCell.className = 'alt-viz-rec-detail-cell';
 
       const proposalTitle = document.createElement('div');
@@ -490,9 +531,10 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
   return summary;
 }
 
-function computeLevelEpcEstimate(levelRooms) {
+function computeLevelEpcEstimate(levelRooms, demo) {
   const conditioned = (Array.isArray(levelRooms) ? levelRooms : []).filter(zone => zone && zone.is_unheated !== true);
   if (conditioned.length === 0) return { letter: 'N/A', intensityKwhM2Yr: null };
+  const inputEnergyMultiplier = getEpcInputEnergyMultiplier(demo);
 
   let weightedAnnual = 0;
   let weightedArea = 0;
@@ -506,7 +548,7 @@ function computeLevelEpcEstimate(levelRooms) {
 
     if (deliveredPerM2 === null || !isFinite(deliveredPerM2)) return;
 
-    const annualIntensity = Math.max(0, (deliveredPerM2 * 24 * 365) / 1000);
+    const annualIntensity = Math.max(0, (deliveredPerM2 * 24 * 365) / 1000) * inputEnergyMultiplier;
     const area = typeof zone.floor_area === 'number' && zone.floor_area > 0 ? zone.floor_area : null;
 
     if (area !== null) {
@@ -1041,6 +1083,18 @@ function createEnvironmentControlStrip(demo, onMenuAction, getContext) {
   const strip = document.createElement('div');
   strip.className = 'alt-env-strip';
 
+  const requestAction = (action, payload = {}) => {
+    if (typeof onMenuAction !== 'function') return;
+    onMenuAction(
+      action,
+      {
+        action,
+        payload
+      },
+      typeof getContext === 'function' ? getContext() : {}
+    );
+  };
+
   const controls = [
     {
       label: 'Indoor Target',
@@ -1103,22 +1157,207 @@ function createEnvironmentControlStrip(demo, onMenuAction, getContext) {
     });
 
     slider.addEventListener('change', () => {
-      if (typeof onMenuAction === 'function') {
-        onMenuAction(
-          control.action,
-          {
-            action: control.action,
-            payload: { value: Number(slider.value) }
-          },
-          typeof getContext === 'function' ? getContext() : {}
-        );
-      }
+      requestAction(control.action, { value: Number(slider.value) });
     });
 
     card.appendChild(labelRow);
     card.appendChild(slider);
     strip.appendChild(card);
   });
+
+  const heatSourceCard = document.createElement('div');
+  heatSourceCard.className = 'alt-env-card';
+  const heatSourceLabel = document.createElement('label');
+  heatSourceLabel.className = 'alt-env-label';
+  heatSourceLabel.textContent = 'Heat Source';
+  heatSourceLabel.setAttribute('for', 'alt-env-heat-source');
+  const heatSourceSelect = document.createElement('select');
+  heatSourceSelect.className = 'alt-env-select';
+  heatSourceSelect.id = 'alt-env-heat-source';
+  const heatSourceValue = String(demo?.meta?.heatSourceType || 'gas_boiler');
+  const isGasSource = heatSourceValue === 'gas_boiler';
+  const isHeatPumpSource = heatSourceValue === 'heat_pump';
+  const isElectricSource = heatSourceValue === 'heat_pump' || heatSourceValue === 'direct_electric';
+  [
+    { value: 'gas_boiler', label: 'Gas Boiler' },
+    { value: 'heat_pump', label: 'Heat Pump' },
+    { value: 'direct_electric', label: 'Direct Electric' }
+  ].forEach(opt => {
+    const option = document.createElement('option');
+    option.value = opt.value;
+    option.textContent = opt.label;
+    if (opt.value === heatSourceValue) option.selected = true;
+    heatSourceSelect.appendChild(option);
+  });
+  heatSourceSelect.addEventListener('change', () => {
+    requestAction('environment.set.heat_source', { value: heatSourceSelect.value });
+  });
+  heatSourceCard.appendChild(heatSourceLabel);
+  heatSourceCard.appendChild(heatSourceSelect);
+  strip.appendChild(heatSourceCard);
+
+  const gasRateCard = document.createElement('div');
+  gasRateCard.className = 'alt-env-card';
+  const gasRateLabel = document.createElement('label');
+  gasRateLabel.className = 'alt-env-label';
+  gasRateLabel.textContent = 'Gas Tariff (£/kWh)';
+  gasRateLabel.setAttribute('for', 'alt-env-gas-rate');
+  const gasRateInput = document.createElement('input');
+  gasRateInput.type = 'number';
+  gasRateInput.id = 'alt-env-gas-rate';
+  gasRateInput.className = 'alt-env-input';
+  gasRateInput.min = '0.01';
+  gasRateInput.max = '2';
+  gasRateInput.step = '0.005';
+  gasRateInput.value = Number.isFinite(Number(demo?.meta?.gasUnitRate))
+    ? Number(demo.meta.gasUnitRate).toFixed(3)
+    : '0.070';
+  gasRateInput.disabled = !isGasSource;
+  gasRateInput.addEventListener('change', () => {
+    requestAction('environment.set.gas_rate', { value: Number(gasRateInput.value) });
+  });
+  gasRateCard.appendChild(gasRateLabel);
+  gasRateCard.appendChild(gasRateInput);
+  strip.appendChild(gasRateCard);
+
+  const electricRateCard = document.createElement('div');
+  electricRateCard.className = 'alt-env-card';
+  const electricRateLabel = document.createElement('label');
+  electricRateLabel.className = 'alt-env-label';
+  electricRateLabel.textContent = 'Electric Tariff (£/kWh)';
+  electricRateLabel.setAttribute('for', 'alt-env-electric-rate');
+  const electricRateInput = document.createElement('input');
+  electricRateInput.type = 'number';
+  electricRateInput.id = 'alt-env-electric-rate';
+  electricRateInput.className = 'alt-env-input';
+  electricRateInput.min = '0.01';
+  electricRateInput.max = '2';
+  electricRateInput.step = '0.005';
+  electricRateInput.value = Number.isFinite(Number(demo?.meta?.electricUnitRate))
+    ? Number(demo.meta.electricUnitRate).toFixed(3)
+    : '0.240';
+  electricRateInput.disabled = !isElectricSource;
+  electricRateInput.addEventListener('change', () => {
+    requestAction('environment.set.electric_rate', { value: Number(electricRateInput.value) });
+  });
+  electricRateCard.appendChild(electricRateLabel);
+  electricRateCard.appendChild(electricRateInput);
+  strip.appendChild(electricRateCard);
+
+  const gasEfficiencyCard = document.createElement('div');
+  gasEfficiencyCard.className = 'alt-env-card';
+  const gasEfficiencyLabel = document.createElement('label');
+  gasEfficiencyLabel.className = 'alt-env-label';
+  gasEfficiencyLabel.textContent = 'Gas Boiler Efficiency';
+  gasEfficiencyLabel.setAttribute('for', 'alt-env-gas-eff');
+  const gasEfficiencyInput = document.createElement('input');
+  gasEfficiencyInput.type = 'number';
+  gasEfficiencyInput.id = 'alt-env-gas-eff';
+  gasEfficiencyInput.className = 'alt-env-input';
+  gasEfficiencyInput.min = '0.6';
+  gasEfficiencyInput.max = '0.99';
+  gasEfficiencyInput.step = '0.01';
+  gasEfficiencyInput.value = Number.isFinite(Number(demo?.meta?.gasBoilerEfficiency))
+    ? Number(demo.meta.gasBoilerEfficiency).toFixed(2)
+    : '0.90';
+  gasEfficiencyInput.disabled = !isGasSource;
+  gasEfficiencyInput.addEventListener('change', () => {
+    requestAction('environment.set.gas_efficiency', { value: Number(gasEfficiencyInput.value) });
+  });
+  gasEfficiencyCard.appendChild(gasEfficiencyLabel);
+  gasEfficiencyCard.appendChild(gasEfficiencyInput);
+  strip.appendChild(gasEfficiencyCard);
+
+  const hpScopModeCard = document.createElement('div');
+  hpScopModeCard.className = 'alt-env-card';
+  const flowTempForScop = Number.isFinite(Number(demo?.meta?.flowTemp))
+    ? Number(demo.meta.flowTemp)
+    : 55;
+  const autoScopValue = Number.isFinite(Number(demo?.meta?.heatPumpAutoScop))
+    ? Number(demo.meta.heatPumpAutoScop)
+    : Math.max(1.8, Math.min(5.5, 4.2 - ((flowTempForScop - 35) * 0.06)));
+  const hpScopModeHeader = document.createElement('div');
+  hpScopModeHeader.className = 'alt-env-label-row';
+  const hpScopModeLabel = document.createElement('label');
+  hpScopModeLabel.className = 'alt-env-label';
+  hpScopModeLabel.textContent = 'Heat Pump SCOP Mode';
+  hpScopModeLabel.setAttribute('for', 'alt-env-hp-scop-mode');
+  const hpScopHelp = document.createElement('span');
+  hpScopHelp.className = 'alt-env-help-btn';
+  hpScopHelp.setAttribute('role', 'img');
+  hpScopHelp.setAttribute('aria-label', 'SCOP auto formula help');
+  hpScopHelp.title = `Auto SCOP uses flow temp: SCOP = clamp(4.2 - 0.06 x (Flow - 35), 1.8 to 5.5). At ${flowTempForScop.toFixed(0)}C flow, auto SCOP is ${autoScopValue.toFixed(2)}.`;
+  hpScopHelp.textContent = '?';
+  hpScopModeHeader.appendChild(hpScopModeLabel);
+  hpScopModeHeader.appendChild(hpScopHelp);
+  const hpScopModeSelect = document.createElement('select');
+  hpScopModeSelect.id = 'alt-env-hp-scop-mode';
+  hpScopModeSelect.className = 'alt-env-select';
+  const scopModeValue = String(demo?.meta?.heatPumpScopMode || 'auto').toLowerCase() === 'fixed'
+    ? 'fixed'
+    : 'auto';
+  [
+    { value: 'auto', label: 'Auto (from flow temp)' },
+    { value: 'fixed', label: 'Fixed SCOP' }
+  ].forEach(opt => {
+    const option = document.createElement('option');
+    option.value = opt.value;
+    option.textContent = opt.label;
+    if (opt.value === scopModeValue) option.selected = true;
+    hpScopModeSelect.appendChild(option);
+  });
+  hpScopModeSelect.addEventListener('change', () => {
+    requestAction('environment.set.hp_scop_mode', { value: hpScopModeSelect.value });
+  });
+  hpScopModeSelect.disabled = !isHeatPumpSource;
+  hpScopModeCard.appendChild(hpScopModeHeader);
+  hpScopModeCard.appendChild(hpScopModeSelect);
+  const hpScopModeHelpText = document.createElement('div');
+  hpScopModeHelpText.className = 'alt-env-help-text';
+  hpScopModeHelpText.textContent = `Auto mode currently maps ${flowTempForScop.toFixed(0)}C flow to SCOP ${autoScopValue.toFixed(2)}.`;
+  hpScopModeCard.appendChild(hpScopModeHelpText);
+  strip.appendChild(hpScopModeCard);
+
+  const hpScopCard = document.createElement('div');
+  hpScopCard.className = 'alt-env-card';
+  const hpScopLabel = document.createElement('label');
+  hpScopLabel.className = 'alt-env-label';
+  hpScopLabel.textContent = 'Heat Pump Fixed SCOP';
+  hpScopLabel.setAttribute('for', 'alt-env-hp-scop-fixed');
+  const hpScopInput = document.createElement('input');
+  hpScopInput.type = 'number';
+  hpScopInput.id = 'alt-env-hp-scop-fixed';
+  hpScopInput.className = 'alt-env-input';
+  hpScopInput.min = '1.8';
+  hpScopInput.max = '6';
+  hpScopInput.step = '0.1';
+  hpScopInput.value = Number.isFinite(Number(demo?.meta?.heatPumpFixedScop))
+    ? Number(demo.meta.heatPumpFixedScop).toFixed(1)
+    : '3.2';
+  hpScopInput.disabled = !isHeatPumpSource || scopModeValue !== 'fixed';
+  hpScopInput.addEventListener('change', () => {
+    requestAction('environment.set.hp_scop_fixed', { value: Number(hpScopInput.value) });
+  });
+  hpScopCard.appendChild(hpScopLabel);
+  hpScopCard.appendChild(hpScopInput);
+  strip.appendChild(hpScopCard);
+
+  const hpScopInfoCard = document.createElement('div');
+  hpScopInfoCard.className = 'alt-env-card';
+  const hpScopInfoLabel = document.createElement('div');
+  hpScopInfoLabel.className = 'alt-env-label';
+  hpScopInfoLabel.textContent = 'Effective SCOP';
+  const hpScopInfoValue = document.createElement('div');
+  hpScopInfoValue.className = 'alt-env-value';
+  hpScopInfoValue.textContent = Number.isFinite(Number(demo?.meta?.effective_scop))
+    ? Number(demo.meta.effective_scop).toFixed(2)
+    : 'n/a';
+  if (!isHeatPumpSource) {
+    hpScopInfoValue.textContent = 'n/a';
+  }
+  hpScopInfoCard.appendChild(hpScopInfoLabel);
+  hpScopInfoCard.appendChild(hpScopInfoValue);
+  strip.appendChild(hpScopInfoCard);
 
   return strip;
 }
@@ -3539,7 +3778,7 @@ export function renderAlternativeViz(demo, opts = {}) {
     if (capacity) infoLines.push(capacity.text);
     if (savingsText) infoLines.push(savingsText);
     if (zone.is_unheated !== true) {
-      const epc = computeZoneEpcEstimate(zone);
+      const epc = computeZoneEpcEstimate(zone, demo);
       const epcValue = epc.intensityKwhM2Yr === null ? 'n/a' : epc.intensityKwhM2Yr.toFixed(0);
       infoLines.push(`EPC ${epc.letter} (${epcValue})`);
     }
