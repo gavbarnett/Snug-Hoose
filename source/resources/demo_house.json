@@ -429,14 +429,16 @@
 					"id": "win_kitchen_east",
 					"name": "Kitchen Side Window",
 					"glazing_id": "window_double_modern",
-					"area": 1.0
+					"area": 1.0,
+					"position_ratio": 0.3
 				}
 			],
 			"doors": [
 				{
 					"id": "door_kitchen_back",
 					"name": "Back Door",
-					"material_id": "door_pvc_insulated"
+					"material_id": "door_pvc_insulated",
+					"position_ratio": 0.75
 				}
 			],
 			"build_up_template_id": "buo_02"
