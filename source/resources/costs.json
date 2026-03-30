@@ -63,6 +63,17 @@
 			"install_per_m2": 22,
 			"callout": 220,
 			"notes": "Top-up loft insulation supply and fit estimate. Base layer follows joist/cavity depth; additional above-joist insulation can be added up to 500mm."
+		},
+		"heating_system_switch": {
+			"heat_pump_install": 9500,
+			"gas_boiler_install": 3200,
+			"wet_system_conversion": 6500,
+			"electric_radiator_conversion": 2800,
+			"wet_emitter_each": 420,
+			"electric_emitter_each": 320,
+			"decommission_allowance": 600,
+			"contingency_factor": 1.1,
+			"notes": "Indicative system-switch capex. Includes core plant install plus optional wet/electric emitter and distribution conversion allowances when switching system type."
 		}
 	}
 }

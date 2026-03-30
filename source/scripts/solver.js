@@ -1700,6 +1700,16 @@ function getRecommendationCostModel() {
           max_above_joist_thickness_m: 0.5,
           install_per_m2: 22,
           callout: 220
+        },
+        heating_system_switch: {
+          heat_pump_install: 9500,
+          gas_boiler_install: 3200,
+          wet_system_conversion: 6500,
+          electric_radiator_conversion: 2800,
+          wet_emitter_each: 420,
+          electric_emitter_each: 320,
+          decommission_allowance: 600,
+          contingency_factor: 1.1
         }
       }
     };
@@ -1719,6 +1729,65 @@ function buildPerformanceRecommendations(demoRaw) {
   const baselineFlowTemp = Number.isFinite(demoRaw?.meta?.flowTemp) ? Number(demoRaw.meta.flowTemp) : 55;
   const baselineHeatingInputs = getNormalizedHeatingInputs(demoRaw?.meta, baselineFlowTemp, costModel);
   const baselineRunningCost = computeAnnualRunningCostFromDemand(baseline.annualDemandKwhYr, baselineHeatingInputs);
+  const systemSwitchCfg = measures.heating_system_switch || {};
+  const heatedRooms = (Array.isArray(demoRaw?.zones) ? demoRaw.zones : [])
+    .filter(zone => zone && zone.type !== 'boundary' && zone.is_unheated !== true);
+  const emitterCount = Math.max(1, heatedRooms.length);
+  const getSystemSwitchCost = (targetSource) => {
+    const currentSource = String(baselineHeatingInputs?.heatSourceType || 'gas_boiler');
+    if (targetSource === currentSource) {
+      return { total: 0, breakdown: [] };
+    }
+    const contingencyFactor = Number(systemSwitchCfg.contingency_factor || 1.1);
+    const decommission = Number(systemSwitchCfg.decommission_allowance || 0);
+    let baseInstall = 0;
+    let conversion = 0;
+    let emitterConversion = 0;
+    const breakdown = [];
+
+    if (targetSource === 'heat_pump') {
+      baseInstall = Number(systemSwitchCfg.heat_pump_install || 0);
+      breakdown.push({ label: 'Heat pump installation', amount: baseInstall });
+      if (currentSource === 'direct_electric') {
+        conversion = Number(systemSwitchCfg.wet_system_conversion || 0);
+        emitterConversion = emitterCount * Number(systemSwitchCfg.wet_emitter_each || 0);
+        breakdown.push({ label: 'Wet system conversion (pipework/manifold)', amount: conversion });
+        breakdown.push({ label: `Wet emitters (${emitterCount})`, amount: emitterConversion });
+      }
+      if (currentSource === 'gas_boiler' && decommission > 0) {
+        breakdown.push({ label: 'Boiler decommission allowance', amount: decommission });
+      }
+    } else if (targetSource === 'gas_boiler') {
+      baseInstall = Number(systemSwitchCfg.gas_boiler_install || 0);
+      breakdown.push({ label: 'Gas boiler installation', amount: baseInstall });
+      if (currentSource === 'direct_electric') {
+        conversion = Number(systemSwitchCfg.wet_system_conversion || 0);
+        emitterConversion = emitterCount * Number(systemSwitchCfg.wet_emitter_each || 0);
+        breakdown.push({ label: 'Wet system conversion (pipework/manifold)', amount: conversion });
+        breakdown.push({ label: `Wet emitters (${emitterCount})`, amount: emitterConversion });
+      }
+      if (currentSource === 'heat_pump' && decommission > 0) {
+        breakdown.push({ label: 'Heat pump decommission allowance', amount: decommission });
+      }
+    } else if (targetSource === 'direct_electric') {
+      baseInstall = Number(systemSwitchCfg.electric_radiator_conversion || 0);
+      breakdown.push({ label: 'Direct-electric radiator conversion', amount: baseInstall });
+      if (currentSource !== 'direct_electric') {
+        emitterConversion = emitterCount * Number(systemSwitchCfg.electric_emitter_each || 0);
+        breakdown.push({ label: `Electric emitters (${emitterCount})`, amount: emitterConversion });
+      }
+    }
+
+    const subtotal = Math.max(0, baseInstall + conversion + emitterConversion + Math.max(0, decommission));
+    const contingency = subtotal * Math.max(0, contingencyFactor - 1);
+    if (contingency > 0) {
+      breakdown.push({ label: `Contingency (${Math.round((contingencyFactor - 1) * 100)}%)`, amount: contingency });
+    }
+    return {
+      total: subtotal + contingency,
+      breakdown
+    };
+  };
 
   const addCandidate = (label, mutateFn, costFn, options = {}) => {
     const working = deepClone(demoRaw);
@@ -2340,6 +2409,70 @@ function buildPerformanceRecommendations(demoRaw) {
     { id: 'loft_insulation_topup' }
   );
 
+  addCandidate(
+    'Switch heating source to heat pump',
+    (working) => {
+      working.meta = working.meta || {};
+      const currentSource = String(working.meta.heatSourceType || baselineHeatingInputs.heatSourceType || 'gas_boiler');
+      if (currentSource === 'heat_pump') return { changed: false };
+      working.meta.heatSourceType = 'heat_pump';
+      return {
+        changed: true,
+        from: currentSource,
+        to: 'heat_pump',
+        proposal: `Switch primary heat source from ${currentSource.replace('_', ' ')} to heat pump while keeping current fabric and control assumptions.`
+      };
+    },
+    () => getSystemSwitchCost('heat_pump'),
+    { id: 'heat_source_swap_heat_pump' }
+  );
+
+  addCandidate(
+    'Switch heating source to gas boiler',
+    (working) => {
+      working.meta = working.meta || {};
+      const currentSource = String(working.meta.heatSourceType || baselineHeatingInputs.heatSourceType || 'gas_boiler');
+      if (currentSource === 'gas_boiler') return { changed: false };
+      working.meta.heatSourceType = 'gas_boiler';
+      return {
+        changed: true,
+        from: currentSource,
+        to: 'gas_boiler',
+        proposal: `Switch primary heat source from ${currentSource.replace('_', ' ')} to gas boiler while keeping current fabric and control assumptions.`
+      };
+    },
+    () => getSystemSwitchCost('gas_boiler'),
+    { id: 'heat_source_swap_gas_boiler' }
+  );
+
+  addCandidate(
+    'Switch heating source to direct electric radiators',
+    (working) => {
+      working.meta = working.meta || {};
+      const currentSource = String(working.meta.heatSourceType || baselineHeatingInputs.heatSourceType || 'gas_boiler');
+      if (currentSource === 'direct_electric') return { changed: false };
+      working.meta.heatSourceType = 'direct_electric';
+      return {
+        changed: true,
+        from: currentSource,
+        to: 'direct_electric',
+        proposal: [
+          `Switch primary heat source from ${currentSource.replace('_', ' ')} to direct electric emitters.`,
+          'Only recommended where tariffs and installation constraints make this unusually cost-effective.'
+        ].join('\n')
+      };
+    },
+    () => getSystemSwitchCost('direct_electric'),
+    {
+      id: 'heat_source_swap_direct_electric',
+      accept: ({ baseline, metrics, change }) => {
+        if (String(change?.from || '') !== 'gas_boiler') return false;
+        const annualCostSavings = Math.max(0, Number(baseline?.annualRunningCost || 0) - Number(metrics?.annualRunningCost || 0));
+        return annualCostSavings >= 150;
+      }
+    }
+  );
+
   const deficits = getComfortDeficitRoomsForDemo(demoRaw);
   const hasRadiatorComfortRecommendation = results.some(item => item.recommendationId === 'radiator_upgrade_unmet');
   if (!hasRadiatorComfortRecommendation && Number(deficits.count || 0) > 0) {
@@ -2488,6 +2621,30 @@ function applyRecommendationById(demoRaw, recommendationId) {
       }
     });
     return changed;
+  }
+
+  if (recId === 'heat_source_swap_heat_pump') {
+    demoRaw.meta = demoRaw.meta || {};
+    const currentSource = String(demoRaw.meta.heatSourceType || 'gas_boiler');
+    if (currentSource === 'heat_pump') return false;
+    demoRaw.meta.heatSourceType = 'heat_pump';
+    return true;
+  }
+
+  if (recId === 'heat_source_swap_gas_boiler') {
+    demoRaw.meta = demoRaw.meta || {};
+    const currentSource = String(demoRaw.meta.heatSourceType || 'gas_boiler');
+    if (currentSource === 'gas_boiler') return false;
+    demoRaw.meta.heatSourceType = 'gas_boiler';
+    return true;
+  }
+
+  if (recId === 'heat_source_swap_direct_electric') {
+    demoRaw.meta = demoRaw.meta || {};
+    const currentSource = String(demoRaw.meta.heatSourceType || 'gas_boiler');
+    if (currentSource === 'direct_electric') return false;
+    demoRaw.meta.heatSourceType = 'direct_electric';
+    return true;
   }
 
   if (recId === 'window_upgrade_best') {
