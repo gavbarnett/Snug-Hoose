@@ -1,4 +1,4 @@
-// Client-side solver orchestrator (ES module). Imports modular calculators and manages UI.
+﻿// Client-side solver orchestrator (ES module). Imports modular calculators and manages UI.
 
 import { computeElementU } from './u_value_calculator.js';
 import { computeRoomHeatRequirements } from './heat_calculator.js';
@@ -910,7 +910,7 @@ function radiatorCoefficient(spec, sizing) {
   return coeff * area;
 }
 
-export function designRoomRadiators(requiredCoeff, existingRads, preferredTypeId, widthHintMm, sizing) {
+function designRoomRadiators(requiredCoeff, existingRads, preferredTypeId, widthHintMm, sizing) {
   const initial = (Array.isArray(existingRads) ? existingRads : []).map(rad =>
     normalizeRadiatorSpec(rad, preferredTypeId, sizing, widthHintMm || 1000)
   );
@@ -1072,29 +1072,6 @@ function applyRadiatorComfortUpgrade(demo, options = {}) {
     };
   }
 
-  // ── Design-condition heat-loss pass ────────────────────────────────────
-  // total_conductance tracks boundary conductance only (to Outside/Ground).
-  // Rooms losing heat to adjacent unheated zones (e.g. loft above) are
-  // drastically undersized when only boundary conductance drives the formula.
-  // Fix: run heat-calc with oversized (TRV-clamped) radiators in every unmet
-  // room, control-zone modulation stripped, so the solver places every unmet
-  // room at its setpoint.  The resulting heat_loss values include ALL heat
-  // transfer paths and give accurate sizing inputs.
-  const unmetZoneIdSet = new Set(unmetRooms.map(r => String(r?.zoneId || '')));
-  const designPassZones = zones.map(z => {
-    const base = { ...z, is_boiler_control: false };
-    if (!unmetZoneIdSet.has(String(z?.id || ''))) return base;
-    return { ...base, radiators: [{ radiator_id: dominantTypeId, surface_area: 200, trv_enabled: true }] };
-  });
-  const heatDesign = computeRoomHeatRequirements(
-    { ...demo, zones: designPassZones },
-    radiatorCatalog,
-    { indoorTemp: 21, externalTemp, flowTemp }
-  );
-  const designHeatByZoneId = new Map(
-    (Array.isArray(heatDesign?.rooms) ? heatDesign.rooms : []).map(r => [String(r?.zoneId || ''), r])
-  );
-
   const upgradeByZoneId = new Map();
   let totalAddedSurfaceArea = 0;
   for (const room of unmetRooms) {
@@ -1109,12 +1086,8 @@ function applyRadiatorComfortUpgrade(demo, options = {}) {
     let requiredCoeff = currentCoeff;
     const delivered = Number(room?.delivered_indoor_temperature);
     const shortfallC = isFinite(delivered) ? Math.max(0, targetTemp - delivered) : Math.max(0.5, targetTemp - externalTemp);
-    const designDelta = Math.max(1, flowTemp - targetTemp);
-    const designRoom = designHeatByZoneId.get(zoneId);
-    const designHeatLoss = designRoom ? Number(designRoom.heat_loss) : NaN;
-    if (isFinite(designHeatLoss) && designHeatLoss > 0) {
-      requiredCoeff = Math.max(currentCoeff, (designHeatLoss * sizingOverheadFactor) / designDelta);
-    } else if (isFinite(totalConductance) && totalConductance > 0) {
+    if (isFinite(totalConductance) && totalConductance > 0) {
+      const designDelta = Math.max(1, flowTemp - targetTemp);
       const requiredOutput = Math.max(0, totalConductance * Math.max(0, targetTemp - externalTemp));
       requiredCoeff = Math.max(currentCoeff, (requiredOutput * sizingOverheadFactor) / designDelta);
     } else {
@@ -1511,7 +1484,7 @@ function buildPerformanceRecommendations(demoRaw) {
       const costPerM2 = Number(cfg.cost_per_m2_surface_area || 45);
       const callout = Number(cfg.callout || 0);
       const material = change.totalAddedSurfaceArea * costPerM2;
-      const install = change.totalAddedSurfaceArea * 85; // Labour per m² (roughly £85)
+      const install = change.totalAddedSurfaceArea * 85; // Labour per m┬▓ (roughly ┬ú85)
       const trvCount = Number(change.trvEnabledCount || 0);
       const trvMaterial = trvCount * Number(trvCfg.valve_material_each || 0);
       const trvInstall = trvCount * Number(trvCfg.install_each || 0);
@@ -1520,8 +1493,8 @@ function buildPerformanceRecommendations(demoRaw) {
         total: callout + material + install + trvMaterial + trvInstall + flowCommissioning,
         breakdown: [
           { label: 'Plumber callout', amount: callout },
-          { label: `Radiator material (${change.totalAddedSurfaceArea.toFixed(1)} m²)`, amount: material },
-          { label: `Radiator installation labour (${change.totalAddedSurfaceArea.toFixed(1)} m²)`, amount: install },
+          { label: `Radiator material (${change.totalAddedSurfaceArea.toFixed(1)} m┬▓)`, amount: material },
+          { label: `Radiator installation labour (${change.totalAddedSurfaceArea.toFixed(1)} m┬▓)`, amount: install },
           { label: `TRV valves (${trvCount})`, amount: trvMaterial },
           { label: `TRV installation labour (${trvCount})`, amount: trvInstall },
           { label: 'Flow temperature commissioning', amount: flowCommissioning }
@@ -2029,15 +2002,15 @@ function buildPerformanceRecommendations(demoRaw) {
   }
 
   results.sort((a, b) => {
-    // Priority 1: Comfort improvements (rooms reaching setpoint/18C) — higher is better
+    // Priority 1: Comfort improvements (rooms reaching setpoint/18C) ÔÇö higher is better
     if (b._comfortImprovement !== a._comfortImprovement) {
       return b._comfortImprovement - a._comfortImprovement;
     }
-    // Priority 2: Annual energy savings — higher is better
+    // Priority 2: Annual energy savings ÔÇö higher is better
     if (b.annualSavingsKwhYr !== a.annualSavingsKwhYr) {
       return b.annualSavingsKwhYr - a.annualSavingsKwhYr;
     }
-    // Priority 3: Cost — lower is better
+    // Priority 3: Cost ÔÇö lower is better
     return a._sortCost - b._sortCost;
   });
 
