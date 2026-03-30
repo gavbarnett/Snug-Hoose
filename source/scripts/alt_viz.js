@@ -1724,21 +1724,24 @@ function updateOpeningRenderState(openingState, segment, centroidPoint) {
     openingState.line.setAttribute('y2', String(segment.y2));
   }
 
-  if (openingState.arc) {
-    const swing = computeDoorSwingGeometry(segment, openingState.opening);
-    if (swing) openingState.arc.setAttribute('d', swing.arcPath);
+  const swings = computeDoorSwingGeometry(segment, openingState.opening);
+  if (Array.isArray(openingState.arcs)) {
+    openingState.arcs.forEach((arc, index) => {
+      if (!arc || !swings[index]) return;
+      arc.setAttribute('d', swings[index].arcPath);
+    });
   }
-  if (openingState.leaf) {
-    const swing = computeDoorSwingGeometry(segment, openingState.opening);
-    if (swing) {
-      openingState.leaf.setAttribute('x1', String(swing.hinge.x));
-      openingState.leaf.setAttribute('y1', String(swing.hinge.y));
-      openingState.leaf.setAttribute('x2', String(swing.openLeafEnd.x));
-      openingState.leaf.setAttribute('y2', String(swing.openLeafEnd.y));
+  if (Array.isArray(openingState.leaves)) {
+    openingState.leaves.forEach((leaf, index) => {
+      if (!leaf || !swings[index]) return;
+      leaf.setAttribute('x1', String(swings[index].hinge.x));
+      leaf.setAttribute('y1', String(swings[index].hinge.y));
+      leaf.setAttribute('x2', String(swings[index].openLeafEnd.x));
+      leaf.setAttribute('y2', String(swings[index].openLeafEnd.y));
       if (isFinite(openingState.thickness)) {
-        openingState.leaf.setAttribute('stroke-width', String(openingState.thickness));
+        leaf.setAttribute('stroke-width', String(openingState.thickness));
       }
-    }
+    });
   }
 
   if (openingState.handle) {
@@ -2423,36 +2426,63 @@ function computeOpeningSegmentOnEdge(opening, worldP0, worldP1, screenP0, screen
 }
 
 function computeDoorSwingGeometry(segment, opening, swingDegrees = DOOR_SWING_DEGREES) {
-  if (!segment) return null;
+  if (!segment) return [];
+
+  const openingWidthMm = Math.max(0, getOpeningLengthMeters(opening) * 1000);
+  const isDoubleDoor = openingWidthMm > 950;
+
+  const buildLeaf = (hingePoint, closedLeafEnd, rotationSign) => {
+    const hx = hingePoint.x;
+    const hy = hingePoint.y;
+    const vx = closedLeafEnd.x - hingePoint.x;
+    const vy = closedLeafEnd.y - hingePoint.y;
+    const r = Math.hypot(vx, vy);
+    if (!isFinite(r) || r <= 1e-6) return null;
+
+    const rad = rotationSign * (Math.PI / 180) * swingDegrees;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const ox = hx + (vx * cos - vy * sin);
+    const oy = hy + (vx * sin + vy * cos);
+
+    return {
+      hinge: hingePoint,
+      closedLeafEnd,
+      openLeafEnd: { x: ox, y: oy },
+      arcPath: `M ${closedLeafEnd.x} ${closedLeafEnd.y} A ${r} ${r} 0 0 1 ${ox} ${oy}`
+    };
+  };
+
+  if (isDoubleDoor) {
+    const midPoint = {
+      x: (segment.x1 + segment.x2) / 2,
+      y: (segment.y1 + segment.y2) / 2
+    };
+    const leftLeaf = buildLeaf(
+      { x: segment.x1, y: segment.y1 },
+      midPoint,
+      1
+    );
+    const rightLeaf = buildLeaf(
+      { x: segment.x2, y: segment.y2 },
+      midPoint,
+      -1
+    );
+    return [leftLeaf, rightLeaf].filter(Boolean);
+  }
 
   const hingeSide = String(opening?.hinge_side || '').toLowerCase() === 'right' ? 'right' : 'left';
-  const hingePoint = hingeSide === 'right'
-    ? { x: segment.x2, y: segment.y2 }
-    : { x: segment.x1, y: segment.y1 };
-  const closedLeafEnd = hingeSide === 'right'
-    ? { x: segment.x1, y: segment.y1 }
-    : { x: segment.x2, y: segment.y2 };
+  const singleLeaf = buildLeaf(
+    hingeSide === 'right'
+      ? { x: segment.x2, y: segment.y2 }
+      : { x: segment.x1, y: segment.y1 },
+    hingeSide === 'right'
+      ? { x: segment.x1, y: segment.y1 }
+      : { x: segment.x2, y: segment.y2 },
+    hingeSide === 'right' ? -1 : 1
+  );
 
-  const hx = hingePoint.x;
-  const hy = hingePoint.y;
-  const vx = closedLeafEnd.x - hingePoint.x;
-  const vy = closedLeafEnd.y - hingePoint.y;
-  const r = Math.hypot(vx, vy);
-  if (!isFinite(r) || r <= 1e-6) return null;
-
-  const rotationSign = hingeSide === 'right' ? -1 : 1;
-  const rad = rotationSign * (Math.PI / 180) * swingDegrees;
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-  const ox = hx + (vx * cos - vy * sin);
-  const oy = hy + (vx * sin + vy * cos);
-
-  return {
-    hinge: hingePoint,
-    closedLeafEnd,
-    openLeafEnd: { x: ox, y: oy },
-    arcPath: `M ${closedLeafEnd.x} ${closedLeafEnd.y} A ${r} ${r} 0 0 1 ${ox} ${oy}`
-  };
+  return singleLeaf ? [singleLeaf] : [];
 }
 
 function findContainingZoneIdForPoint(point, polygonMap) {
@@ -3678,25 +3708,29 @@ export function renderAlternativeViz(demo, opts = {}) {
             openingLine.setAttribute('class', 'alt-opening-line alt-opening-window');
             openingLine.setAttribute('stroke-width', String(thickness));
           }
-          let openingArc = null;
-          let openingLeaf = null;
+          let openingArcs = [];
+          let openingLeaves = [];
           if (kind === 'door') {
-            const swing = computeDoorSwingGeometry(segment, opening);
-            if (swing) {
-              openingArc = document.createElementNS(ns, 'path');
-              openingArc.setAttribute('d', swing.arcPath);
-              openingArc.setAttribute('class', 'alt-opening-door-arc');
-              svg.appendChild(openingArc);
+            const swings = computeDoorSwingGeometry(segment, opening);
+            openingArcs = swings.map(swing => {
+              const arc = document.createElementNS(ns, 'path');
+              arc.setAttribute('d', swing.arcPath);
+              arc.setAttribute('class', 'alt-opening-door-arc');
+              svg.appendChild(arc);
+              return arc;
+            });
 
-              openingLeaf = document.createElementNS(ns, 'line');
-              openingLeaf.setAttribute('x1', String(swing.hinge.x));
-              openingLeaf.setAttribute('y1', String(swing.hinge.y));
-              openingLeaf.setAttribute('x2', String(swing.openLeafEnd.x));
-              openingLeaf.setAttribute('y2', String(swing.openLeafEnd.y));
-              openingLeaf.setAttribute('class', 'alt-opening-door-leaf');
-              openingLeaf.setAttribute('stroke-width', String(thickness));
-              svg.appendChild(openingLeaf);
-            }
+            openingLeaves = swings.map(swing => {
+              const leaf = document.createElementNS(ns, 'line');
+              leaf.setAttribute('x1', String(swing.hinge.x));
+              leaf.setAttribute('y1', String(swing.hinge.y));
+              leaf.setAttribute('x2', String(swing.openLeafEnd.x));
+              leaf.setAttribute('y2', String(swing.openLeafEnd.y));
+              leaf.setAttribute('class', 'alt-opening-door-leaf');
+              leaf.setAttribute('stroke-width', String(thickness));
+              svg.appendChild(leaf);
+              return leaf;
+            });
           }
 
           let openingHandle = null;
@@ -3757,7 +3791,7 @@ export function renderAlternativeViz(demo, opts = {}) {
             svg.appendChild(openingHandle);
           }
 
-          const openingState = { line: openingLine, arc: openingArc, leaf: openingLeaf, opening, kind, handle: openingHandle, thickness };
+          const openingState = { line: openingLine, arcs: openingArcs, leaves: openingLeaves, opening, kind, handle: openingHandle, thickness };
           openingsOnEdge.push(openingState);
           if (openingHandle) {
             openingHandle.addEventListener('mousedown', () => {
@@ -3765,8 +3799,8 @@ export function renderAlternativeViz(demo, opts = {}) {
                 objectDragState.openingState = openingState;
               }
               if (openingLine) svg.appendChild(openingLine);
-              if (openingArc) svg.appendChild(openingArc);
-              if (openingLeaf) svg.appendChild(openingLeaf);
+              openingArcs.forEach(arc => { if (arc) svg.appendChild(arc); });
+              openingLeaves.forEach(leaf => { if (leaf) svg.appendChild(leaf); });
               svg.appendChild(openingHandle);
             });
           }
