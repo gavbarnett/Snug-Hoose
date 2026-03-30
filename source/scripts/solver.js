@@ -1176,7 +1176,7 @@ export function designRoomRadiators(requiredCoeff, existingRads, preferredTypeId
     }
     if (progressed) continue;
 
-    if (specs.length < 2) {
+    if (specs.length < 200) {
       specs.push(normalizeRadiatorSpec({
         radiator_id: preferredTypeId,
         width: widthHintMm || 1000,
