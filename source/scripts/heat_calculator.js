@@ -29,6 +29,22 @@ function elementArea(el) {
   return null;
 }
 
+function polygonArea(polygon) {
+  if (!Array.isArray(polygon) || polygon.length < 3) return null;
+  let area2 = 0;
+  for (let i = 0; i < polygon.length; i++) {
+    const p0 = polygon[i];
+    const p1 = polygon[(i + 1) % polygon.length];
+    const x0 = Number(p0?.x);
+    const y0 = Number(p0?.y);
+    const x1 = Number(p1?.x);
+    const y1 = Number(p1?.y);
+    if (!isFinite(x0) || !isFinite(y0) || !isFinite(x1) || !isFinite(y1)) return null;
+    area2 += (x0 * y1) - (x1 * y0);
+  }
+  return Math.abs(area2) / 2;
+}
+
 function solveLinearSystem(a, b) {
   const n = a.length;
   if (n === 0) return [];
@@ -96,11 +112,13 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
   }
 
   const boundaryCondByZone = new Map();
+  const boundaryAirflowByZone = new Map();
   const adjByZone = new Map();
   const roomAcc = new Map();
 
   for (const id of zoneIds) {
     boundaryCondByZone.set(id, 0);
+    boundaryAirflowByZone.set(id, 0);
     adjByZone.set(id, new Map());
     roomAcc.set(id, { conductance: 0, area: null, contributions: [] });
   }
@@ -113,9 +131,10 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
     mapB.set(a, (mapB.get(a) || 0) + c);
   }
 
-  function addBoundary(zoneId, c, elId, elArea) {
+  function addBoundary(zoneId, c, elId, elArea, airflowM3h) {
     if (!boundaryCondByZone.has(zoneId)) return;
     boundaryCondByZone.set(zoneId, (boundaryCondByZone.get(zoneId) || 0) + c);
+    boundaryAirflowByZone.set(zoneId, (boundaryAirflowByZone.get(zoneId) || 0) + (airflowM3h || 0));
     const acc = roomAcc.get(zoneId);
     if (acc) {
       acc.conductance += c;
@@ -133,6 +152,12 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
     if (!isFinite(elConductance) && typeof el.u_overall === 'number' && typeof elArea === 'number') {
       elConductance = el.u_overall * elArea;
     }
+    let elAirflowM3h = (typeof el.air_leakage_flow_m3_h === 'number' && el.air_leakage_flow_m3_h > 0)
+      ? el.air_leakage_flow_m3_h
+      : 0;
+    if (elAirflowM3h <= 0 && typeof el.fabric_air_leakage_m3_h_m2 === 'number' && typeof elArea === 'number' && elArea > 0) {
+      elAirflowM3h = el.fabric_air_leakage_m3_h_m2 * elArea;
+    }
     if (!isFinite(elConductance) || elConductance <= 0) continue;
 
     const nonBoundaryNodes = nodes.filter(n => zoneMap.has(n) && !boundaryIds.has(n));
@@ -140,7 +165,8 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
 
     if (nonBoundaryNodes.length === 1 && localBoundaryNodes.length >= 1) {
       const share = elConductance / localBoundaryNodes.length;
-      addBoundary(nonBoundaryNodes[0], share * localBoundaryNodes.length, el.id, elArea);
+      const airflowShare = elAirflowM3h / localBoundaryNodes.length;
+      addBoundary(nonBoundaryNodes[0], share * localBoundaryNodes.length, el.id, elArea, airflowShare * localBoundaryNodes.length);
       continue;
     }
 
@@ -151,14 +177,23 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
 
     if (nonBoundaryNodes.length > 1 && localBoundaryNodes.length >= 1) {
       const share = elConductance / nonBoundaryNodes.length;
+      const airflowShare = elAirflowM3h / nonBoundaryNodes.length;
       for (const nz of nonBoundaryNodes) {
-        addBoundary(nz, share, el.id, typeof elArea === 'number' ? elArea / nonBoundaryNodes.length : null);
+        addBoundary(nz, share, el.id, typeof elArea === 'number' ? elArea / nonBoundaryNodes.length : null, airflowShare);
       }
     }
   }
 
   const radiatorCoeffByZone = new Map();
   const radiatorSurfaceByZone = new Map();
+  const zoneFloorAreaById = new Map();
+  const zoneVolumeById = new Map();
+  const infiltrationAirflowByZone = new Map();
+  const mechanicalAirflowByZone = new Map();
+  const ventilationConductanceByZone = new Map();
+  const heatRecoveredAirflowByZone = new Map();
+  const infiltrationAchByZone = new Map();
+  const totalAchByZone = new Map();
   const zoneSetpointById = new Map();
   const zoneIsHeatedById = new Map();
 
@@ -180,6 +215,63 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
     }
     radiatorCoeffByZone.set(id, coeff);
     radiatorSurfaceByZone.set(id, area);
+
+    const zoneFloorArea = (() => {
+      if (typeof z?.floor_area_m2 === 'number' && z.floor_area_m2 > 0) return z.floor_area_m2;
+      if (typeof z?.floor_area === 'number' && z.floor_area > 0) return z.floor_area;
+      const layoutArea = polygonArea(z?.layout?.polygon);
+      if (typeof layoutArea === 'number' && layoutArea > 0) return layoutArea;
+      const fallbackArea = roomAcc.get(id)?.area;
+      if (typeof fallbackArea === 'number' && fallbackArea > 0) return fallbackArea;
+      return null;
+    })();
+    zoneFloorAreaById.set(id, zoneFloorArea);
+
+    const roomHeightM = (typeof z?.room_height_m === 'number' && z.room_height_m > 0)
+      ? z.room_height_m
+      : ((typeof z?.ceiling_height_m === 'number' && z.ceiling_height_m > 0) ? z.ceiling_height_m : 2.4);
+    const zoneVolume = (typeof zoneFloorArea === 'number' && zoneFloorArea > 0)
+      ? zoneFloorArea * roomHeightM
+      : null;
+    zoneVolumeById.set(id, zoneVolume);
+
+    const infiltrationAirflow = Math.max(0, boundaryAirflowByZone.get(id) || 0);
+    infiltrationAirflowByZone.set(id, infiltrationAirflow);
+
+    let mechanicalAirflow = 0;
+    let mechanicalConductance = 0;
+    let recoveredAirflow = 0;
+    if (Array.isArray(z?.ventilation_elements)) {
+      for (const vent of z.ventilation_elements) {
+        if (!vent || vent.enabled === false) continue;
+        const flow = Number(vent.flow_m3_h);
+        if (!isFinite(flow) || flow <= 0) continue;
+        const type = String(vent.type || '').toLowerCase();
+        let recovery = Number(vent.heat_recovery_efficiency);
+        if (!isFinite(recovery) || recovery < 0) recovery = 0;
+        if (recovery > 1) recovery = 1;
+        if (!type.includes('heat_exchanger') && !type.includes('hrv') && !type.includes('mvhr')) {
+          recovery = 0;
+        }
+
+        mechanicalAirflow += flow;
+        recoveredAirflow += flow * recovery;
+        mechanicalConductance += 0.33 * flow * (1 - recovery);
+      }
+    }
+
+    const infiltrationConductance = 0.33 * infiltrationAirflow;
+    mechanicalAirflowByZone.set(id, mechanicalAirflow);
+    heatRecoveredAirflowByZone.set(id, recoveredAirflow);
+    ventilationConductanceByZone.set(id, infiltrationConductance + mechanicalConductance);
+
+    if (typeof zoneVolume === 'number' && zoneVolume > 0) {
+      infiltrationAchByZone.set(id, infiltrationAirflow / zoneVolume);
+      totalAchByZone.set(id, (infiltrationAirflow + mechanicalAirflow) / zoneVolume);
+    } else {
+      infiltrationAchByZone.set(id, null);
+      totalAchByZone.set(id, null);
+    }
   }
 
   function solveNetwork(flowTemp, options = {}) {
@@ -206,6 +298,10 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
         const cBoundary = boundaryCondByZone.get(zoneId) || 0;
         diag += cBoundary;
         rhs += cBoundary * externalTemp;
+
+        const cVent = ventilationConductanceByZone.get(zoneId) || 0;
+        diag += cVent;
+        rhs += cVent * externalTemp;
 
         const neighbors = adjByZone.get(zoneId) || new Map();
         for (const [otherId, c] of neighbors.entries()) {
@@ -274,7 +370,7 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
       const t = temps.get(id);
       const ti = (typeof t === 'number' && isFinite(t)) ? t : externalTemp;
 
-      let qOut = (boundaryCondByZone.get(id) || 0) * (ti - externalTemp);
+      let qOut = ((boundaryCondByZone.get(id) || 0) + (ventilationConductanceByZone.get(id) || 0)) * (ti - externalTemp);
       const neighbors = adjByZone.get(id) || new Map();
       for (const [otherId, c] of neighbors.entries()) {
         const tj = temps.get(otherId);
@@ -363,7 +459,7 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
   const radiatorOutputBaselineByZone = new Map();
   for (const id of zoneIds) {
     const ti = baselineTempByZone.get(id);
-    let qOut = (boundaryCondByZone.get(id) || 0) * (ti - externalTemp);
+    let qOut = ((boundaryCondByZone.get(id) || 0) + (ventilationConductanceByZone.get(id) || 0)) * (ti - externalTemp);
     const neighbors = adjByZone.get(id) || new Map();
     for (const [otherId, c] of neighbors.entries()) {
       const tj = baselineTempByZone.get(otherId);
@@ -383,11 +479,18 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
   let totalDeliveredHeatWithModulation = 0;
   let totalHeatSavingsEligible = 0;
   let totalDeliveredHeatSavingsEligible = 0;
+  let totalInfiltrationAirflow = 0;
+  let totalMechanicalAirflow = 0;
+  let totalRecoveredAirflow = 0;
+  let totalVentilationConductance = 0;
+  let totalVolume = 0;
 
   for (const id of zoneIds) {
     const z = zoneMap.get(id);
     const acc = roomAcc.get(id) || { conductance: 0, area: null, contributions: [] };
     const area = acc.area || null;
+    const floorArea = zoneFloorAreaById.get(id) || area;
+    const zoneVolume = zoneVolumeById.get(id);
 
     const setpoint = zoneSetpointById.get(id);
     const temp = operational.temps.get(id);
@@ -416,8 +519,15 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
       ? Math.max(0, setpoint - maxAchievableTemp)
       : 0;
 
-    const perM2 = area ? heatLoss / area : null;
-    const deliveredPerM2 = area ? deliveredHeat / area : null;
+    const perM2 = floorArea ? heatLoss / floorArea : null;
+    const deliveredPerM2 = floorArea ? deliveredHeat / floorArea : null;
+
+    const infiltrationAirflow = infiltrationAirflowByZone.get(id) || 0;
+    const mechanicalAirflow = mechanicalAirflowByZone.get(id) || 0;
+    const recoveredAirflow = heatRecoveredAirflowByZone.get(id) || 0;
+    const ventilationConductance = ventilationConductanceByZone.get(id) || 0;
+    const infiltrationAch = infiltrationAchByZone.get(id);
+    const totalAch = totalAchByZone.get(id);
 
     results.push({
       zoneId: id,
@@ -425,7 +535,14 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
       setpoint_temperature: setpoint,
       is_unheated: z ? z.is_unheated === true : false,
       is_boiler_control: setpoint === null ? false : ((z && z.is_boiler_control) || false),
-      floorArea: area,
+      floorArea,
+      room_volume_m3: zoneVolume ? Number(zoneVolume.toFixed(3)) : null,
+      infiltration_airflow_m3_h: Number(infiltrationAirflow.toFixed(3)),
+      mechanical_ventilation_airflow_m3_h: Number(mechanicalAirflow.toFixed(3)),
+      heat_recovered_airflow_m3_h: Number(recoveredAirflow.toFixed(3)),
+      ventilation_conductance: Number(ventilationConductance.toFixed(3)),
+      infiltration_ach: typeof infiltrationAch === 'number' ? Number(infiltrationAch.toFixed(3)) : null,
+      air_changes_per_hour: typeof totalAch === 'number' ? Number(totalAch.toFixed(3)) : null,
       total_conductance: Number((acc.conductance || 0).toFixed(3)),
       heat_loss: Number(heatLoss.toFixed(1)),
       heat_loss_baseline: Number(heatLossBaseline.toFixed(1)),
@@ -453,7 +570,16 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
     totalDeliveredHeatWithModulation += deliveredHeat;
     totalHeatSavingsEligible += heatSavings;
     totalDeliveredHeatSavingsEligible += deliveredHeatSavings;
+    totalInfiltrationAirflow += infiltrationAirflow;
+    totalMechanicalAirflow += mechanicalAirflow;
+    totalRecoveredAirflow += recoveredAirflow;
+    totalVentilationConductance += ventilationConductance;
+    if (typeof zoneVolume === 'number' && zoneVolume > 0) totalVolume += zoneVolume;
   }
+
+  const totalAch = totalVolume > 0
+    ? (totalInfiltrationAirflow + totalMechanicalAirflow) / totalVolume
+    : null;
 
   return {
     rooms: results,
@@ -462,6 +588,11 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
     total_heat_savings: Number(Math.max(0, totalHeatSavingsEligible).toFixed(1)),
     total_delivered_heat: Number(totalDeliveredHeatWithModulation.toFixed(1)),
     total_delivered_heat_savings: Number(Math.max(0, totalDeliveredHeatSavingsEligible).toFixed(1)),
+    total_infiltration_airflow_m3_h: Number(totalInfiltrationAirflow.toFixed(3)),
+    total_mechanical_ventilation_airflow_m3_h: Number(totalMechanicalAirflow.toFixed(3)),
+    total_heat_recovered_airflow_m3_h: Number(totalRecoveredAirflow.toFixed(3)),
+    total_ventilation_conductance: Number(totalVentilationConductance.toFixed(3)),
+    total_air_changes_per_hour: typeof totalAch === 'number' ? Number(totalAch.toFixed(3)) : null,
     total_radiator_output: Number(totalRadiatorOutputWithTrv.toFixed(1)),
     total_radiator_output_baseline: Number(totalRadiatorOutputBaseline.toFixed(1)),
     total_balance: Number((totalRadiatorOutputWithTrv - totalHeatWithTrv).toFixed(1)),

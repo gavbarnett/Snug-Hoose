@@ -791,6 +791,13 @@ a#download:hover {
   font-size: 1em;
 }
 
+.editor-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
 .element-item, .radiator-item {
   display: flex;
   justify-content: space-between;

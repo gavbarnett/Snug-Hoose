@@ -327,3 +327,54 @@ describe('Control room consistency check', () => {
     expect(capacityPct).toBeGreaterThanOrEqual(95); // Allow small rounding margin
   });
 });
+
+describe('ACH and mechanical ventilation', () => {
+  it('calculates ACH and ventilation conductance from leakage plus fans', () => {
+    const demo = {
+      zones: [
+        {
+          id: 'z_a',
+          name: 'Kitchen',
+          is_unheated: false,
+          setpoint_temperature: 21,
+          radiators: [{ radiator_id: 'rad_std', surface_area: 1.5, trv_enabled: true }],
+          room_height_m: 2.5,
+          layout: {
+            polygon: [
+              { x: 0, y: 0 },
+              { x: 5, y: 0 },
+              { x: 5, y: 4 },
+              { x: 0, y: 4 }
+            ]
+          },
+          ventilation_elements: [
+            { type: 'extractor_kitchen', flow_m3_h: 30, enabled: true },
+            { type: 'heat_exchanger', flow_m3_h: 20, heat_recovery_efficiency: 0.5, enabled: true }
+          ]
+        },
+        outside
+      ],
+      elements: [
+        {
+          id: 'el_wall',
+          type: 'wall',
+          nodes: ['z_a', 'z_outside'],
+          x: 4,
+          y: 2.5,
+          thermal_conductance: 10,
+          air_leakage_flow_m3_h: 24
+        }
+      ]
+    };
+
+    const result = computeRoomHeatRequirements(demo, radiators, OPTS);
+    const zone = result.rooms.find(r => r.zoneId === 'z_a');
+
+    expect(zone.room_volume_m3).toBeCloseTo(50, 3);
+    expect(zone.infiltration_airflow_m3_h).toBeCloseTo(24, 3);
+    expect(zone.mechanical_ventilation_airflow_m3_h).toBeCloseTo(50, 3);
+    expect(zone.air_changes_per_hour).toBeCloseTo(1.48, 2);
+    // 0.33 * (24 + 30 + (20 * (1 - 0.5))) = 21.12 W/K
+    expect(zone.ventilation_conductance).toBeCloseTo(21.12, 2);
+  });
+});

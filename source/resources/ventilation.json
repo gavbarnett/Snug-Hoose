@@ -1,0 +1,32 @@
+{
+	"units": {
+		"flow_m3_h": "m³/h",
+		"heat_recovery_efficiency": "fraction"
+	},
+	"elements": [
+		{
+			"id": "extractor_oven_hood",
+			"name": "Oven Hood Extractor",
+			"type": "extractor_kitchen",
+			"default_flow_m3_h": 60,
+			"default_heat_recovery_efficiency": 0,
+			"enabled": true
+		},
+		{
+			"id": "extractor_bathroom",
+			"name": "Bathroom Vent",
+			"type": "extractor_bathroom",
+			"default_flow_m3_h": 30,
+			"default_heat_recovery_efficiency": 0,
+			"enabled": true
+		},
+		{
+			"id": "heat_exchanger_mvhr",
+			"name": "Heat Exchanger (MVHR)",
+			"type": "heat_exchanger",
+			"default_flow_m3_h": 35,
+			"default_heat_recovery_efficiency": 0.75,
+			"enabled": true
+		}
+	]
+}

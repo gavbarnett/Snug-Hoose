@@ -1,6 +1,8 @@
 {
 	"units": {
 		"u_value": "W/m²K",
+		"air_leakage_m3_h_m2": "m³/h/m²",
+		"trickle_vent_flow_m3_h": "m³/h",
 		"dimensions": "mm",
 		"area": "m²"
 	},
@@ -51,43 +53,64 @@
 			"id": "window_single",
 			"name": "Single Glazing",
 			"u_value": 5.7,
-			"frame": "mixed"
+			"frame": "mixed",
+			"air_leakage_m3_h_m2": 3.2,
+			"has_trickle_vent": false,
+			"trickle_vent_flow_m3_h": 0
 		},
 		{
 			"id": "window_double_old",
 			"name": "Double Glazing (Old)",
 			"u_value": 3.0,
-			"frame": "mixed"
+			"frame": "mixed",
+			"air_leakage_m3_h_m2": 2.4,
+			"has_trickle_vent": false,
+			"trickle_vent_flow_m3_h": 0
 		},
 		{
 			"id": "window_double_modern",
 			"name": "Double Glazing (Modern)",
 			"u_value": 1.6,
-			"frame": "mixed"
+			"frame": "mixed",
+			"air_leakage_m3_h_m2": 1.2,
+			"has_trickle_vent": false,
+			"trickle_vent_flow_m3_h": 0
 		},
 		{
 			"id": "window_triple",
 			"name": "Triple Glazing",
 			"u_value": 0.8,
-			"frame": "mixed"
+			"frame": "mixed",
+			"air_leakage_m3_h_m2": 0.7,
+			"has_trickle_vent": false,
+			"trickle_vent_flow_m3_h": 0
 		},
 		{
 			"id": "window_pvc_double",
 			"name": "PVC Frame Double Glazing",
 			"u_value": 1.4,
-			"frame": "pvc"
+			"frame": "pvc",
+			"air_leakage_m3_h_m2": 1.0,
+			"has_trickle_vent": false,
+			"trickle_vent_flow_m3_h": 0
 		},
 		{
 			"id": "window_wood_double",
 			"name": "Wood Frame Double Glazing",
 			"u_value": 1.5,
-			"frame": "wood"
+			"frame": "wood",
+			"air_leakage_m3_h_m2": 1.4,
+			"has_trickle_vent": false,
+			"trickle_vent_flow_m3_h": 0
 		},
 		{
 			"id": "window_aluminium_thermal",
 			"name": "Aluminium Frame (Thermal Break)",
 			"u_value": 1.8,
-			"frame": "aluminium"
+			"frame": "aluminium",
+			"air_leakage_m3_h_m2": 1.7,
+			"has_trickle_vent": false,
+			"trickle_vent_flow_m3_h": 0
 		}
 	],
 	"doors": [
@@ -95,31 +118,36 @@
 			"id": "door_pvc_insulated",
 			"name": "PVC Insulated Door",
 			"u_value": 1.8,
-			"frame": "pvc"
+			"frame": "pvc",
+			"air_leakage_m3_h_m2": 1.8
 		},
 		{
 			"id": "door_wood_solid",
 			"name": "Solid Wood Door",
 			"u_value": 2.8,
-			"frame": "wood"
+			"frame": "wood",
+			"air_leakage_m3_h_m2": 3.0
 		},
 		{
 			"id": "door_wood_insulated",
 			"name": "Insulated Timber Door",
 			"u_value": 1.7,
-			"frame": "wood"
+			"frame": "wood",
+			"air_leakage_m3_h_m2": 2.1
 		},
 		{
 			"id": "door_aluminium_thermal",
 			"name": "Aluminium Door (Thermal Break)",
 			"u_value": 2.0,
-			"frame": "aluminium"
+			"frame": "aluminium",
+			"air_leakage_m3_h_m2": 2.2
 		},
 		{
 			"id": "door_steel_insulated",
 			"name": "Insulated Steel Door",
 			"u_value": 1.6,
-			"frame": "steel"
+			"frame": "steel",
+			"air_leakage_m3_h_m2": 1.7
 		}
 	]
 }

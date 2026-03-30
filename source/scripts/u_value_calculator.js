@@ -71,6 +71,14 @@ function getElementArea(elem) {
   return 0;
 }
 
+function getMaterialAirLeakagePerM2(mat) {
+  if (!mat) return null;
+  if (typeof mat.air_leakage_m3_h_m2 === 'number' && mat.air_leakage_m3_h_m2 >= 0) {
+    return mat.air_leakage_m3_h_m2;
+  }
+  return null;
+}
+
 export function computeElementU(elem, materials, buildupTemplates) {
   let build_up = elem.build_up || [];
 
@@ -84,7 +92,21 @@ export function computeElementU(elem, materials, buildupTemplates) {
   }
 
   let Rsum = 0;
+  const buildUpLeakageRates = [];
   for (const layer of build_up) Rsum += layerR(layer, materials);
+  for (const layer of build_up) {
+    if (layer && layer.type === 'composite' && Array.isArray(layer.paths)) {
+      for (const path of layer.paths) {
+        const mat = findMaterial(materials, path.material_id);
+        const leakage = getMaterialAirLeakagePerM2(mat);
+        if (typeof leakage === 'number') buildUpLeakageRates.push(leakage);
+      }
+    } else if (layer && layer.material_id) {
+      const mat = findMaterial(materials, layer.material_id);
+      const leakage = getMaterialAirLeakagePerM2(mat);
+      if (typeof leakage === 'number') buildUpLeakageRates.push(leakage);
+    }
+  }
   const U_fabric = Rsum > 0 ? 1 / Rsum : 0;
 
   const totalArea = getElementArea(elem);
@@ -93,15 +115,28 @@ export function computeElementU(elem, materials, buildupTemplates) {
   }
   let openingsArea = 0;
   let openingsConductance = 0;
+  let openingsAirLeakageFlow = 0;
   if (Array.isArray(elem.windows)) {
     for (const w of elem.windows) {
       const mat = findMaterial(materials, w.glazing_id);
       let Uwin = openingUfromMaterial(mat);
       if (Uwin === null) throw new Error('Window glazing material ' + w.glazing_id + ' has no usable U-value');
       const area = w.area || w.total_area || 0;
+      const optionLeakage = getMaterialAirLeakagePerM2(mat);
+      const leakagePerM2 = (typeof w.air_leakage_m3_h_m2 === 'number' && w.air_leakage_m3_h_m2 >= 0)
+        ? w.air_leakage_m3_h_m2
+        : (typeof optionLeakage === 'number' ? optionLeakage : 0);
+      const ventFlow = w.has_trickle_vent === true
+        ? ((typeof w.trickle_vent_flow_m3_h === 'number' && w.trickle_vent_flow_m3_h >= 0) ? w.trickle_vent_flow_m3_h : 0)
+        : 0;
       openingsArea += area;
       openingsConductance += Uwin * area;
+      openingsAirLeakageFlow += (leakagePerM2 * area) + ventFlow;
       w.u = Number(Uwin.toFixed(3));
+      w.air_leakage_m3_h_m2 = Number(leakagePerM2.toFixed(3));
+      if (w.has_trickle_vent === true) {
+        w.trickle_vent_flow_m3_h = Number(ventFlow.toFixed(2));
+      }
     }
   }
   if (Array.isArray(elem.doors)) {
@@ -110,13 +145,23 @@ export function computeElementU(elem, materials, buildupTemplates) {
       let Udoor = openingUfromMaterial(mat);
       if (Udoor === null) Udoor = 3.0;
       const area = d.area || 0;
+      const optionLeakage = getMaterialAirLeakagePerM2(mat);
+      const leakagePerM2 = (typeof d.air_leakage_m3_h_m2 === 'number' && d.air_leakage_m3_h_m2 >= 0)
+        ? d.air_leakage_m3_h_m2
+        : (typeof optionLeakage === 'number' ? optionLeakage : 0);
       openingsArea += area;
       openingsConductance += Udoor * area;
+      openingsAirLeakageFlow += leakagePerM2 * area;
       d.u = Number(Udoor.toFixed(3));
+      d.air_leakage_m3_h_m2 = Number(leakagePerM2.toFixed(3));
     }
   }
 
   const fabricArea = Math.max(0, totalArea - openingsArea);
+  const fabricLeakagePerM2 = buildUpLeakageRates.length > 0
+    ? Math.min(...buildUpLeakageRates)
+    : 0;
+  const fabricAirLeakageFlow = fabricLeakagePerM2 * fabricArea;
   const fabricConductance = U_fabric * fabricArea;
   const totalConductance = fabricConductance + openingsConductance;
   const U_overall = totalArea > 0 ? totalConductance / totalArea : 0;
@@ -125,5 +170,9 @@ export function computeElementU(elem, materials, buildupTemplates) {
   elem.u_overall = Number(U_overall.toFixed(4));
   elem.thermal_conductance = Number(totalConductance.toFixed(3));
   elem.openings_area = Number(openingsArea.toFixed(3));
+  elem.fabric_air_leakage_m3_h_m2 = Number(fabricLeakagePerM2.toFixed(3));
+  elem.fabric_air_leakage_flow_m3_h = Number(fabricAirLeakageFlow.toFixed(3));
+  elem.openings_air_leakage_flow_m3_h = Number(openingsAirLeakageFlow.toFixed(3));
+  elem.air_leakage_flow_m3_h = Number((fabricAirLeakageFlow + openingsAirLeakageFlow).toFixed(3));
   return elem;
 }

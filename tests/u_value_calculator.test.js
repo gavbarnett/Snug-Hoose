@@ -132,6 +132,39 @@ describe('computeElementU', () => {
     expect(win.u).toBeCloseTo(1.4, 3);
   });
 
+  it('computes air leakage flow from fabric, opening leakage, and trickle vents', () => {
+    const materialsWithLeakage = [
+      ...materials,
+      { id: 'airtight_membrane', name: 'Airtight membrane', thermal_conductivity: 0.2, air_leakage_m3_h_m2: 0.1 }
+    ];
+
+    const elem = {
+      x: 2,
+      y: 2,
+      build_up: [
+        { material_id: 'airtight_membrane', thickness: 0.01 }
+      ],
+      windows: [
+        {
+          glazing_id: 'double_glazing',
+          area: 1.0,
+          air_leakage_m3_h_m2: 1.2,
+          has_trickle_vent: true,
+          trickle_vent_flow_m3_h: 6
+        }
+      ]
+    };
+
+    computeElementU(elem, materialsWithLeakage);
+
+    // Fabric area = 4 - 1 = 3m2 -> 0.1 * 3 = 0.3 m3/h
+    // Window leakage = 1.2 * 1 = 1.2 m3/h
+    // Trickle vent = 6 m3/h
+    expect(elem.fabric_air_leakage_flow_m3_h).toBeCloseTo(0.3, 3);
+    expect(elem.openings_air_leakage_flow_m3_h).toBeCloseTo(7.2, 3);
+    expect(elem.air_leakage_flow_m3_h).toBeCloseTo(7.5, 3);
+  });
+
   it('returns zero U for element with no area', () => {
     const elem = {
       build_up: [{ material_id: 'rockwool', thickness: 0.1 }],

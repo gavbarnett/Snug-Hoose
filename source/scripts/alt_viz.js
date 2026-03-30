@@ -517,6 +517,9 @@ function buildAltVizMenuSpec(context = {}) {
   const radiatorLibrary = Array.isArray(demo?.radiators?.radiators)
     ? demo.radiators.radiators
     : [];
+  const ventilationLibrary = Array.isArray(demo?.ventilation?.elements)
+    ? demo.ventilation.elements
+    : [];
 
   const mapTypesToMenu = (types, itemMapper, emptyLabel) => {
     if (!Array.isArray(types) || types.length === 0) {
@@ -554,6 +557,25 @@ function buildAltVizMenuSpec(context = {}) {
     (materialId) => mapDoorSizeItems(materialId),
     'No door types loaded'
   );
+
+  const ventilationMenus = mapTypesToMenu(
+    ventilationLibrary,
+    (_id) => [],
+    'No ventilation types loaded'
+  ).map((group, index) => {
+    const src = ventilationLibrary[index];
+    if (!src) return group;
+    return {
+      label: src.name || src.id,
+      action: 'hvac.ventilation.add',
+      payload: {
+        ventilationId: src.id,
+        type: src.type,
+        flow_m3_h: src.default_flow_m3_h,
+        heat_recovery_efficiency: src.default_heat_recovery_efficiency
+      }
+    };
+  });
 
   return [
     {
@@ -613,6 +635,10 @@ function buildAltVizMenuSpec(context = {}) {
               items: radiatorTypeMenus
             }
           ]
+        },
+        {
+          label: 'Ventilation',
+          items: ventilationMenus
         },
         { label: 'Boiler Thermostat', action: 'hvac.boiler_thermostat' }
       ]

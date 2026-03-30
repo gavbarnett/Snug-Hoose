@@ -2,7 +2,8 @@
   "units": {
     "thermal_conductivity": "W/mK",
     "u_value": "W/m²K",
-    "r_value": "m²K/W"
+    "r_value": "m²K/W",
+    "air_leakage_m3_h_m2": "m³/h/m²"
   },
   "calculation_note": "U-value for a single homogeneous insulation layer = thermal_conductivity (W/mK) / thickness (m). Example: 100mm PIR (0.022 W/mK) => U = 0.022 / 0.1 = 0.22 W/m²K",
   "materials": [
@@ -11,6 +12,7 @@
       "name": "PIR (Polyisocyanurate) board",
       "thermal_conductivity": 0.022,
       "density": 30,
+      "air_leakage_m3_h_m2": 0.25,
       "notes": "High performance rigid foam board commonly used in roofs and walls."
     },
     {
@@ -18,6 +20,7 @@
       "name": "Rock wool (Mineral wool)",
       "thermal_conductivity": 0.038,
       "density": 45,
+      "air_leakage_m3_h_m2": 1.2,
       "notes": "Non-combustible, good acoustic performance, used in pitched roofs, walls and floors."
     },
     {
@@ -25,6 +28,7 @@
       "name": "Glass wool",
       "thermal_conductivity": 0.035,
       "density": 12,
+      "air_leakage_m3_h_m2": 1.4,
       "notes": "Common batt insulation for cavities and lofts."
     },
     {
@@ -32,6 +36,7 @@
       "name": "Wood fibre",
       "thermal_conductivity": 0.040,
       "density": 120,
+      "air_leakage_m3_h_m2": 0.9,
       "notes": "Breathable, natural fibre used in breathable build-ups and timber-frame insulation."
     },
     {
@@ -39,6 +44,7 @@
       "name": "EPS (Expanded Polystyrene)",
       "thermal_conductivity": 0.036,
       "density": 20,
+      "air_leakage_m3_h_m2": 0.35,
       "notes": "Rigid foam used externally and under screeds; good compressive properties."
     },
     {
@@ -46,6 +52,7 @@
       "name": "XPS (Extruded Polystyrene)",
       "thermal_conductivity": 0.029,
       "density": 32,
+      "air_leakage_m3_h_m2": 0.2,
       "notes": "Moisture resistant rigid foam for below-ground and insulated floors."
     },
     {
@@ -53,6 +60,7 @@
       "name": "Cellulose (recycled paper)",
       "thermal_conductivity": 0.039,
       "density": 60,
+      "air_leakage_m3_h_m2": 1.1,
       "notes": "Blown or loose-fill insulation with good environmental credentials."
     },
     {
@@ -60,6 +68,7 @@
       "name": "Stud (softwood timber)",
       "thermal_conductivity": 0.13,
       "density": 500,
+      "air_leakage_m3_h_m2": 0.8,
       "notes": "Typical timber stud used in framed walls; higher conductivity than insulation so affects cavity U-values where timber paths exist."
     },
     {
@@ -67,6 +76,7 @@
       "name": "Joist (softwood timber)",
       "thermal_conductivity": 0.13,
       "density": 450,
+      "air_leakage_m3_h_m2": 0.8,
       "notes": "Typical softwood floor/roof joist. Higher conductivity than insulation; represents linear/area thermal bridge — use actual joist depth for R calculations."
     },
     {
@@ -74,6 +84,7 @@
       "name": "External blockwork (dense concrete block)",
       "thermal_conductivity": 0.70,
       "density": 1800,
+      "air_leakage_m3_h_m2": 1.8,
       "notes": "Typical dense concrete block used in external walls; relatively high thermal conductivity compared with insulation materials."
     },
     {
@@ -81,6 +92,7 @@
       "name": "Plasterboard (gypsum)",
       "thermal_conductivity": 0.21,
       "density": 800,
+      "air_leakage_m3_h_m2": 1.1,
       "notes": "Common internal lining board; thin layers contribute modestly to thermal resistance."
     },
     {
@@ -88,6 +100,7 @@
       "name": "Plywood",
       "thermal_conductivity": 0.13,
       "density": 600,
+      "air_leakage_m3_h_m2": 0.9,
       "notes": "Wood panel material used for sheathing and finishes; thermal conductivity similar to other timber products."
     },
     {
@@ -95,6 +108,7 @@
       "name": "Roof tile (clay/ceramic)",
       "thermal_conductivity": 0.90,
       "density": 2000,
+      "air_leakage_m3_h_m2": 2.2,
       "notes": "Clay or concrete roof tile — heavy, relatively high conductivity; modelled as an external, discontinuous layer."
     },
     {
@@ -102,30 +116,59 @@
       "name": "Roofing felt / bituminous membrane",
       "thermal_conductivity": 0.19,
       "density": 1000,
+      "air_leakage_m3_h_m2": 0.55,
       "notes": "Underlay membrane beneath tiles or slates; thin layer with modest conductivity."
+    },
+    {
+      "id": "membrane_vcl_standard",
+      "name": "Membrane - Vapour control layer (standard taped)",
+      "thermal_conductivity": 0.20,
+      "density": 940,
+      "air_leakage_m3_h_m2": 0.08,
+      "notes": "Standard polyethylene VCL with taped laps, commonly used on warm side of insulation to control vapour and air movement."
+    },
+    {
+      "id": "membrane_intello",
+      "name": "Membrane - Intelligent airtight membrane",
+      "thermal_conductivity": 0.19,
+      "density": 980,
+      "air_leakage_m3_h_m2": 0.03,
+      "notes": "Variable permeability airtight membrane used to tighten timber-frame and retrofit envelopes."
+    },
+    {
+      "id": "membrane_breather",
+      "name": "Membrane - Breather membrane",
+      "thermal_conductivity": 0.19,
+      "density": 900,
+      "air_leakage_m3_h_m2": 0.18,
+      "notes": "External breather layer; improves airtightness while allowing vapour to diffuse outwards."
     },
     {
       "id": "window_single",
       "name": "Window - Single glazing",
       "u_value": 5.7,
+      "air_leakage_m3_h_m2": 3.2,
       "notes": "Traditional single-glazed window; very high heat loss compared with modern glazing."
     },
     {
       "id": "window_double_old",
       "name": "Window - Double glazing (<1995)",
       "u_value": 3.0,
+      "air_leakage_m3_h_m2": 2.4,
       "notes": "Older double glazing with narrow air gap and simple sealed units; higher U-value than modern sealed units with low-e coatings."
     },
     {
       "id": "window_double_modern",
       "name": "Window - Double glazing (>1995)",
       "u_value": 1.6,
+      "air_leakage_m3_h_m2": 1.2,
       "notes": "Modern double glazing with low-e coating and argon fill; typical for retrofit and new builds."
     },
     {
       "id": "window_triple",
       "name": "Window - Triple glazing",
       "u_value": 0.8,
+      "air_leakage_m3_h_m2": 0.7,
       "notes": "Triple glazed units with multiple low-e coatings and inert gas fills; best thermal performance for windows."
     }
   ]

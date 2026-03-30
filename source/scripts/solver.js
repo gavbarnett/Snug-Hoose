@@ -10,6 +10,7 @@ let currentMaterials = null;
 let currentRadiators = null;
 let currentDemo = null;
 let currentOpenings = null;
+let currentVentilation = null;
 let roomEditorApi = null;
 let appUiApi = null;
 let defaultDemoTemplate = null;
@@ -255,7 +256,8 @@ function createRoomOnLevel(demo, level, namePrefix = 'Room', opts = {}) {
     name: `${namePrefix} ${roomCount}`,
     level,
     layout: { polygon: polygon.map(pt => ({ x: Number(pt.x), y: Number(pt.y) })) },
-    radiators: []
+    radiators: [],
+    ventilation_elements: []
   };
   demo.zones.push(zone);
   ensureRoomHorizontalElements(demo, zone, polygon);
@@ -386,8 +388,8 @@ function addWindowToZoneWall(demo, openingsData, zoneId, opts = {}) {
   if (!Array.isArray(wall.windows)) wall.windows = [];
 
   const firstOption = Array.isArray(openingsData?.windows) && openingsData.windows.length > 0
-    ? openingsData.windows[0].id
-    : 'window_double_modern';
+    ? openingsData.windows[0]
+    : { id: 'window_double_modern', air_leakage_m3_h_m2: 1.2, has_trickle_vent: false, trickle_vent_flow_m3_h: 0 };
 
   const width = Number.isFinite(opts.width) ? opts.width : 1000;
   const height = Number.isFinite(opts.height) ? opts.height : 1200;
@@ -395,12 +397,15 @@ function addWindowToZoneWall(demo, openingsData, zoneId, opts = {}) {
   wall.windows.push({
     id: generateId('id'),
     name: `Window ${wall.windows.length + 1}`,
-    glazing_id: opts.glazingId || firstOption,
+    glazing_id: opts.glazingId || firstOption.id,
     width,
     height,
     area: Number(((width / 1000) * (height / 1000)).toFixed(3)),
     length_m: Number((width / 1000).toFixed(3)),
     position_ratio: 0.5,
+    air_leakage_m3_h_m2: Number((firstOption.air_leakage_m3_h_m2 || 0).toFixed(3)),
+    has_trickle_vent: firstOption.has_trickle_vent === true,
+    trickle_vent_flow_m3_h: Number((firstOption.trickle_vent_flow_m3_h || 0).toFixed(2)),
     zone_id: zoneId
   });
   return true;
@@ -412,8 +417,8 @@ function addDoorToZoneWall(demo, openingsData, zoneId, opts = {}) {
   if (!Array.isArray(wall.doors)) wall.doors = [];
 
   const firstOption = Array.isArray(openingsData?.doors) && openingsData.doors.length > 0
-    ? openingsData.doors[0].id
-    : 'door_wood_solid';
+    ? openingsData.doors[0]
+    : { id: 'door_wood_solid', air_leakage_m3_h_m2: 2.5 };
 
   const width = Number.isFinite(opts.width) ? opts.width : 900;
   const height = Number.isFinite(opts.height) ? opts.height : 2000;
@@ -421,13 +426,14 @@ function addDoorToZoneWall(demo, openingsData, zoneId, opts = {}) {
   wall.doors.push({
     id: generateId('id'),
     name: `Door ${wall.doors.length + 1}`,
-    material_id: opts.materialId || firstOption,
+    material_id: opts.materialId || firstOption.id,
     width,
     height,
     area: Number(((width / 1000) * (height / 1000)).toFixed(3)),
     length_m: Number((width / 1000).toFixed(3)),
     position_ratio: 0.5,
     hinge_side: 'left',
+    air_leakage_m3_h_m2: Number((firstOption.air_leakage_m3_h_m2 || 0).toFixed(3)),
     zone_id: zoneId
   });
   return true;
@@ -457,6 +463,41 @@ function addRadiatorToZone(demo, radiatorsData, zoneId, trvEnabled, opts = {}) {
     trv_enabled: !!trvEnabled,
     position_ratio: 0.5
   });
+  return true;
+}
+
+function addVentilationToZone(demo, ventilationData, zoneId, opts = {}) {
+  const zone = getZoneById(demo, zoneId);
+  if (!zone) return false;
+  if (!Array.isArray(zone.ventilation_elements)) zone.ventilation_elements = [];
+
+  const library = Array.isArray(ventilationData?.elements) ? ventilationData.elements : [];
+  const preset = library.find(item => item?.id === opts.ventilationId)
+    || library.find(item => item?.type === opts.type)
+    || null;
+
+  const flow = Number.isFinite(opts.flow_m3_h)
+    ? opts.flow_m3_h
+    : (Number.isFinite(preset?.default_flow_m3_h) ? preset.default_flow_m3_h : 30);
+  const recovery = Number.isFinite(opts.heat_recovery_efficiency)
+    ? Math.max(0, Math.min(1, opts.heat_recovery_efficiency))
+    : (Number.isFinite(preset?.default_heat_recovery_efficiency)
+      ? Math.max(0, Math.min(1, preset.default_heat_recovery_efficiency))
+      : 0);
+
+  const ventType = opts.type || preset?.type || 'extractor_bathroom';
+  const baseName = preset?.name || (ventType === 'heat_exchanger' ? 'Heat Exchanger' : 'Extractor Fan');
+
+  zone.ventilation_elements.push({
+    id: generateId('id'),
+    ventilation_id: preset?.id || opts.ventilationId || null,
+    type: ventType,
+    name: baseName,
+    flow_m3_h: Number(flow.toFixed(2)),
+    heat_recovery_efficiency: Number(recovery.toFixed(3)),
+    enabled: true
+  });
+
   return true;
 }
 
@@ -708,6 +749,22 @@ function handleAltVizMenuAction(action, item, context = {}) {
       if (roomEditorApi?.focusZone) roomEditorApi.focusZone(selectedZoneId);
       return;
     }
+    case 'hvac.ventilation.add': {
+      if (!currentDemo || !selectedZoneId) return;
+      const before = deepClone(currentDemo);
+      if (addVentilationToZone(currentDemo, currentVentilation, selectedZoneId, {
+        ventilationId: payload.ventilationId,
+        type: payload.type,
+        flow_m3_h: Number(payload.flow_m3_h),
+        heat_recovery_efficiency: Number(payload.heat_recovery_efficiency)
+      })) {
+        pushUndoSnapshot(before);
+        lastFocusedZoneId = selectedZoneId;
+        triggerSolve();
+        if (roomEditorApi?.focusZone) roomEditorApi.focusZone(selectedZoneId);
+      }
+      return;
+    }
     case 'zones.rename': {
       if (!currentDemo) return;
       const zoneId = payload.zoneId || selectedZoneId;
@@ -878,17 +935,50 @@ async function loadDefaultInputs() {
     console.warn('Failed to load openings.json, using fallback opening options');
     openings = {
       windows: [
-        { id: 'window_single', name: 'Single Glazing', u_value: 5.7 },
-        { id: 'window_double_modern', name: 'Double Glazing (Modern)', u_value: 1.6 }
+        { id: 'window_single', name: 'Single Glazing', u_value: 5.7, air_leakage_m3_h_m2: 3.2, has_trickle_vent: false, trickle_vent_flow_m3_h: 0 },
+        { id: 'window_double_modern', name: 'Double Glazing (Modern)', u_value: 1.6, air_leakage_m3_h_m2: 1.2, has_trickle_vent: false, trickle_vent_flow_m3_h: 0 }
       ],
       doors: [
-        { id: 'door_wood_solid', name: 'Solid Wood Door', u_value: 2.8 },
-        { id: 'door_pvc_insulated', name: 'PVC Insulated Door', u_value: 1.8 }
+        { id: 'door_wood_solid', name: 'Solid Wood Door', u_value: 2.8, air_leakage_m3_h_m2: 3.0 },
+        { id: 'door_pvc_insulated', name: 'PVC Insulated Door', u_value: 1.8, air_leakage_m3_h_m2: 1.8 }
+      ]
+    };
+  }
+
+  let ventilation = await tryFetchJson('./source/resources/ventilation.json');
+  if (!ventilation) {
+    console.warn('Failed to load ventilation.json, using fallback ventilation options');
+    ventilation = {
+      elements: [
+        {
+          id: 'extractor_oven_hood',
+          name: 'Oven Hood Extractor',
+          type: 'extractor_kitchen',
+          default_flow_m3_h: 60,
+          default_heat_recovery_efficiency: 0,
+          enabled: true
+        },
+        {
+          id: 'extractor_bathroom',
+          name: 'Bathroom Vent',
+          type: 'extractor_bathroom',
+          default_flow_m3_h: 30,
+          default_heat_recovery_efficiency: 0,
+          enabled: true
+        },
+        {
+          id: 'heat_exchanger_mvhr',
+          name: 'Heat Exchanger (MVHR)',
+          type: 'heat_exchanger',
+          default_flow_m3_h: 35,
+          default_heat_recovery_efficiency: 0.75,
+          enabled: true
+        }
       ]
     };
   }
   
-  return [ins, demo, rads, openings];
+  return [ins, demo, rads, openings, ventilation];
 }
 
 function getOpeningMaterials(openings) {
@@ -898,7 +988,9 @@ function getOpeningMaterials(openings) {
   const asMaterial = (item) => ({
     id: item.id,
     name: item.name,
-    u_value: item.u_value
+    u_value: item.u_value,
+    air_leakage_m3_h_m2: item.air_leakage_m3_h_m2,
+    trickle_vent_flow_m3_h: item.trickle_vent_flow_m3_h
   });
   return [...windows.map(asMaterial), ...doors.map(asMaterial)];
 }
@@ -1049,6 +1141,11 @@ async function solveAndRender(demoRaw) {
     demoRaw.meta.total_heat_savings = heatResults.total_heat_savings;
     demoRaw.meta.total_delivered_heat = heatResults.total_delivered_heat;
     demoRaw.meta.total_delivered_heat_savings = heatResults.total_delivered_heat_savings;
+    demoRaw.meta.total_infiltration_airflow_m3_h = heatResults.total_infiltration_airflow_m3_h;
+    demoRaw.meta.total_mechanical_ventilation_airflow_m3_h = heatResults.total_mechanical_ventilation_airflow_m3_h;
+    demoRaw.meta.total_heat_recovered_airflow_m3_h = heatResults.total_heat_recovered_airflow_m3_h;
+    demoRaw.meta.total_ventilation_conductance = heatResults.total_ventilation_conductance;
+    demoRaw.meta.total_air_changes_per_hour = heatResults.total_air_changes_per_hour;
     demoRaw.meta.total_radiator_output = heatResults.total_radiator_output;
     demoRaw.meta.total_radiator_output_baseline = heatResults.total_radiator_output_baseline;
     demoRaw.meta.total_balance = heatResults.total_balance;
@@ -1072,6 +1169,13 @@ async function solveAndRender(demoRaw) {
         zone.delivered_heat = room.delivered_heat;
         zone.delivered_heat_per_unit_area = room.delivered_heat_per_unit_area;
         zone.delivered_heat_savings = room.delivered_heat_savings;
+        zone.room_volume_m3 = room.room_volume_m3;
+        zone.infiltration_airflow_m3_h = room.infiltration_airflow_m3_h;
+        zone.mechanical_ventilation_airflow_m3_h = room.mechanical_ventilation_airflow_m3_h;
+        zone.heat_recovered_airflow_m3_h = room.heat_recovered_airflow_m3_h;
+        zone.ventilation_conductance = room.ventilation_conductance;
+        zone.infiltration_ach = room.infiltration_ach;
+        zone.air_changes_per_hour = room.air_changes_per_hour;
         zone.radiator_surface_area = room.radiator_surface_area;
         zone.radiator_coefficient = room.radiator_coefficient;
         zone.radiator_output = room.radiator_output;
@@ -1090,7 +1194,8 @@ async function solveAndRender(demoRaw) {
     renderAlternativeViz({
       ...demoRaw,
       openings: currentOpenings,
-      radiators: currentRadiators
+      radiators: currentRadiators,
+      ventilation: currentVentilation
     }, {
       canUndo: undoStack.length > 0,
       canRedo: redoStack.length > 0,
@@ -1995,12 +2100,13 @@ if (typeof window !== 'undefined') window.addEventListener('load', async () => {
 
   appUiApi.setStatus('Initializing...');
   try {
-    const [ins, demo, rads, openings] = await loadDefaultInputs();
-    console.log('Loaded data:', { ins: !!ins, demo: !!demo, rads: !!rads, openings: !!openings });
+    const [ins, demo, rads, openings, ventilation] = await loadDefaultInputs();
+    console.log('Loaded data:', { ins: !!ins, demo: !!demo, rads: !!rads, openings: !!openings, ventilation: !!ventilation });
     currentMaterials = ins;
     currentRadiators = rads;
     currentDemo = demo;
     currentOpenings = openings;
+    currentVentilation = ventilation;
     defaultDemoTemplate = deepClone(demo);
 
     roomEditorApi = initRoomEditor({
@@ -2008,6 +2114,7 @@ if (typeof window !== 'undefined') window.addEventListener('load', async () => {
       getRadiatorsData: () => currentRadiators,
       getMaterialsData: () => currentMaterials,
       getOpeningsData: () => currentOpenings,
+      getVentilationData: () => currentVentilation,
       onDataChanged: triggerSolve,
     });
     

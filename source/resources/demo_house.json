@@ -197,6 +197,15 @@
           "trv_enabled": false
         }
       ],
+      "ventilation_elements": [
+        {
+          "id": "vent_kitchen_extract",
+          "type": "extractor_kitchen",
+          "name": "Kitchen Extractor Fan",
+          "flow_m3_h": 60,
+          "enabled": true
+        }
+      ],
       "layout": {
         "polygon": [
           {
@@ -303,6 +312,23 @@
           "width": 600,
           "height": 400,
           "trv_enabled": false
+        }
+      ],
+      "ventilation_elements": [
+        {
+          "id": "vent_bath_extract",
+          "type": "extractor_bathroom",
+          "name": "Bathroom Extractor Fan",
+          "flow_m3_h": 30,
+          "enabled": true
+        },
+        {
+          "id": "vent_mvhr_bath",
+          "type": "heat_exchanger",
+          "name": "MVHR Supply",
+          "flow_m3_h": 20,
+          "heat_recovery_efficiency": 0.75,
+          "enabled": true
         }
       ],
       "layout": {
@@ -474,7 +500,10 @@
           "id": "win_kit",
           "name": "Kitchen Window",
           "glazing_id": "window_double_old",
-          "area": 1.2
+          "area": 1.2,
+          "air_leakage_m3_h_m2": 2.4,
+          "has_trickle_vent": true,
+          "trickle_vent_flow_m3_h": 8
         }
       ],
       "build_up_template_id": "buo_02"
@@ -615,7 +644,10 @@
           "id": "win_bath",
           "name": "Bathroom Window",
           "glazing_id": "window_single",
-          "area": 0.6
+          "area": 0.6,
+          "air_leakage_m3_h_m2": 3.2,
+          "has_trickle_vent": true,
+          "trickle_vent_flow_m3_h": 6
         }
       ],
       "build_up_template_id": "buo_02"

@@ -55,6 +55,7 @@ export function initRoomEditor(opts) {
   const getRadiatorsData = opts.getRadiatorsData;
   const getMaterialsData = opts.getMaterialsData;
   const getOpeningsData = opts.getOpeningsData;
+  const getVentilationData = opts.getVentilationData;
   const onDataChanged = opts.onDataChanged;
   const onAddRoom = opts.onAddRoom;
 
@@ -66,6 +67,10 @@ export function initRoomEditor(opts) {
   const roomSelector = document.getElementById('roomSelector');
   const roomEditor = document.getElementById('roomEditor');
   const selectedRoomName = document.getElementById('selectedRoomName');
+  const ventilationList = document.getElementById('ventilationList');
+  const addBathroomExtractorBtn = document.getElementById('addBathroomExtractorBtn');
+  const addKitchenExtractorBtn = document.getElementById('addKitchenExtractorBtn');
+  const addHeatExchangerBtn = document.getElementById('addHeatExchangerBtn');
   const radiatorsList = document.getElementById('radiatorsList');
   const fabricList = document.getElementById('fabricList');
   const addRadiatorBtn = document.getElementById('addRadiatorBtn');
@@ -77,6 +82,29 @@ export function initRoomEditor(opts) {
   let selectedZoneId = null;
   let pendingFocusState = null;
   let suppressOutsideHideUntil = 0;
+
+  function configureDecimalInput(input, placeholder) {
+    input.type = 'text';
+    input.inputMode = 'decimal';
+    if (placeholder) input.placeholder = placeholder;
+  }
+
+  function parseDecimalValue(raw) {
+    const normalized = String(raw ?? '').trim().replace(',', '.');
+    if (!normalized || normalized === '.' || normalized === '-' || normalized === '-.') return null;
+    const value = Number(normalized);
+    return isFinite(value) ? value : null;
+  }
+
+  function formatEditableDecimal(value, digits = 3) {
+    if (!isFinite(value)) return '';
+    return String(Number(value.toFixed(digits)));
+  }
+
+  function formatEditablePercent(fraction) {
+    if (!isFinite(fraction)) return '0';
+    return formatEditableDecimal(fraction * 100, 2);
+  }
 
   function ensureEditorVisible() {
     suppressOutsideHideUntil = Date.now() + 150;
@@ -130,6 +158,24 @@ export function initRoomEditor(opts) {
 
       populateRoomEditor(selectedZoneId);
       onDataChanged();
+    });
+  }
+
+  if (addBathroomExtractorBtn) {
+    addBathroomExtractorBtn.addEventListener('click', () => {
+      addVentilationElementFromPreset('extractor_bathroom');
+    });
+  }
+
+  if (addKitchenExtractorBtn) {
+    addKitchenExtractorBtn.addEventListener('click', () => {
+      addVentilationElementFromPreset('extractor_oven_hood');
+    });
+  }
+
+  if (addHeatExchangerBtn) {
+    addHeatExchangerBtn.addEventListener('click', () => {
+      addVentilationElementFromPreset('heat_exchanger_mvhr');
     });
   }
 
@@ -251,6 +297,237 @@ export function initRoomEditor(opts) {
     }
   }
 
+  function getVentilationPresets() {
+    const data = getVentilationData ? getVentilationData() : null;
+    return Array.isArray(data?.elements) ? data.elements : [];
+  }
+
+  function findVentilationPreset(presetId) {
+    const presets = getVentilationPresets();
+    return presets.find(item => item?.id === presetId) || null;
+  }
+
+  function findVentilationPresetForElement(vent) {
+    if (!vent) return null;
+    const presets = getVentilationPresets();
+    if (vent.ventilation_id) {
+      const byId = presets.find(item => item?.id === vent.ventilation_id);
+      if (byId) return byId;
+    }
+    return presets.find(item => item?.type === vent.type) || null;
+  }
+
+  function addVentilationElementFromPreset(presetId) {
+    const preset = findVentilationPreset(presetId);
+    if (!preset) {
+      if (presetId === 'extractor_oven_hood') addVentilationElement('extractor_oven_hood', 'extractor_kitchen', 60, 0, 'Oven Hood Extractor');
+      else if (presetId === 'extractor_bathroom') addVentilationElement('extractor_bathroom', 'extractor_bathroom', 30, 0, 'Bathroom Vent');
+      else addVentilationElement('heat_exchanger_mvhr', 'heat_exchanger', 35, 0.75, 'Heat Exchanger (MVHR)');
+      return;
+    }
+    addVentilationElement(
+      preset.id,
+      preset.type,
+      Number.isFinite(preset.default_flow_m3_h) ? preset.default_flow_m3_h : 30,
+      Number.isFinite(preset.default_heat_recovery_efficiency) ? preset.default_heat_recovery_efficiency : 0,
+      preset.name || 'Ventilation'
+    );
+  }
+
+  function addVentilationElement(presetId, type, flowM3h, heatRecoveryEfficiency = 0, preferredName = '') {
+    if (!selectedZoneId) return;
+    const demo = getDemo();
+    if (!demo || !Array.isArray(demo.zones)) return;
+
+    const zone = demo.zones.find(z => z.id === selectedZoneId);
+    if (!zone) return;
+    if (!Array.isArray(zone.ventilation_elements)) zone.ventilation_elements = [];
+
+    const count = zone.ventilation_elements.filter(v => String(v?.type || '') === type).length + 1;
+    const baseName = preferredName || (type === 'extractor_bathroom'
+      ? 'Bathroom Extractor'
+      : (type === 'extractor_kitchen' ? 'Oven Hood Extractor' : 'Heat Exchanger'));
+
+    zone.ventilation_elements.push({
+      id: generateUniqueId(),
+      ventilation_id: presetId || null,
+      type,
+      name: `${baseName} ${count}`,
+      flow_m3_h: flowM3h,
+      heat_recovery_efficiency: heatRecoveryEfficiency,
+      enabled: true
+    });
+
+    populateRoomEditor(selectedZoneId);
+    onDataChanged();
+  }
+
+  function populateVentilationSection(zone, zoneKey) {
+    if (!ventilationList) return;
+    ventilationList.innerHTML = '';
+
+    if (!Array.isArray(zone.ventilation_elements)) zone.ventilation_elements = [];
+    const vents = zone.ventilation_elements;
+
+    if (vents.length === 0) {
+      const empty = document.createElement('div');
+      empty.textContent = 'No ventilation elements';
+      ventilationList.appendChild(empty);
+      return;
+    }
+
+    vents.forEach((vent, index) => {
+      const focusBase = `zone:${zoneKey}|vent:${vent.id || index}`;
+      const presets = getVentilationPresets();
+      const matchedPreset = findVentilationPresetForElement(vent);
+      const card = document.createElement('div');
+      card.className = 'radiator-item';
+
+      const form = document.createElement('div');
+      form.style.display = 'flex';
+      form.style.flexDirection = 'column';
+      form.style.gap = '0.5rem';
+
+      const header = document.createElement('div');
+      header.style.display = 'flex';
+      header.style.justifyContent = 'space-between';
+      header.style.alignItems = 'center';
+
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.value = vent.name || '';
+      nameInput.placeholder = 'Ventilation element name';
+      nameInput.dataset.focusKey = `${focusBase}:name`;
+      nameInput.addEventListener('input', () => {
+        const value = nameInput.value.trim();
+        if (value) vent.name = value;
+        else delete vent.name;
+        queueFocusRestore();
+        onDataChanged();
+      });
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'remove-btn';
+      removeBtn.textContent = 'x';
+      removeBtn.title = 'Remove ventilation element';
+      removeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        zone.ventilation_elements.splice(index, 1);
+        queueFocusRestore();
+        onDataChanged();
+        refreshSelectedZone();
+      });
+
+      header.appendChild(nameInput);
+      header.appendChild(removeBtn);
+
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.gap = '0.5rem';
+      row.style.alignItems = 'center';
+      row.style.flexWrap = 'wrap';
+
+      const presetSelect = document.createElement('select');
+      presetSelect.dataset.focusKey = `${focusBase}:preset`;
+      presets.forEach(opt => {
+        const option = document.createElement('option');
+        option.value = opt.id;
+        option.textContent = opt.name || opt.id;
+        if ((matchedPreset && matchedPreset.id === opt.id) || String(vent.ventilation_id || '') === opt.id) option.selected = true;
+        presetSelect.appendChild(option);
+      });
+
+      if (presets.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'No ventilation presets loaded';
+        presetSelect.appendChild(option);
+        presetSelect.disabled = true;
+      }
+
+      const flowInput = document.createElement('input');
+      configureDecimalInput(flowInput, 'Flow m3/h');
+      flowInput.dataset.focusKey = `${focusBase}:flow`;
+      flowInput.value = typeof vent.flow_m3_h === 'number' ? formatEditableDecimal(vent.flow_m3_h, 2) : '';
+
+      const recoveryInput = document.createElement('input');
+      configureDecimalInput(recoveryInput, 'Recovery %');
+      recoveryInput.dataset.focusKey = `${focusBase}:recovery`;
+      recoveryInput.value = typeof vent.heat_recovery_efficiency === 'number' ? formatEditablePercent(vent.heat_recovery_efficiency) : '0';
+
+      const enabledCheckbox = document.createElement('input');
+      enabledCheckbox.type = 'checkbox';
+      enabledCheckbox.checked = vent.enabled !== false;
+      enabledCheckbox.dataset.focusKey = `${focusBase}:enabled`;
+
+      const syncVentTypeUI = () => {
+        const selectedPreset = findVentilationPreset(presetSelect.value);
+        const isHx = (selectedPreset?.type || vent.type) === 'heat_exchanger';
+        recoveryInput.disabled = !isHx;
+        if (!isHx) {
+          vent.heat_recovery_efficiency = 0;
+          recoveryInput.value = '0';
+        }
+      };
+
+      presetSelect.addEventListener('change', () => {
+        const selectedPreset = findVentilationPreset(presetSelect.value);
+        if (!selectedPreset) return;
+        vent.ventilation_id = selectedPreset.id;
+        vent.type = selectedPreset.type;
+        vent.flow_m3_h = Number((selectedPreset.default_flow_m3_h || 0).toFixed(2));
+        vent.heat_recovery_efficiency = Number((selectedPreset.default_heat_recovery_efficiency || 0).toFixed(3));
+        flowInput.value = formatEditableDecimal(vent.flow_m3_h, 2);
+        recoveryInput.value = formatEditablePercent(vent.heat_recovery_efficiency);
+        syncVentTypeUI();
+        queueFocusRestore();
+        onDataChanged();
+      });
+
+      flowInput.addEventListener('input', () => {
+        const value = parseDecimalValue(flowInput.value);
+        if (!isFinite(value) || value < 0) return;
+        vent.flow_m3_h = Number(value.toFixed(2));
+        queueFocusRestore();
+        onDataChanged();
+      });
+
+      recoveryInput.addEventListener('input', () => {
+        const value = parseDecimalValue(recoveryInput.value);
+        if (!isFinite(value)) return;
+        vent.heat_recovery_efficiency = Number((Math.max(0, Math.min(100, value)) / 100).toFixed(3));
+        queueFocusRestore();
+        onDataChanged();
+      });
+
+      enabledCheckbox.addEventListener('change', () => {
+        vent.enabled = enabledCheckbox.checked;
+        queueFocusRestore();
+        onDataChanged();
+      });
+
+      const enabledLabel = document.createElement('label');
+      enabledLabel.style.display = 'flex';
+      enabledLabel.style.alignItems = 'center';
+      enabledLabel.style.gap = '0.35rem';
+      enabledLabel.appendChild(enabledCheckbox);
+      enabledLabel.appendChild(document.createTextNode('Enabled'));
+
+      row.appendChild(presetSelect);
+      row.appendChild(flowInput);
+      row.appendChild(recoveryInput);
+      row.appendChild(enabledLabel);
+
+      syncVentTypeUI();
+
+      form.appendChild(header);
+      form.appendChild(row);
+      card.appendChild(form);
+      ventilationList.appendChild(card);
+    });
+  }
+
   function populateRoomEditor(zoneId) {
     const demo = getDemo();
     const radiatorsData = getRadiatorsData();
@@ -263,6 +540,8 @@ export function initRoomEditor(opts) {
     if (selectedRoomName) {
       selectedRoomName.textContent = `Selected Room: ${zone.name || zone.id}`;
     }
+
+    populateVentilationSection(zone, zoneKey);
 
     radiatorsList.innerHTML = '';
 
@@ -491,7 +770,8 @@ export function initRoomEditor(opts) {
       id,
       name: `New Room ${demo.zones.filter(zone => zone.type !== 'boundary').length + 1}`,
       level: baseLevel,
-      radiators: []
+      radiators: [],
+      ventilation_elements: []
     };
 
     demo.zones.push(newZone);
@@ -520,9 +800,19 @@ export function initRoomEditor(opts) {
     const state = {
       key: active.dataset.focusKey,
       tagName: active.tagName,
+      inputType: active.type || null,
+      value: null,
       selectionStart: null,
       selectionEnd: null
     };
+
+    if (
+      (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') &&
+      active.type !== 'checkbox' &&
+      active.type !== 'radio'
+    ) {
+      state.value = active.value;
+    }
 
     if (typeof active.selectionStart === 'number' && typeof active.selectionEnd === 'number') {
       state.selectionStart = active.selectionStart;
@@ -545,6 +835,15 @@ export function initRoomEditor(opts) {
     if (!target) {
       pendingFocusState = null;
       return;
+    }
+
+    if (
+      pendingFocusState.value !== null &&
+      (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') &&
+      target.type !== 'checkbox' &&
+      target.type !== 'radio'
+    ) {
+      target.value = pendingFocusState.value;
     }
 
     target.focus();
@@ -685,9 +984,7 @@ export function initRoomEditor(opts) {
     const xLabel = document.createElement('strong');
     xLabel.textContent = `${labels.xLabel}:`;
     const xInput = document.createElement('input');
-    xInput.type = 'number';
-    xInput.step = '0.01';
-    xInput.min = '0';
+    configureDecimalInput(xInput, labels.xLabel);
     xInput.value = x !== null ? x : '';
     xInput.placeholder = labels.xLabel;
     xInput.dataset.focusKey = `${cardKey}:x`;
@@ -695,16 +992,14 @@ export function initRoomEditor(opts) {
     const yLabel = document.createElement('strong');
     yLabel.textContent = `${labels.yLabel}:`;
     const yInput = document.createElement('input');
-    yInput.type = 'number';
-    yInput.step = '0.01';
-    yInput.min = '0';
+    configureDecimalInput(yInput, labels.yLabel);
     yInput.value = y !== null ? y : '';
     yInput.placeholder = labels.yLabel;
     yInput.dataset.focusKey = `${cardKey}:y`;
 
     const updateDimensions = () => {
-      const xv = parseFloat(xInput.value);
-      const yv = parseFloat(yInput.value);
+      const xv = parseDecimalValue(xInput.value);
+      const yv = parseDecimalValue(yInput.value);
       if (isFinite(xv) && xv > 0) {
         element.x = Number(xv.toFixed(3));
       }
@@ -1181,13 +1476,11 @@ export function initRoomEditor(opts) {
     const thicknessLabel = document.createElement('span');
     thicknessLabel.textContent = 'Thickness (m):';
     const thicknessInput = document.createElement('input');
-    thicknessInput.type = 'number';
-    thicknessInput.step = '0.001';
-    thicknessInput.min = '0';
-    thicknessInput.value = typeof layer.thickness === 'number' ? layer.thickness : '';
+    configureDecimalInput(thicknessInput, 'Thickness (m)');
+    thicknessInput.value = typeof layer.thickness === 'number' ? formatEditableDecimal(layer.thickness, 4) : '';
     thicknessInput.dataset.focusKey = `${focusBaseKey}:thickness`;
     thicknessInput.addEventListener('input', () => {
-      const value = parseFloat(thicknessInput.value);
+      const value = parseDecimalValue(thicknessInput.value);
       if (isFinite(value) && value > 0) {
         layer.thickness = Number(value.toFixed(4));
         queueFocusRestore();
@@ -1339,14 +1632,11 @@ export function initRoomEditor(opts) {
       });
 
       const fracInput = document.createElement('input');
-      fracInput.type = 'number';
-      fracInput.step = '0.001';
-      fracInput.min = '0';
-      fracInput.max = '1';
-      fracInput.value = typeof path.fraction === 'number' ? path.fraction : '';
+      configureDecimalInput(fracInput, 'Fraction');
+      fracInput.value = typeof path.fraction === 'number' ? formatEditableDecimal(path.fraction, 3) : '';
       fracInput.dataset.focusKey = `${focusBaseKey}:path:${pathIndex}:fraction`;
       fracInput.addEventListener('input', () => {
-        const fv = parseFloat(fracInput.value);
+        const fv = parseDecimalValue(fracInput.value);
         if (isFinite(fv) && fv >= 0) {
           path.fraction = Number(fv.toFixed(3));
           queueFocusRestore();
@@ -1451,16 +1741,19 @@ export function initRoomEditor(opts) {
     addBtn.textContent = 'Add Window';
     addBtn.addEventListener('click', () => {
       if (!Array.isArray(element.windows)) element.windows = [];
-      const firstOption = options[0] ? options[0].id : 'window_double_modern';
+      const firstOption = options[0] || { id: 'window_double_modern' };
       element.windows.push({
         id: generateUniqueId(),
         name: `Window ${element.windows.length + 1}`,
-        glazing_id: firstOption,
+        glazing_id: firstOption.id,
         width: 1000,
         height: 1200,
         area: 1.2,
         length_m: 1.0,
-        position_ratio: 0.5
+        position_ratio: 0.5,
+        has_trickle_vent: firstOption.has_trickle_vent === true,
+        trickle_vent_flow_m3_h: Number((firstOption.trickle_vent_flow_m3_h || 0).toFixed(2)),
+        air_leakage_m3_h_m2: Number((firstOption.air_leakage_m3_h_m2 || 0).toFixed(3))
       });
       redistributeWindowPositions(element.windows);
       onDataChanged();
@@ -1510,18 +1803,19 @@ export function initRoomEditor(opts) {
     addBtn.textContent = 'Add Door';
     addBtn.addEventListener('click', () => {
       if (!Array.isArray(element.doors)) element.doors = [];
-      const firstOption = options[0] ? options[0].id : 'door_wood_solid';
+      const firstOption = options[0] || { id: 'door_wood_solid' };
       element.doors.push({
         id: generateUniqueId(),
         name: `Door ${element.doors.length + 1}`,
         type: 'external_door',
-        material_id: firstOption,
+        material_id: firstOption.id,
         width: 900,
         height: 2000,
         area: 1.8,
         length_m: 0.9,
         position_ratio: 0.5,
-        hinge_side: 'left'
+        hinge_side: 'left',
+        air_leakage_m3_h_m2: Number((firstOption.air_leakage_m3_h_m2 || 0).toFixed(3))
       });
       onDataChanged();
       refreshSelectedZone();
@@ -1621,6 +1915,10 @@ export function initRoomEditor(opts) {
     const areaDisplay = document.createElement('span');
     areaDisplay.className = 'area-display';
 
+    const leakageInput = document.createElement('input');
+    leakageInput.dataset.focusKey = `${focusBaseKey}:leakage`;
+    configureDecimalInput(leakageInput, 'Leakage m3/h/m2');
+
     const positionInput = document.createElement('input');
     positionInput.dataset.focusKey = `${focusBaseKey}:position`;
     positionInput.type = 'number';
@@ -1639,6 +1937,10 @@ export function initRoomEditor(opts) {
       opening.height = Math.round(hmm);
       opening.area = Number(area.toFixed(3));
       opening.length_m = Number((wmm / 1000).toFixed(3));
+      const leakValue = parseDecimalValue(leakageInput.value);
+      if (isFinite(leakValue) && leakValue >= 0) {
+        opening.air_leakage_m3_h_m2 = Number(leakValue.toFixed(3));
+      }
       areaDisplay.textContent = `Area: ${opening.area}m²`;
       if (notify) {
         queueFocusRestore();
@@ -1649,12 +1951,25 @@ export function initRoomEditor(opts) {
     if (kind === 'window') {
       materialSelect.addEventListener('change', () => {
         opening.glazing_id = materialSelect.value;
+        const selected = options.find(opt => opt.id === materialSelect.value);
+        if (selected && typeof selected.air_leakage_m3_h_m2 === 'number') {
+          opening.air_leakage_m3_h_m2 = Number(selected.air_leakage_m3_h_m2.toFixed(3));
+          leakageInput.value = String(opening.air_leakage_m3_h_m2);
+        }
+        if (selected && typeof selected.trickle_vent_flow_m3_h === 'number' && !opening.has_trickle_vent) {
+          opening.trickle_vent_flow_m3_h = Number(selected.trickle_vent_flow_m3_h.toFixed(2));
+        }
         queueFocusRestore();
         onDataChanged();
       });
     } else {
       materialSelect.addEventListener('change', () => {
         opening.material_id = materialSelect.value;
+        const selected = options.find(opt => opt.id === materialSelect.value);
+        if (selected && typeof selected.air_leakage_m3_h_m2 === 'number') {
+          opening.air_leakage_m3_h_m2 = Number(selected.air_leakage_m3_h_m2.toFixed(3));
+          leakageInput.value = String(opening.air_leakage_m3_h_m2);
+        }
         queueFocusRestore();
         onDataChanged();
       });
@@ -1685,11 +2000,90 @@ export function initRoomEditor(opts) {
 
     updateOpening(false);
 
+    const selectedOption = options.find(opt => opt.id === selectedValue) || null;
+    const defaultLeakage = (selectedOption && typeof selectedOption.air_leakage_m3_h_m2 === 'number')
+      ? selectedOption.air_leakage_m3_h_m2
+      : 0;
+    const openingLeakage = (typeof opening.air_leakage_m3_h_m2 === 'number' && opening.air_leakage_m3_h_m2 >= 0)
+      ? opening.air_leakage_m3_h_m2
+      : defaultLeakage;
+    opening.air_leakage_m3_h_m2 = Number(openingLeakage.toFixed(3));
+    leakageInput.value = formatEditableDecimal(opening.air_leakage_m3_h_m2, 3);
+
+    leakageInput.addEventListener('input', () => {
+      const leak = parseDecimalValue(leakageInput.value);
+      if (!isFinite(leak) || leak < 0) return;
+      opening.air_leakage_m3_h_m2 = Number(leak.toFixed(3));
+      queueFocusRestore();
+      onDataChanged();
+    });
+
     sizeRow.appendChild(document.createTextNode('W:'));
     sizeRow.appendChild(widthInput);
     sizeRow.appendChild(document.createTextNode('H:'));
     sizeRow.appendChild(heightInput);
     sizeRow.appendChild(areaDisplay);
+    sizeRow.appendChild(document.createTextNode('Leakage:'));
+    sizeRow.appendChild(leakageInput);
+
+    if (kind === 'window') {
+      const ventRow = document.createElement('div');
+      ventRow.style.display = 'flex';
+      ventRow.style.gap = '0.5rem';
+      ventRow.style.alignItems = 'center';
+      ventRow.style.flexWrap = 'wrap';
+
+      const ventCheckbox = document.createElement('input');
+      ventCheckbox.type = 'checkbox';
+      ventCheckbox.dataset.focusKey = `${focusBaseKey}:trickleVentEnabled`;
+
+      const defaultVentFlow = (selectedOption && typeof selectedOption.trickle_vent_flow_m3_h === 'number')
+        ? selectedOption.trickle_vent_flow_m3_h
+        : 0;
+      const ventFlowInput = document.createElement('input');
+      configureDecimalInput(ventFlowInput, 'Vent flow m3/h');
+      ventFlowInput.dataset.focusKey = `${focusBaseKey}:trickleVentFlow`;
+
+      opening.has_trickle_vent = opening.has_trickle_vent === true;
+      opening.trickle_vent_flow_m3_h = Number(
+        ((typeof opening.trickle_vent_flow_m3_h === 'number' && opening.trickle_vent_flow_m3_h >= 0)
+          ? opening.trickle_vent_flow_m3_h
+          : defaultVentFlow).toFixed(2)
+      );
+      ventCheckbox.checked = opening.has_trickle_vent;
+      ventFlowInput.value = formatEditableDecimal(opening.trickle_vent_flow_m3_h, 2);
+      ventFlowInput.disabled = !opening.has_trickle_vent;
+
+      ventCheckbox.addEventListener('change', () => {
+        opening.has_trickle_vent = ventCheckbox.checked;
+        if (opening.has_trickle_vent && (!isFinite(Number(opening.trickle_vent_flow_m3_h)) || opening.trickle_vent_flow_m3_h < 0)) {
+          opening.trickle_vent_flow_m3_h = Number(defaultVentFlow.toFixed(2));
+          ventFlowInput.value = String(opening.trickle_vent_flow_m3_h);
+        }
+        ventFlowInput.disabled = !opening.has_trickle_vent;
+        queueFocusRestore();
+        onDataChanged();
+      });
+
+      ventFlowInput.addEventListener('input', () => {
+        const value = parseDecimalValue(ventFlowInput.value);
+        if (!isFinite(value) || value < 0) return;
+        opening.trickle_vent_flow_m3_h = Number(value.toFixed(2));
+        queueFocusRestore();
+        onDataChanged();
+      });
+
+      const ventLabel = document.createElement('label');
+      ventLabel.style.display = 'flex';
+      ventLabel.style.gap = '0.35rem';
+      ventLabel.style.alignItems = 'center';
+      ventLabel.appendChild(ventCheckbox);
+      ventLabel.appendChild(document.createTextNode('Has trickle vent'));
+
+      ventRow.appendChild(ventLabel);
+      ventRow.appendChild(ventFlowInput);
+      form.appendChild(ventRow);
+    }
 
     const placementRow = document.createElement('div');
     placementRow.style.display = 'flex';
@@ -1739,7 +2133,10 @@ export function initRoomEditor(opts) {
       return openings.windows.map(w => ({
         id: w.id,
         name: w.name || w.id,
-        label: formatOpeningOptionLabel(w.name || w.id, w.u_value)
+        label: formatOpeningOptionLabel(w.name || w.id, w.u_value),
+        air_leakage_m3_h_m2: w.air_leakage_m3_h_m2,
+        has_trickle_vent: w.has_trickle_vent,
+        trickle_vent_flow_m3_h: w.trickle_vent_flow_m3_h
       }));
     }
 
@@ -1756,7 +2153,8 @@ export function initRoomEditor(opts) {
       return openings.doors.map(d => ({
         id: d.id,
         name: d.name || d.id,
-        label: formatOpeningOptionLabel(d.name || d.id, d.u_value)
+        label: formatOpeningOptionLabel(d.name || d.id, d.u_value),
+        air_leakage_m3_h_m2: d.air_leakage_m3_h_m2
       }));
     }
 
