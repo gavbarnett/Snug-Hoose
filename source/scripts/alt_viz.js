@@ -1793,6 +1793,136 @@ export function mapRValueToWallVisual(rValue, isExternal = false) {
   return { color, width };
 }
 
+function renderVentIconsForZone(zone, svg, ns, centroid, infoLineCount, tooltip = null) {
+  const vents = Array.isArray(zone.ventilation_elements)
+    ? zone.ventilation_elements.filter(v => v.enabled !== false)
+    : [];
+
+  const iconItems = vents.map(vent => ({ kind: 'vent', vent }));
+  if (zone?.is_boiler_control) iconItems.push({ kind: 'boiler' });
+  if (iconItems.length === 0) return;
+
+  const iconR = 9;
+  const spacing = 24;
+  // Position below the info text block (nameY centers it, info extends ~8px per line below centroid)
+  const ventRowY = centroid.y + (infoLineCount * 8) + 24;
+  const ventStartX = centroid.x - ((iconItems.length - 1) * spacing) / 2;
+
+  iconItems.forEach((item, i) => {
+    const cx = ventStartX + i * spacing;
+    const cy = ventRowY;
+    const isBoiler = item.kind === 'boiler';
+    const vent = item.vent;
+    const isHX = !isBoiler && vent && vent.type && (
+      vent.type.includes('heat_exchanger') ||
+      vent.type.includes('hrv') ||
+      vent.type.includes('mvhr')
+    );
+
+    const g = document.createElementNS(ns, 'g');
+    g.setAttribute('class', isBoiler
+      ? 'alt-vent-icon alt-boiler-icon'
+      : `alt-vent-icon${isHX ? ' alt-vent-hx' : ' alt-vent-extractor'}`);
+    g.setAttribute('transform', `translate(${cx.toFixed(1)}, ${cy.toFixed(1)})`);
+    g.style.pointerEvents = 'auto';
+
+    // Transparent backing circle so hover works across the full icon footprint, not just strokes.
+    const hitbox = document.createElementNS(ns, 'circle');
+    hitbox.setAttribute('cx', '0');
+    hitbox.setAttribute('cy', '0');
+    hitbox.setAttribute('r', String(iconR + 4));
+    hitbox.setAttribute('class', 'alt-vent-hitbox');
+    g.appendChild(hitbox);
+
+    const setTooltipVisible = (visible) => {
+      if (!tooltip) return;
+      tooltip.classList.toggle('is-visible', visible);
+      if (!visible) tooltip.textContent = '';
+    };
+
+    const updateTooltipPosition = (e) => {
+      if (!tooltip || !e) return;
+      tooltip.style.left = `${e.clientX + 12}px`;
+      tooltip.style.top = `${e.clientY + 12}px`;
+    };
+
+    const tooltipText = isBoiler
+      ? 'Boiler control zone'
+      : (() => {
+        const flowM3h = vent.flow_m3_h != null ? vent.flow_m3_h : '?';
+        const trickleM3h = vent.trickle_flow_m3_h != null ? vent.trickle_flow_m3_h : 0;
+        const boostH = vent.boost_hours_per_day != null ? vent.boost_hours_per_day : 1;
+        return `${vent.name || vent.type}: ${flowM3h} m3/h boost, ${trickleM3h} m3/h trickle, ${boostH} h/day`;
+      })();
+
+    g.addEventListener('mouseenter', (e) => {
+      if (!tooltip) return;
+      tooltip.textContent = tooltipText;
+      updateTooltipPosition(e);
+      setTooltipVisible(true);
+    });
+    g.addEventListener('mousemove', (e) => {
+      updateTooltipPosition(e);
+    });
+    g.addEventListener('mouseleave', () => {
+      setTooltipVisible(false);
+    });
+
+    // Outer ring
+    const ring = document.createElementNS(ns, 'circle');
+    ring.setAttribute('cx', '0');
+    ring.setAttribute('cy', '0');
+    ring.setAttribute('r', String(iconR));
+    ring.setAttribute('class', 'alt-vent-ring');
+    g.appendChild(ring);
+
+    // Center hub dot
+    const hub = document.createElementNS(ns, 'circle');
+    hub.setAttribute('cx', '0');
+    hub.setAttribute('cy', '0');
+    hub.setAttribute('r', '1.8');
+    hub.setAttribute('class', 'alt-vent-hub');
+    g.appendChild(hub);
+
+    if (isBoiler) {
+      // Boiler control icon: dial tick marks + angled pointer.
+      for (let t = -60; t <= 60; t += 60) {
+        const angle = t * Math.PI / 180;
+        const tick = document.createElementNS(ns, 'line');
+        tick.setAttribute('x1', (5.6 * Math.cos(angle)).toFixed(1));
+        tick.setAttribute('y1', (5.6 * Math.sin(angle)).toFixed(1));
+        tick.setAttribute('x2', (7.8 * Math.cos(angle)).toFixed(1));
+        tick.setAttribute('y2', (7.8 * Math.sin(angle)).toFixed(1));
+        tick.setAttribute('class', 'alt-boiler-tick');
+        g.appendChild(tick);
+      }
+
+      const pointerAngle = -35 * Math.PI / 180;
+      const pointer = document.createElementNS(ns, 'line');
+      pointer.setAttribute('x1', '0');
+      pointer.setAttribute('y1', '0');
+      pointer.setAttribute('x2', (6.2 * Math.cos(pointerAngle)).toFixed(1));
+      pointer.setAttribute('y2', (6.2 * Math.sin(pointerAngle)).toFixed(1));
+      pointer.setAttribute('class', 'alt-boiler-pointer');
+      g.appendChild(pointer);
+    } else {
+      // 3 fan blades as radial spokes at 0°, 120°, 240° (starting from top)
+      for (let b = 0; b < 3; b++) {
+        const angle = (b * 120 - 90) * Math.PI / 180;
+        const blade = document.createElementNS(ns, 'line');
+        blade.setAttribute('x1', (2.2 * Math.cos(angle)).toFixed(1));
+        blade.setAttribute('y1', (2.2 * Math.sin(angle)).toFixed(1));
+        blade.setAttribute('x2', (6.5 * Math.cos(angle)).toFixed(1));
+        blade.setAttribute('y2', (6.5 * Math.sin(angle)).toFixed(1));
+        blade.setAttribute('class', 'alt-vent-blade');
+        g.appendChild(blade);
+      }
+    }
+
+    svg.appendChild(g);
+  });
+}
+
 function scoreBoundaryEdge(edgeGroups, polygon, edgeIndex) {
   const p0 = polygon[edgeIndex];
   const p1 = polygon[(edgeIndex + 1) % polygon.length];
@@ -2821,6 +2951,16 @@ export function renderAlternativeViz(demo, opts = {}) {
   svg.setAttribute('viewBox', `0 0 ${canvasW} ${canvasH}`);
   svg.setAttribute('role', 'img');
   svg.setAttribute('aria-label', `Alternative polygon room view for level ${selectedLevel}`);
+
+  const iconTooltip = document.createElement('div');
+  iconTooltip.className = 'alt-object-tooltip';
+  svgWrap.appendChild(iconTooltip);
+
+  svg.addEventListener('mouseleave', () => {
+    iconTooltip.classList.remove('is-visible');
+    iconTooltip.textContent = '';
+  });
+
   svg.addEventListener('dblclick', (e) => {
     if (e.target !== svg) return;
     if (dragState || roomDragState || objectDragState) return;
@@ -3336,7 +3476,7 @@ export function renderAlternativeViz(demo, opts = {}) {
     nameText.setAttribute('stroke', 'rgba(0, 0, 0, 0.65)');
     nameText.setAttribute('stroke-width', '3');
     nameText.setAttribute('class', 'alt-room-name-label');
-    nameText.textContent = `${zone.name || zone.id || 'Unnamed room'}${zone.is_boiler_control ? ' 🔥' : ''}`;
+    nameText.textContent = `${zone.name || zone.id || 'Unnamed room'}`;
     if (onDataChanged) {
       nameText.style.cursor = 'text';
       nameText.addEventListener('click', (e) => {
@@ -3448,6 +3588,8 @@ export function renderAlternativeViz(demo, opts = {}) {
       };
       updateRadiatorRenderState(radiatorRenderStates[radiatorIndex], seg, seg.radiatorType.replace(/^type_/i, ''), centroid);
     });
+
+    renderVentIconsForZone(zone, svg, ns, centroid, infoLines.length, iconTooltip);
 
     const edgeElements = [];
     const edgeVisualElements = [];

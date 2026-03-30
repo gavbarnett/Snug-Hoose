@@ -802,10 +802,36 @@ a#download:hover {
 }
 
 .alt-viz-svg-wrap {
+  position: relative;
   border: 1px solid var(--input-border);
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.15);
   padding: 0.25rem;
+}
+
+.alt-object-tooltip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  max-width: min(300px, 80vw);
+  padding: 0.36rem 0.52rem;
+  border-radius: 6px;
+  border: 1px solid rgba(180, 220, 240, 0.45);
+  background: rgba(10, 20, 30, 0.94);
+  color: #d8ecf7;
+  font-size: 0.76rem;
+  line-height: 1.25;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 0.1s ease, transform 0.1s ease;
+  z-index: 40;
+  white-space: normal;
+}
+
+.alt-object-tooltip.is-visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .alt-viz-svg {
@@ -977,6 +1003,58 @@ a#download:hover {
   paint-order: stroke;
   stroke: rgba(0, 0, 0, 0.8);
   stroke-width: 2px;
+}
+
+.alt-vent-ring {
+  fill: none;
+  stroke-width: 1.8;
+  opacity: 0.92;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.9));
+}
+
+.alt-vent-hub {
+  opacity: 0.92;
+}
+
+.alt-vent-hitbox {
+  fill: rgba(0, 0, 0, 0.001);
+  stroke: none;
+}
+
+.alt-vent-blade {
+  stroke-linecap: round;
+  stroke-width: 2.2;
+  opacity: 0.92;
+}
+
+.alt-vent-extractor .alt-vent-ring,
+.alt-vent-extractor .alt-vent-blade { stroke: #7bbfd4; }
+.alt-vent-extractor .alt-vent-hub   { fill: #7bbfd4; }
+
+.alt-vent-hx .alt-vent-ring,
+.alt-vent-hx .alt-vent-blade { stroke: #6ad4b0; }
+.alt-vent-hx .alt-vent-hub   { fill: #6ad4b0; }
+
+.alt-boiler-icon .alt-vent-ring {
+  stroke: #ffd38f;
+}
+
+.alt-boiler-icon .alt-vent-hub {
+  fill: #ffd38f;
+}
+
+.alt-boiler-tick {
+  stroke: #ffd38f;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  opacity: 0.95;
+}
+
+.alt-boiler-pointer {
+  stroke: #ffe8c2;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  opacity: 0.98;
 }
 
 .content-right {
