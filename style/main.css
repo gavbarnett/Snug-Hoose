@@ -372,6 +372,62 @@ a#download:hover {
   border-bottom: none;
 }
 
+.alt-viz-rec-name-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.alt-viz-rec-expand-btn {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-light);
+  font-size: 0.64rem;
+  line-height: 1;
+  padding: 0.18rem 0.34rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.alt-viz-rec-expand-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.alt-viz-rec-detail-row td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.alt-viz-rec-detail-cell {
+  background: rgba(0, 0, 0, 0.15);
+  padding: 0.42rem 0.5rem;
+}
+
+.alt-viz-rec-detail-title {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 0.12rem;
+}
+
+.alt-viz-rec-proposal {
+  font-size: 0.68rem;
+  color: var(--text-light);
+  margin-bottom: 0.25rem;
+}
+
+.alt-viz-rec-cost-list {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.alt-viz-rec-cost-list li {
+  font-size: 0.68rem;
+  color: var(--text-light);
+  margin: 0.06rem 0;
+}
+
 .alt-env-strip {
   border: 1px solid var(--input-border);
   border-radius: 8px;

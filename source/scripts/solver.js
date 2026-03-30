@@ -330,6 +330,48 @@ function formatCurrencyEstimate(amount, currency) {
   return `${rounded.toLocaleString()} ${currency || ''}`.trim();
 }
 
+function formatCurrencyAmount(amount, currency) {
+  const safeAmount = Number(amount);
+  if (!isFinite(safeAmount)) return 'n/a';
+  const rounded = Math.round(safeAmount);
+  if (String(currency || '').toUpperCase() === 'GBP') {
+    return `GBP ${rounded.toLocaleString('en-GB')}`;
+  }
+  return `${rounded.toLocaleString()} ${currency || ''}`.trim();
+}
+
+function normalizeCostResult(costResult, currency) {
+  if (typeof costResult === 'number') {
+    return {
+      total: Number(costResult || 0),
+      breakdown: [{ label: 'Estimated cost', amount: Number(costResult || 0) }]
+    };
+  }
+
+  if (!costResult || typeof costResult !== 'object') {
+    return { total: 0, breakdown: [] };
+  }
+
+  const breakdown = Array.isArray(costResult.breakdown)
+    ? costResult.breakdown
+        .map(item => ({ label: String(item?.label || 'Estimated cost'), amount: Number(item?.amount || 0) }))
+        .filter(item => isFinite(item.amount))
+    : [];
+  const summed = breakdown.reduce((sum, item) => sum + item.amount, 0);
+  const explicitTotal = Number(costResult.total);
+  const total = isFinite(explicitTotal) ? explicitTotal : summed;
+
+  return {
+    total,
+    breakdown: breakdown.length > 0 ? breakdown : [{ label: 'Estimated cost', amount: total }],
+    formattedBreakdown: breakdown.map(item => ({
+      label: item.label,
+      amount: item.amount,
+      amountText: formatCurrencyAmount(item.amount, currency)
+    }))
+  };
+}
+
 function getMaterialCatalogEntry(materialId) {
   const materials = currentMaterials ? (currentMaterials.materials || currentMaterials) : [];
   if (!Array.isArray(materials) || !materialId) return null;
@@ -452,12 +494,17 @@ function buildPerformanceRecommendations(demoRaw) {
     if (typeof options.accept === 'function' && options.accept({ metrics, baseline, change }) !== true) return;
     const annualSavings = Math.max(0, baseline.annualDemandKwhYr - metrics.annualDemandKwhYr);
     if (!isFinite(annualSavings) || annualSavings < 1) return;
-    const totalCost = Number(costFn(change) || 0);
+    const normalizedCost = normalizeCostResult(costFn(change), currency);
+    const totalCost = Number(normalizedCost.total || 0);
     results.push({
       recommendation: label,
       annualSavingsKwhYr: Number(annualSavings.toFixed(0)),
       expectedEpc: metrics.epcLetter || 'N/A',
       costEstimate: formatCurrencyEstimate(totalCost, currency),
+      proposal: String(change.proposal || `Apply measure: ${label}`),
+      costBreakdown: Array.isArray(normalizedCost.formattedBreakdown)
+        ? normalizedCost.formattedBreakdown
+        : [],
       _sortCost: isFinite(totalCost) ? totalCost : Infinity
     });
   };
@@ -475,12 +522,25 @@ function buildPerformanceRecommendations(demoRaw) {
           changedCount += 1;
         });
       });
-      return { changed: changedCount > 0, count: changedCount };
+      return {
+        changed: changedCount > 0,
+        count: changedCount,
+        proposal: `Enable TRVs on ${changedCount} radiator(s) that do not currently have thermostatic valves.`
+      };
     },
     (change) => {
       const cfg = measures.trv || {};
-      return Number(cfg.callout || 0)
-        + change.count * (Number(cfg.valve_material_each || 0) + Number(cfg.install_each || 0));
+      const callout = Number(cfg.callout || 0);
+      const valveMaterial = change.count * Number(cfg.valve_material_each || 0);
+      const install = change.count * Number(cfg.install_each || 0);
+      return {
+        total: callout + valveMaterial + install,
+        breakdown: [
+          { label: 'Plumber callout', amount: callout },
+          { label: `TRV valves (${change.count})`, amount: valveMaterial },
+          { label: `TRV installation labour (${change.count})`, amount: install }
+        ]
+      };
     }
   );
 
@@ -494,9 +554,22 @@ function buildPerformanceRecommendations(demoRaw) {
       if (currentSafe <= target + 0.5) return { changed: false };
       working.meta = working.meta || {};
       working.meta.flowTemp = target;
-      return { changed: true, from: currentSafe, to: target };
+      return {
+        changed: true,
+        from: currentSafe,
+        to: target,
+        proposal: `Reduce boiler flow temperature from ${currentSafe.toFixed(0)}C to ${target.toFixed(0)}C and rebalance emitters.`
+      };
     },
-    () => Number((measures.flow_temp_optimization || {}).commissioning_cost || 0),
+    () => {
+      const commissioning = Number((measures.flow_temp_optimization || {}).commissioning_cost || 0);
+      return {
+        total: commissioning,
+        breakdown: [
+          { label: 'Heating system commissioning/tuning', amount: commissioning }
+        ]
+      };
+    },
     {
       accept: ({ metrics, baseline: base }) => {
         const baselineFailures = Number(base?.unmetSetpointRoomCount || 0);
@@ -524,9 +597,21 @@ function buildPerformanceRecommendations(demoRaw) {
           changedCount += 1;
         }
       });
-      return { changed: changedCount > 0, count: changedCount };
+      return {
+        changed: changedCount > 0,
+        count: changedCount,
+        proposal: `Reduce setpoint temperatures by ${step.toFixed(0)}C in ${changedCount} heated room(s), never below ${minSetpoint.toFixed(0)}C.`
+      };
     },
-    () => Number((measures.setpoint_optimization || {}).commissioning_cost || 0)
+    () => {
+      const commissioning = Number((measures.setpoint_optimization || {}).commissioning_cost || 0);
+      return {
+        total: commissioning,
+        breakdown: [
+          { label: 'Heating controls setup and scheduling', amount: commissioning }
+        ]
+      };
+    }
   );
 
   addCandidate(
@@ -558,7 +643,12 @@ function buildPerformanceRecommendations(demoRaw) {
           changedArea += isFinite(area) && area > 0 ? area : 1;
         });
       });
-      return { changed: changedArea > 0, areaM2: changedArea, windowOption: best };
+      return {
+        changed: changedArea > 0,
+        areaM2: changedArea,
+        windowOption: best,
+        proposal: `Replace approx ${changedArea.toFixed(1)} m2 of glazing with ${String(best.name || best.id || 'high-performance glazing')}.`
+      };
     },
     (change) => {
       const cfg = measures.window_upgrade || {};
@@ -566,8 +656,17 @@ function buildPerformanceRecommendations(demoRaw) {
       const materialPerM2 = isFinite(optionMaterialPerM2) && optionMaterialPerM2 > 0
         ? optionMaterialPerM2
         : Number(cfg.material_per_m2 || 0);
-      return Number(cfg.callout || 0)
-        + change.areaM2 * (materialPerM2 + Number(cfg.install_per_m2 || 0));
+      const callout = Number(cfg.callout || 0);
+      const material = change.areaM2 * materialPerM2;
+      const install = change.areaM2 * Number(cfg.install_per_m2 || 0);
+      return {
+        total: callout + material + install,
+        breakdown: [
+          { label: 'Window contractor callout', amount: callout },
+          { label: `Window units/material (${change.areaM2.toFixed(1)} m2)`, amount: material },
+          { label: `Window installation (${change.areaM2.toFixed(1)} m2)`, amount: install }
+        ]
+      };
     }
   );
 
@@ -593,7 +692,12 @@ function buildPerformanceRecommendations(demoRaw) {
           changedCount += 1;
         });
       });
-      return { changed: changedCount > 0, count: changedCount, doorOption: best };
+      return {
+        changed: changedCount > 0,
+        count: changedCount,
+        doorOption: best,
+        proposal: `Replace ${changedCount} external door(s) with ${String(best.name || best.id || 'insulated door units')}.`
+      };
     },
     (change) => {
       const cfg = measures.door_upgrade || {};
@@ -601,8 +705,17 @@ function buildPerformanceRecommendations(demoRaw) {
       const materialEach = isFinite(optionMaterialEach) && optionMaterialEach > 0
         ? optionMaterialEach
         : Number(cfg.material_each || 0);
-      return Number(cfg.callout || 0)
-        + change.count * (materialEach + Number(cfg.install_each || 0));
+      const callout = Number(cfg.callout || 0);
+      const material = change.count * materialEach;
+      const install = change.count * Number(cfg.install_each || 0);
+      return {
+        total: callout + material + install,
+        breakdown: [
+          { label: 'Door installer callout', amount: callout },
+          { label: `Door units (${change.count})`, amount: material },
+          { label: `Door installation labour (${change.count})`, amount: install }
+        ]
+      };
     }
   );
 
@@ -643,7 +756,10 @@ function buildPerformanceRecommendations(demoRaw) {
         materialVolumeM3: areaM2 * addedThickness,
         installMultiplier: addServiceLayer
           ? Number(cfg.service_layer_install_multiplier || 1.35)
-          : 1
+          : 1,
+        proposal: addServiceLayer
+          ? `Add internal wall insulation to the poorest external wall using ${layerMaterialId}, matching cavity depth plus ${serviceLayerThickness.toFixed(2)} m service layer where required.`
+          : `Add internal wall insulation to the poorest external wall using ${layerMaterialId}, matching cavity depth.`
       };
     },
     (change) => {
@@ -653,9 +769,16 @@ function buildPerformanceRecommendations(demoRaw) {
         ? (Number(change.materialVolumeM3 || 0) * materialPerM3)
         : (change.areaM2 * getInsulationMaterialCostPerM2(cfg.insulation_material_id, cfg.fallback_thickness_m, cfg.material_per_m2));
       const installMultiplier = Number(change.installMultiplier || 1);
-      return Number(cfg.callout || 0)
-        + materialCost
-        + change.areaM2 * (Number(cfg.install_per_m2 || 0) * installMultiplier);
+      const callout = Number(cfg.callout || 0);
+      const install = change.areaM2 * (Number(cfg.install_per_m2 || 0) * installMultiplier);
+      return {
+        total: callout + materialCost + install,
+        breakdown: [
+          { label: 'Insulation contractor callout', amount: callout },
+          { label: 'Insulation material', amount: materialCost },
+          { label: `Wall insulation labour (${change.areaM2.toFixed(1)} m2)`, amount: install }
+        ]
+      };
     }
   );
 
@@ -687,7 +810,12 @@ function buildPerformanceRecommendations(demoRaw) {
         areaTotal += areaM2;
         volumeTotal += areaM2 * addedThickness;
       });
-      return { changed: areaTotal > 0, areaM2: areaTotal, materialVolumeM3: volumeTotal };
+      return {
+        changed: areaTotal > 0,
+        areaM2: areaTotal,
+        materialVolumeM3: volumeTotal,
+        proposal: `Add floor insulation (${layerMaterialId}) to ground floor elements, using cavity depth where available.`
+      };
     },
     (change) => {
       const cfg = measures.floor_insulation || {};
@@ -695,9 +823,16 @@ function buildPerformanceRecommendations(demoRaw) {
       const materialCost = materialPerM3 !== null
         ? (Number(change.materialVolumeM3 || 0) * materialPerM3)
         : (change.areaM2 * getInsulationMaterialCostPerM2(cfg.insulation_material_id, cfg.fallback_thickness_m, cfg.material_per_m2));
-      return Number(cfg.callout || 0)
-        + materialCost
-        + change.areaM2 * Number(cfg.install_per_m2 || 0);
+      const callout = Number(cfg.callout || 0);
+      const install = change.areaM2 * Number(cfg.install_per_m2 || 0);
+      return {
+        total: callout + materialCost + install,
+        breakdown: [
+          { label: 'Floor retrofit callout', amount: callout },
+          { label: 'Insulation material', amount: materialCost },
+          { label: `Floor insulation labour (${change.areaM2.toFixed(1)} m2)`, amount: install }
+        ]
+      };
     }
   );
 
@@ -730,7 +865,12 @@ function buildPerformanceRecommendations(demoRaw) {
         areaTotal += areaM2;
         volumeTotal += areaM2 * addedThickness;
       });
-      return { changed: areaTotal > 0, areaM2: areaTotal, materialVolumeM3: volumeTotal };
+      return {
+        changed: areaTotal > 0,
+        areaM2: areaTotal,
+        materialVolumeM3: volumeTotal,
+        proposal: `Top up loft/ceiling insulation using ${layerMaterialId}, targeting cavity depth where available.`
+      };
     },
     (change) => {
       const cfg = measures.loft_insulation || {};
@@ -738,9 +878,16 @@ function buildPerformanceRecommendations(demoRaw) {
       const materialCost = materialPerM3 !== null
         ? (Number(change.materialVolumeM3 || 0) * materialPerM3)
         : (change.areaM2 * getInsulationMaterialCostPerM2(cfg.insulation_material_id, cfg.fallback_thickness_m, cfg.material_per_m2));
-      return Number(cfg.callout || 0)
-        + materialCost
-        + change.areaM2 * Number(cfg.install_per_m2 || 0);
+      const callout = Number(cfg.callout || 0);
+      const install = change.areaM2 * Number(cfg.install_per_m2 || 0);
+      return {
+        total: callout + materialCost + install,
+        breakdown: [
+          { label: 'Loft insulation callout', amount: callout },
+          { label: 'Insulation material', amount: materialCost },
+          { label: `Loft insulation labour (${change.areaM2.toFixed(1)} m2)`, amount: install }
+        ]
+      };
     }
   );
 
@@ -755,7 +902,9 @@ function buildPerformanceRecommendations(demoRaw) {
     recommendation: item.recommendation,
     annualSavingsKwhYr: item.annualSavingsKwhYr,
     expectedEpc: item.expectedEpc || getEpcBandFromIntensity(null),
-    costEstimate: item.costEstimate
+    costEstimate: item.costEstimate,
+    proposal: item.proposal,
+    costBreakdown: Array.isArray(item.costBreakdown) ? item.costBreakdown : []
   }));
 }
 

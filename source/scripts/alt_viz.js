@@ -367,8 +367,22 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
     const body = table.createTBody();
     recommendations.forEach(item => {
       const row = body.insertRow();
+      row.className = 'alt-viz-rec-row';
       const recommendation = document.createElement('td');
-      recommendation.textContent = String(item?.recommendation || 'Recommendation');
+
+      const recommendationWrap = document.createElement('div');
+      recommendationWrap.className = 'alt-viz-rec-name-wrap';
+      const recommendationName = document.createElement('span');
+      recommendationName.textContent = String(item?.recommendation || 'Recommendation');
+      recommendationWrap.appendChild(recommendationName);
+
+      const detailsBtn = document.createElement('button');
+      detailsBtn.type = 'button';
+      detailsBtn.className = 'alt-viz-rec-expand-btn';
+      detailsBtn.textContent = 'Details';
+      recommendationWrap.appendChild(detailsBtn);
+
+      recommendation.appendChild(recommendationWrap);
       row.appendChild(recommendation);
 
       const savings = document.createElement('td');
@@ -384,6 +398,52 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
       const cost = document.createElement('td');
       cost.textContent = String(item?.costEstimate || 'n/a');
       row.appendChild(cost);
+
+      const detailRow = body.insertRow();
+      detailRow.className = 'alt-viz-rec-detail-row';
+      detailRow.style.display = 'none';
+      const detailCell = detailRow.insertCell();
+      detailCell.colSpan = 4;
+      detailCell.className = 'alt-viz-rec-detail-cell';
+
+      const proposalTitle = document.createElement('div');
+      proposalTitle.className = 'alt-viz-rec-detail-title';
+      proposalTitle.textContent = 'Exact Proposal';
+      detailCell.appendChild(proposalTitle);
+
+      const proposalText = document.createElement('div');
+      proposalText.className = 'alt-viz-rec-proposal';
+      proposalText.textContent = String(item?.proposal || 'No proposal details available.');
+      detailCell.appendChild(proposalText);
+
+      const breakdownTitle = document.createElement('div');
+      breakdownTitle.className = 'alt-viz-rec-detail-title';
+      breakdownTitle.textContent = 'Cost Breakdown';
+      detailCell.appendChild(breakdownTitle);
+
+      const breakdownList = document.createElement('ul');
+      breakdownList.className = 'alt-viz-rec-cost-list';
+      const breakdown = Array.isArray(item?.costBreakdown) ? item.costBreakdown : [];
+      if (breakdown.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = `Estimated total: ${String(item?.costEstimate || 'n/a')}`;
+        breakdownList.appendChild(li);
+      } else {
+        breakdown.forEach(entry => {
+          const li = document.createElement('li');
+          const label = String(entry?.label || 'Cost item');
+          const amount = String(entry?.amountText || 'n/a');
+          li.textContent = `${label}: ${amount}`;
+          breakdownList.appendChild(li);
+        });
+      }
+      detailCell.appendChild(breakdownList);
+
+      detailsBtn.addEventListener('click', () => {
+        const isOpen = detailRow.style.display !== 'none';
+        detailRow.style.display = isOpen ? 'none' : 'table-row';
+        detailsBtn.textContent = isOpen ? 'Details' : 'Hide';
+      });
     });
 
     tableWrap.appendChild(table);
