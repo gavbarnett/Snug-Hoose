@@ -1,0 +1,59 @@
+{
+	"currency": "GBP",
+	"measures": {
+		"trv": {
+			"callout": 120,
+			"valve_material_each": 22,
+			"install_each": 45,
+			"notes": "Supply and fit thermostatic radiator valves to existing radiators."
+		},
+		"flow_temp_optimization": {
+			"target_c": 45,
+			"commissioning_cost": 180,
+			"notes": "Engineer visit for balancing, flow temperature reduction and controls tuning."
+		},
+		"setpoint_optimization": {
+			"min_setpoint_c": 18,
+			"step_c": 1,
+			"commissioning_cost": 120,
+			"notes": "Controls review and scheduling update to reduce room target temperatures while maintaining minimum comfort."
+		},
+		"window_upgrade": {
+			"install_per_m2": 260,
+			"callout": 350,
+			"notes": "Replacement with high-performance glazing; material pricing is read from openings.json."
+		},
+		"door_upgrade": {
+			"install_each": 180,
+			"callout": 180,
+			"notes": "Replacement of external doors with insulated units; material pricing is read from openings.json."
+		},
+		"wall_insulation_internal_retrofit": {
+			"insulation_material_id": "pir",
+			"thickness_basis": "structural_cavity",
+			"fallback_thickness_m": 0.06,
+			"add_internal_service_layer": false,
+			"service_layer_thickness_m": 0.05,
+			"service_layer_install_multiplier": 1.35,
+			"install_per_m2": 95,
+			"callout": 450,
+			"notes": "Indicative internal wall insulation retrofit cost. Thickness defaults to stud cavity depth; optional additional internal service layer can be enabled for deeper retrofit."
+		},
+		"floor_insulation": {
+			"insulation_material_id": "xps",
+			"thickness_basis": "structural_cavity",
+			"fallback_thickness_m": 0.08,
+			"install_per_m2": 75,
+			"callout": 400,
+			"notes": "Indicative suspended/solid floor insulation retrofit cost estimate. Thickness defaults to joist cavity depth where available."
+		},
+		"loft_insulation": {
+			"insulation_material_id": "rockwool",
+			"thickness_basis": "structural_cavity",
+			"fallback_thickness_m": 0.15,
+			"install_per_m2": 22,
+			"callout": 220,
+			"notes": "Top-up loft insulation supply and fit estimate. Thickness defaults to joist/cavity depth where available."
+		}
+	}
+}

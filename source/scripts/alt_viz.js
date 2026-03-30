@@ -335,9 +335,65 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
   });
   variantWrap.appendChild(addVariantBtn);
 
+  const recommendationsWrap = document.createElement('div');
+  recommendationsWrap.className = 'alt-viz-recommendations';
+
+  const recommendationsTitle = document.createElement('div');
+  recommendationsTitle.className = 'alt-viz-recommendations-title';
+  recommendationsTitle.textContent = 'Recommendations';
+  recommendationsWrap.appendChild(recommendationsTitle);
+
+  const recommendations = Array.isArray(demo?.recommendations) ? demo.recommendations : [];
+  if (recommendations.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'alt-viz-recommendations-empty';
+    empty.textContent = 'No cost-effective measures identified yet.';
+    recommendationsWrap.appendChild(empty);
+  } else {
+    const tableWrap = document.createElement('div');
+    tableWrap.className = 'alt-viz-recommendations-table-wrap';
+
+    const table = document.createElement('table');
+    table.className = 'alt-viz-recommendations-table';
+
+    const head = table.createTHead();
+    const headRow = head.insertRow();
+    ['Recommendation', 'kWhr/year savings', 'Expected EPC', 'Cost Est.'].forEach(title => {
+      const th = document.createElement('th');
+      th.textContent = title;
+      headRow.appendChild(th);
+    });
+
+    const body = table.createTBody();
+    recommendations.forEach(item => {
+      const row = body.insertRow();
+      const recommendation = document.createElement('td');
+      recommendation.textContent = String(item?.recommendation || 'Recommendation');
+      row.appendChild(recommendation);
+
+      const savings = document.createElement('td');
+      savings.textContent = Number.isFinite(Number(item?.annualSavingsKwhYr))
+        ? `${Number(item.annualSavingsKwhYr).toFixed(0)} kWh/yr`
+        : 'n/a';
+      row.appendChild(savings);
+
+      const epc = document.createElement('td');
+      epc.textContent = String(item?.expectedEpc || 'N/A');
+      row.appendChild(epc);
+
+      const cost = document.createElement('td');
+      cost.textContent = String(item?.costEstimate || 'n/a');
+      row.appendChild(cost);
+    });
+
+    tableWrap.appendChild(table);
+    recommendationsWrap.appendChild(tableWrap);
+  }
+
   epcWrap.appendChild(epcSummary);
   epcWrap.appendChild(epcScale);
   epcWrap.appendChild(variantWrap);
+  epcWrap.appendChild(recommendationsWrap);
   summary.appendChild(name);
   summary.appendChild(epcWrap);
   return summary;

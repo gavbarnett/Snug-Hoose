@@ -209,7 +209,7 @@ a#download:hover {
   margin-bottom: 0.65rem;
   padding: 0.55rem 0.7rem;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
   flex-wrap: wrap;
@@ -223,6 +223,7 @@ a#download:hover {
 
 .alt-viz-project-epc {
   min-width: 220px;
+  flex: 1;
 }
 
 .alt-viz-project-epc-summary {
@@ -320,6 +321,55 @@ a#download:hover {
   width: fit-content;
   padding: 0.3rem 0.55rem;
   font-size: 0.72rem;
+}
+
+.alt-viz-recommendations {
+  margin-top: 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  padding: 0.38rem;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.alt-viz-recommendations-title {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-light);
+  margin-bottom: 0.3rem;
+}
+
+.alt-viz-recommendations-empty {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.alt-viz-recommendations-table-wrap {
+  overflow-x: auto;
+}
+
+.alt-viz-recommendations-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 460px;
+}
+
+.alt-viz-recommendations-table th,
+.alt-viz-recommendations-table td {
+  text-align: left;
+  font-size: 0.7rem;
+  padding: 0.28rem 0.32rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-light);
+}
+
+.alt-viz-recommendations-table th {
+  color: var(--accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.alt-viz-recommendations-table tr:last-child td {
+  border-bottom: none;
 }
 
 .alt-env-strip {
@@ -462,6 +512,14 @@ a#download:hover {
 @media (max-width: 980px) {
   .alt-env-strip {
     grid-template-columns: 1fr;
+  }
+
+  .alt-viz-project-summary {
+    flex-direction: column;
+  }
+
+  .alt-viz-project-epc {
+    width: 100%;
   }
 }
 

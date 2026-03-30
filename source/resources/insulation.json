@@ -3,7 +3,8 @@
     "thermal_conductivity": "W/mK",
     "u_value": "W/m²K",
     "r_value": "m²K/W",
-    "air_leakage_m3_h_m2": "m³/h/m²"
+    "air_leakage_m3_h_m2": "m³/h/m²",
+    "material_cost_per_m3_gbp": "GBP/m³"
   },
   "calculation_note": "U-value for a single homogeneous insulation layer = thermal_conductivity (W/mK) / thickness (m). Example: 100mm PIR (0.022 W/mK) => U = 0.022 / 0.1 = 0.22 W/m²K",
   "materials": [
@@ -12,6 +13,7 @@
       "name": "PIR (Polyisocyanurate) board",
       "thermal_conductivity": 0.022,
       "density": 30,
+      "material_cost_per_m3_gbp": 900,
       "air_leakage_m3_h_m2": 0.25,
       "notes": "High performance rigid foam board commonly used in roofs and walls."
     },
@@ -20,6 +22,7 @@
       "name": "Rock wool (Mineral wool)",
       "thermal_conductivity": 0.038,
       "density": 45,
+      "material_cost_per_m3_gbp": 120,
       "air_leakage_m3_h_m2": 1.2,
       "notes": "Non-combustible, good acoustic performance, used in pitched roofs, walls and floors."
     },
@@ -28,6 +31,7 @@
       "name": "Glass wool",
       "thermal_conductivity": 0.035,
       "density": 12,
+      "material_cost_per_m3_gbp": 100,
       "air_leakage_m3_h_m2": 1.4,
       "notes": "Common batt insulation for cavities and lofts."
     },
@@ -36,6 +40,7 @@
       "name": "Wood fibre",
       "thermal_conductivity": 0.040,
       "density": 120,
+      "material_cost_per_m3_gbp": 280,
       "air_leakage_m3_h_m2": 0.9,
       "notes": "Breathable, natural fibre used in breathable build-ups and timber-frame insulation."
     },
@@ -44,6 +49,7 @@
       "name": "EPS (Expanded Polystyrene)",
       "thermal_conductivity": 0.036,
       "density": 20,
+      "material_cost_per_m3_gbp": 180,
       "air_leakage_m3_h_m2": 0.35,
       "notes": "Rigid foam used externally and under screeds; good compressive properties."
     },
@@ -52,6 +58,7 @@
       "name": "XPS (Extruded Polystyrene)",
       "thermal_conductivity": 0.029,
       "density": 32,
+      "material_cost_per_m3_gbp": 300,
       "air_leakage_m3_h_m2": 0.2,
       "notes": "Moisture resistant rigid foam for below-ground and insulated floors."
     },
@@ -60,6 +67,7 @@
       "name": "Cellulose (recycled paper)",
       "thermal_conductivity": 0.039,
       "density": 60,
+      "material_cost_per_m3_gbp": 110,
       "air_leakage_m3_h_m2": 1.1,
       "notes": "Blown or loose-fill insulation with good environmental credentials."
     },
