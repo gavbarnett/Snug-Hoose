@@ -81,6 +81,16 @@ function renderCurrentAlternativeViz(demoPayload, variantMenuState, recommendati
         roomEditorApi.focusZone(zoneId);
       }
     },
+    onZoneEditorRequested: (zoneId) => {
+      lastFocusedZoneId = zoneId;
+      if (roomEditorApi && typeof roomEditorApi.openZoneEditor === 'function') {
+        roomEditorApi.openZoneEditor(zoneId);
+        return;
+      }
+      if (roomEditorApi && typeof roomEditorApi.focusZone === 'function') {
+        roomEditorApi.focusZone(zoneId);
+      }
+    },
     onWallSelected: (zoneId, elementId) => {
       lastFocusedZoneId = zoneId;
       if (roomEditorApi && typeof roomEditorApi.focusElement === 'function') {

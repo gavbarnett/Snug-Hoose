@@ -905,6 +905,37 @@ a#download:hover {
   stroke-width: 3px;
 }
 
+.alt-room-editor-hit {
+  fill: rgba(0, 0, 0, 0.001);
+}
+
+.alt-room-editor-bg {
+  fill: rgba(12, 24, 38, 0.86);
+  stroke: rgba(192, 230, 246, 0.9);
+  stroke-width: 1.2;
+  transition: fill 0.12s ease, stroke 0.12s ease;
+}
+
+.alt-room-editor-glyph {
+  stroke: #dff3fb;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  fill: none;
+  pointer-events: none;
+}
+
+.alt-room-editor-emoji {
+  font-size: 11px;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.alt-room-editor-button:hover .alt-room-editor-bg {
+  fill: rgba(18, 40, 58, 0.94);
+  stroke: #ffffff;
+}
+
 .alt-wall-length-editor {
   pointer-events: auto;
 }

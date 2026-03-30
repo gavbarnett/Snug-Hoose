@@ -2670,6 +2670,7 @@ export function renderAlternativeViz(demo, opts = {}) {
   const onWallSelected = typeof opts.onWallSelected === 'function' ? opts.onWallSelected : null;
   const onOpeningSelected = typeof opts.onOpeningSelected === 'function' ? opts.onOpeningSelected : null;
   const onRadiatorSelected = typeof opts.onRadiatorSelected === 'function' ? opts.onRadiatorSelected : null;
+  const onZoneEditorRequested = typeof opts.onZoneEditorRequested === 'function' ? opts.onZoneEditorRequested : null;
   const onObjectMoved = typeof opts.onObjectMoved === 'function' ? opts.onObjectMoved : null;
   const onDataChanged = typeof opts.onDataChanged === 'function' ? opts.onDataChanged : null;
   const onMenuAction = typeof opts.onMenuAction === 'function' ? opts.onMenuAction : null;
@@ -2786,7 +2787,7 @@ export function renderAlternativeViz(demo, opts = {}) {
 
   const hint = document.createElement('div');
   hint.className = 'alt-viz-message';
-  hint.textContent = 'Drag walls to reshape rooms, drag room bodies to move zones, and drag object handles to move windows, doors, and radiators. Clicking a handle opens that object in the editor.';
+  hint.textContent = 'Drag walls to reshape rooms, drag room bodies to move zones, and drag object handles to move windows, doors, and radiators. Use the room spanner icon to open that room in the editor.';
   root.appendChild(hint);
 
   renderLegend(root);
@@ -3486,6 +3487,49 @@ export function renderAlternativeViz(demo, opts = {}) {
       });
     }
     svg.appendChild(nameText);
+
+    if (onZoneEditorRequested) {
+      const roomMaxX = projected.reduce((max, p) => Math.max(max, p.x), -Infinity);
+      const roomMinY = projected.reduce((min, p) => Math.min(min, p.y), Infinity);
+      const editorX = roomMaxX - 16;
+      const editorY = roomMinY + 16;
+
+      const editorButton = document.createElementNS(ns, 'g');
+      editorButton.setAttribute('class', 'alt-room-editor-button');
+      editorButton.setAttribute('transform', `translate(${editorX.toFixed(1)}, ${editorY.toFixed(1)})`);
+      editorButton.style.cursor = 'pointer';
+
+      const editorHit = document.createElementNS(ns, 'circle');
+      editorHit.setAttribute('cx', '0');
+      editorHit.setAttribute('cy', '0');
+      editorHit.setAttribute('r', '11');
+      editorHit.setAttribute('class', 'alt-room-editor-hit');
+      editorButton.appendChild(editorHit);
+
+      const editorBg = document.createElementNS(ns, 'circle');
+      editorBg.setAttribute('cx', '0');
+      editorBg.setAttribute('cy', '0');
+      editorBg.setAttribute('r', '9');
+      editorBg.setAttribute('class', 'alt-room-editor-bg');
+      editorButton.appendChild(editorBg);
+
+      const emoji = document.createElementNS(ns, 'text');
+      emoji.setAttribute('x', '0');
+      emoji.setAttribute('y', '0');
+      emoji.setAttribute('class', 'alt-room-editor-emoji');
+      emoji.textContent = '🔧';
+      editorButton.appendChild(emoji);
+
+      editorButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        selectedZoneId = zone.id;
+        onZoneEditorRequested(zone.id);
+        renderAlternativeViz(demo, opts);
+      });
+
+      svg.appendChild(editorButton);
+    }
 
     let infoText = null;
     if (infoLines.length > 0) {

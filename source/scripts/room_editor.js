@@ -323,13 +323,19 @@ export function initRoomEditor(opts) {
     if (!zoneId) return;
 
     selectZone(zoneId);
+  }
+
+  function openZoneEditor(zoneId) {
+    if (!zoneId) return;
+
+    selectZone(zoneId);
     ensureEditorVisible();
   }
 
   function focusElement(zoneId, elementId) {
     if (!zoneId || !elementId) return;
 
-    focusZone(zoneId);
+    openZoneEditor(zoneId);
 
     const card = fabricList ? fabricList.querySelector(`[data-element-id="${CSS.escape(elementId)}"]`) : null;
     if (!card) return;
@@ -385,7 +391,7 @@ export function initRoomEditor(opts) {
   function focusRadiator(zoneId, radiatorId) {
     if (!zoneId || !radiatorId) return;
 
-    focusZone(zoneId);
+    openZoneEditor(zoneId);
 
     const radiatorCard = radiatorsList
       ? radiatorsList.querySelector(`[data-radiator-id="${CSS.escape(radiatorId)}"]`)
@@ -2710,6 +2716,7 @@ export function initRoomEditor(opts) {
   return {
     refreshSelectedZone,
     focusZone,
+    openZoneEditor,
     focusElement,
     focusOpening,
     focusRadiator
