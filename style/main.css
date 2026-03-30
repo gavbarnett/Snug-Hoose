@@ -415,6 +415,7 @@ a#download:hover {
   font-size: 0.68rem;
   color: var(--text-light);
   margin-bottom: 0.25rem;
+  white-space: pre-line;
 }
 
 .alt-viz-rec-warning {

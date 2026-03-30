@@ -379,6 +379,70 @@ function getMaterialCatalogEntry(materialId) {
   return materials.find(item => String(item?.id || '') === target) || null;
 }
 
+function getMaterialDisplayName(materialId) {
+  if (!materialId) return 'unknown material';
+  const entry = getMaterialCatalogEntry(materialId);
+  return String(entry?.name || materialId);
+}
+
+function getWindowCatalogEntry(windowId) {
+  const options = Array.isArray(currentOpenings?.windows) ? currentOpenings.windows : [];
+  if (!windowId) return null;
+  return options.find(opt => String(opt?.id || '') === String(windowId)) || null;
+}
+
+function getDoorCatalogEntry(doorId) {
+  const options = Array.isArray(currentOpenings?.doors) ? currentOpenings.doors : [];
+  if (!doorId) return null;
+  return options.find(opt => String(opt?.id || '') === String(doorId)) || null;
+}
+
+function getElementDisplayName(element, fallbackLabel) {
+  const fromName = String(element?.name || '').trim();
+  if (fromName) return fromName;
+  const fromId = String(element?.id || '').trim();
+  if (fromId) return fromId;
+  return fallbackLabel;
+}
+
+function formatCountMap(countMap, emptyLabel = 'none') {
+  const entries = Object.entries(countMap || {})
+    .filter(([, count]) => Number(count) > 0)
+    .sort((a, b) => a[0].localeCompare(b[0]));
+  if (entries.length === 0) return emptyLabel;
+  return entries.map(([name, count]) => `${name} (${Number(count)})`).join(', ');
+}
+
+function formatTypeChangeMap(typeCountMap, resolver, emptyLabel = 'none') {
+  const entries = Object.entries(typeCountMap || {})
+    .filter(([, count]) => Number(count) > 0)
+    .sort((a, b) => a[0].localeCompare(b[0]));
+  if (entries.length === 0) return emptyLabel;
+  return entries
+    .map(([typeId, count]) => `${String(resolver(typeId) || typeId)} (${Number(count)})`)
+    .join(', ');
+}
+
+function formatThicknessMm(thicknessM) {
+  const value = Number(thicknessM);
+  if (!isFinite(value) || value <= 0) return '0 mm';
+  return `${Math.round(value * 1000)} mm`;
+}
+
+function getFloorCompositeNonJoistMaterialIds(buildUp) {
+  const layers = Array.isArray(buildUp) ? buildUp : [];
+  const composite = layers.find(layer => {
+    if (!layer || layer.type !== 'composite' || !Array.isArray(layer.paths)) return false;
+    return layer.paths.some(path => String(path?.material_id || '') === 'joist_wood');
+  });
+  if (!composite || !Array.isArray(composite.paths)) return [];
+  return [...new Set(
+    composite.paths
+      .map(path => String(path?.material_id || ''))
+      .filter(materialId => materialId && materialId !== 'joist_wood')
+  )];
+}
+
 function getInsulationMaterialCostPerM2(materialId, thicknessM, fallbackPerM2 = 0) {
   const material = getMaterialCatalogEntry(materialId);
   const perM3 = Number(material?.material_cost_per_m3_gbp);
@@ -735,12 +799,21 @@ function buildPerformanceRecommendations(demoRaw) {
         .sort((a, b) => Number(a.u_value) - Number(b.u_value))[0];
       if (!best) return { changed: false };
       let changedArea = 0;
+      let changedCount = 0;
+      const changedPerWall = {};
+      const fromTypeCounts = {};
       const elements = Array.isArray(working?.elements) ? working.elements : [];
       elements.forEach(element => {
         const windowsList = Array.isArray(element?.windows) ? element.windows : [];
+        const wallName = getElementDisplayName(element, 'Unknown wall');
         windowsList.forEach(window => {
-          if (String(window?.glazing_id || '') === String(best.id || '')) return;
+          const previousType = String(window?.glazing_id || '');
+          if (previousType === String(best.id || '')) return;
           const area = Number(window?.area || 0);
+          if (previousType) {
+            fromTypeCounts[previousType] = Number(fromTypeCounts[previousType] || 0) + 1;
+          }
+          changedPerWall[wallName] = Number(changedPerWall[wallName] || 0) + 1;
           window.glazing_id = best.id;
           if (isFinite(Number(best.air_leakage_m3_h_m2))) {
             window.air_leakage_m3_h_m2 = Number(best.air_leakage_m3_h_m2);
@@ -752,13 +825,25 @@ function buildPerformanceRecommendations(demoRaw) {
             window.trickle_vent_flow_m3_h = Number(best.trickle_vent_flow_m3_h);
           }
           changedArea += isFinite(area) && area > 0 ? area : 1;
+          changedCount += 1;
         });
       });
+      const wallSummary = formatCountMap(changedPerWall);
+      const fromSummary = formatTypeChangeMap(
+        fromTypeCounts,
+        typeId => String(getWindowCatalogEntry(typeId)?.name || typeId)
+      );
+      const targetName = String(best.name || best.id || 'high-performance glazing');
       return {
         changed: changedArea > 0,
         areaM2: changedArea,
+        count: changedCount,
         windowOption: best,
-        proposal: `Replace approx ${changedArea.toFixed(1)} m2 of glazing with ${String(best.name || best.id || 'high-performance glazing')}.`
+        proposal: [
+          `Walls impacted (window changes per wall): ${wallSummary}.`,
+          `Window type change: ${fromSummary} -> ${targetName}.`,
+          `Total windows changed: ${changedCount}; area affected: ${changedArea.toFixed(1)} m2.`
+        ].join('\n')
       };
     },
     (change) => {
@@ -792,11 +877,19 @@ function buildPerformanceRecommendations(demoRaw) {
         .sort((a, b) => Number(a.u_value) - Number(b.u_value))[0];
       if (!best) return { changed: false };
       let changedCount = 0;
+      const changedPerWall = {};
+      const fromTypeCounts = {};
       const elements = Array.isArray(working?.elements) ? working.elements : [];
       elements.forEach(element => {
         const doorsList = Array.isArray(element?.doors) ? element.doors : [];
+        const wallName = getElementDisplayName(element, 'Unknown wall');
         doorsList.forEach(door => {
-          if (String(door?.material_id || door?.glazing_id || '') === String(best.id || '')) return;
+          const previousType = String(door?.material_id || door?.glazing_id || '');
+          if (previousType === String(best.id || '')) return;
+          if (previousType) {
+            fromTypeCounts[previousType] = Number(fromTypeCounts[previousType] || 0) + 1;
+          }
+          changedPerWall[wallName] = Number(changedPerWall[wallName] || 0) + 1;
           door.material_id = best.id;
           if (isFinite(Number(best.air_leakage_m3_h_m2))) {
             door.air_leakage_m3_h_m2 = Number(best.air_leakage_m3_h_m2);
@@ -804,11 +897,21 @@ function buildPerformanceRecommendations(demoRaw) {
           changedCount += 1;
         });
       });
+      const wallSummary = formatCountMap(changedPerWall);
+      const fromSummary = formatTypeChangeMap(
+        fromTypeCounts,
+        typeId => String(getDoorCatalogEntry(typeId)?.name || typeId)
+      );
+      const targetName = String(best.name || best.id || 'insulated door units');
       return {
         changed: changedCount > 0,
         count: changedCount,
         doorOption: best,
-        proposal: `Replace ${changedCount} external door(s) with ${String(best.name || best.id || 'insulated door units')}.`
+        proposal: [
+          `Walls impacted (door changes per wall): ${wallSummary}.`,
+          `Door type change: ${fromSummary} -> ${targetName}.`,
+          `Total doors changed: ${changedCount}.`
+        ].join('\n')
       };
     },
     (change) => {
@@ -854,6 +957,8 @@ function buildPerformanceRecommendations(demoRaw) {
       buildUp.push({ material_id: layerMaterialId, thickness: Number(addedThickness.toFixed(3)) });
       worst.build_up = buildUp;
       delete worst.build_up_template_id;
+      const wallName = getElementDisplayName(worst, 'Worst external wall');
+      const layerMaterialName = getMaterialDisplayName(layerMaterialId);
       const areaM2 = getElementAreaM2(worst) || 1;
       const studCapMm = Math.round(Number(cfg.max_within_stud_thickness_m || 0.1) * 1000);
       const withinStudMm = Math.round(thicknessPlan.withinStudThickness * 1000);
@@ -867,8 +972,15 @@ function buildPerformanceRecommendations(demoRaw) {
           ? Number(cfg.service_layer_install_multiplier || 1.35)
           : 1,
         proposal: thicknessPlan.addServiceLayer
-          ? `Add internal wall insulation to the poorest external wall using ${layerMaterialId}. In-stud layer: ${withinStudMm} mm (cap ${studCapMm} mm). Service layer: ${serviceLayerMm} mm.`
-          : `Add internal wall insulation to the poorest external wall using ${layerMaterialId}. In-stud layer: ${withinStudMm} mm (cap ${studCapMm} mm).`,
+          ? [
+            `Wall impacted: ${wallName}.`,
+            `Material change: add ${layerMaterialName} (total ${totalIncreaseMm} mm) as internal retrofit layer.`,
+            `Thickness split: within-stud ${withinStudMm} mm (cap ${studCapMm} mm) + service layer ${serviceLayerMm} mm.`
+          ].join('\n')
+          : [
+            `Wall impacted: ${wallName}.`,
+            `Material change: add ${layerMaterialName} (within-stud ${withinStudMm} mm, cap ${studCapMm} mm).`
+          ].join('\n'),
         warning: `Warning: internal wall thickness will increase by ${totalIncreaseMm} mm if this recommendation is applied.`
       };
     },
@@ -904,21 +1016,45 @@ function buildPerformanceRecommendations(demoRaw) {
       const templates = (working.meta && working.meta.build_up_templates) || {};
       let areaTotal = 0;
       let volumeTotal = 0;
+      const impactedFloors = [];
       elements.forEach(element => {
         if (String(element?.type || '').toLowerCase() !== 'floor') return;
         const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
         if (!nodes.includes(groundId)) return;
+        const beforeBuildUp = resolveElementBuildUpForEdit(element, templates);
+        const previousIds = getFloorCompositeNonJoistMaterialIds(beforeBuildUp);
         const result = applyFloorCavityInsulationRetrofit(element, templates, cfg, layerMaterialId);
         if (!result.changed) return;
         const areaM2 = getElementAreaM2(element);
         areaTotal += areaM2;
         volumeTotal += areaM2 * result.thicknessM;
+        impactedFloors.push({
+          name: getElementDisplayName(element, 'Ground floor element'),
+          fromMaterialNames: previousIds.map(getMaterialDisplayName),
+          thicknessM: result.thicknessM
+        });
       });
+      const targetMaterialName = getMaterialDisplayName(layerMaterialId);
+      const impactedList = impactedFloors.map(item => item.name).join(', ') || 'none';
+      const materialChangeLines = impactedFloors.length > 0
+        ? impactedFloors
+            .map(item => {
+              const fromLabel = item.fromMaterialNames.length > 0
+                ? item.fromMaterialNames.join(' + ')
+                : 'existing non-joist cavity material';
+              return `${item.name}: ${fromLabel} -> ${targetMaterialName} (${formatThicknessMm(item.thicknessM)} within joist cavity)`;
+            })
+            .join('; ')
+        : 'none';
       return {
         changed: areaTotal > 0,
         areaM2: areaTotal,
         materialVolumeM3: volumeTotal,
-        proposal: `Retain floor insulation within joist cavities only (no below-joist insulation build-up). Existing non-joist cavity paths are converted to ${layerMaterialId}.`
+        proposal: [
+          `Floors impacted: ${impactedList}.`,
+          `Material changes: ${materialChangeLines}.`,
+          `Scope: joist-cavity insulation only (no below-joist insulation build-up).`
+        ].join('\n')
       };
     },
     (change) => {
@@ -952,6 +1088,7 @@ function buildPerformanceRecommendations(demoRaw) {
       const templates = (working.meta && working.meta.build_up_templates) || {};
       let areaTotal = 0;
       let volumeTotal = 0;
+      const impactedElements = [];
       elements.forEach(element => {
         const type = String(element?.type || '').toLowerCase();
         if (type !== 'ceiling' && type !== 'floor_ceiling') return;
@@ -966,12 +1103,27 @@ function buildPerformanceRecommendations(demoRaw) {
         const areaM2 = getElementAreaM2(element);
         areaTotal += areaM2;
         volumeTotal += areaM2 * addedThickness;
+        impactedElements.push({
+          name: getElementDisplayName(element, 'Loft-facing element'),
+          thicknessM: addedThickness
+        });
       });
+      const materialName = getMaterialDisplayName(layerMaterialId);
+      const impactedList = impactedElements.map(item => item.name).join(', ') || 'none';
+      const materialChanges = impactedElements.length > 0
+        ? impactedElements
+            .map(item => `${item.name}: add ${materialName} ${formatThicknessMm(item.thicknessM)}`)
+            .join('; ')
+        : 'none';
       return {
         changed: areaTotal > 0,
         areaM2: areaTotal,
         materialVolumeM3: volumeTotal,
-        proposal: `Top up loft/ceiling insulation using ${layerMaterialId}. Base thickness follows joist/cavity depth, and any configured above-joist top-up is capped at ${Math.round(Number(cfg.max_above_joist_thickness_m || 0.5) * 1000)} mm.`
+        proposal: [
+          `Loft-facing fabric impacted: ${impactedList}.`,
+          `Material changes: ${materialChanges}.`,
+          `Top-up rule: within-joist depth plus optional above-joist layer capped at ${Math.round(Number(cfg.max_above_joist_thickness_m || 0.5) * 1000)} mm.`
+        ].join('\n')
       };
     },
     (change) => {
