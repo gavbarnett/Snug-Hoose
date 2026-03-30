@@ -3172,6 +3172,12 @@ async function loadDefaultInputs() {
       ]
     };
   }
+
+  let templateDemo = await tryFetchJson('./source/resources/demo_house_template.json');
+  if (!templateDemo) {
+    console.warn('Failed to load demo_house_template.json, falling back to demo_house.json for template mode');
+    templateDemo = deepClone(demo);
+  }
   
   let rads = await tryFetchJson('./source/resources/radiators.json');
   if (!rads) {
@@ -3237,7 +3243,7 @@ async function loadDefaultInputs() {
     costs = getRecommendationCostModel();
   }
   
-  return [ins, demo, rads, openings, ventilation, costs];
+  return [ins, demo, templateDemo, rads, openings, ventilation, costs];
 }
 
 function getOpeningMaterials(openings) {
@@ -4450,15 +4456,15 @@ if (typeof window !== 'undefined') window.addEventListener('load', async () => {
 
   appUiApi.setStatus('Initializing...');
   try {
-    const [ins, demo, rads, openings, ventilation, costs] = await loadDefaultInputs();
-    console.log('Loaded data:', { ins: !!ins, demo: !!demo, rads: !!rads, openings: !!openings, ventilation: !!ventilation, costs: !!costs });
+    const [ins, demo, templateDemo, rads, openings, ventilation, costs] = await loadDefaultInputs();
+    console.log('Loaded data:', { ins: !!ins, demo: !!demo, templateDemo: !!templateDemo, rads: !!rads, openings: !!openings, ventilation: !!ventilation, costs: !!costs });
     currentMaterials = ins;
     currentRadiators = rads;
     currentDemo = demo;
     currentOpenings = openings;
     currentVentilation = ventilation;
     currentCosts = costs;
-    defaultDemoTemplate = deepClone(demo);
+    defaultDemoTemplate = deepClone(templateDemo || demo);
     ensureVariantStateFromDemo(currentDemo);
 
     roomEditorApi = initRoomEditor({

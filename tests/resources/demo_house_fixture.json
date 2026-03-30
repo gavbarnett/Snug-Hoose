@@ -1,0 +1,870 @@
+{
+  "meta": {
+    "name": "Demo House - Rear Extension Terrace",
+    "global_target_temperature": 21,
+    "units": {
+      "area": "m2",
+      "thickness": "m",
+      "thermal_conductivity": "W/mK",
+      "u_value": "W/m2K",
+      "conductance": "W/K",
+      "heat_loss": "W",
+      "heat_loss_per_unit_area": "W/m2",
+      "radiator_surface_area": "m2",
+      "radiator_output": "W",
+      "heating_balance": "W",
+      "temperature": "C",
+      "total_heat_loss": "W",
+      "total_radiator_output": "W",
+      "total_balance": "W"
+    },
+    "build_up_templates": {
+      "buo_01": {
+        "name": "Internal Wall - Cavity (Plasterboard-Blockwork)",
+        "usage_count": 9,
+        "build_up": [
+          {
+            "material_id": "plasterboard",
+            "thickness": 0.0125
+          },
+          {
+            "material_id": "blockwork",
+            "thickness": 0.1
+          },
+          {
+            "material_id": "plasterboard",
+            "thickness": 0.0125
+          }
+        ]
+      },
+      "buo_02": {
+        "name": "External Wall - Insulated (Stud + PIR)",
+        "usage_count": 6,
+        "build_up": [
+          {
+            "material_id": "plasterboard",
+            "thickness": 0.0125
+          },
+          {
+            "type": "composite",
+            "thickness": 0.09,
+            "paths": [
+              {
+                "material_id": "stud_wood",
+                "fraction": 0.15
+              },
+              {
+                "material_id": "pir",
+                "fraction": 0.85
+              }
+            ]
+          },
+          {
+            "material_id": "pir",
+            "thickness": 0.05
+          },
+          {
+            "material_id": "blockwork",
+            "thickness": 0.1
+          }
+        ]
+      },
+      "buo_03": {
+        "name": "Loft External Wall - Uninsulated",
+        "usage_count": 4,
+        "build_up": [
+          {
+            "material_id": "plasterboard",
+            "thickness": 0.0125
+          },
+          {
+            "material_id": "blockwork",
+            "thickness": 0.1
+          }
+        ]
+      },
+      "buo_04": {
+        "name": "Ground Floor - Insulated (Joist Cavity + XPS)",
+        "usage_count": 3,
+        "build_up": [
+          {
+            "material_id": "plywood",
+            "thickness": 0.018
+          },
+          {
+            "type": "composite",
+            "thickness": 0.15,
+            "paths": [
+              {
+                "material_id": "joist_wood",
+                "fraction": 0.15
+              },
+              {
+                "material_id": "rockwool",
+                "fraction": 0.85
+              }
+            ]
+          },
+          {
+            "material_id": "xps",
+            "thickness": 0.1
+          }
+        ]
+      },
+      "buo_05": {
+        "name": "Inter-floor Ceiling - Acoustic",
+        "usage_count": 3,
+        "build_up": [
+          {
+            "material_id": "plasterboard",
+            "thickness": 0.0125
+          },
+          {
+            "material_id": "glass_wool",
+            "thickness": 0.15
+          },
+          {
+            "material_id": "plywood",
+            "thickness": 0.02
+          }
+        ]
+      },
+      "buo_06": {
+        "name": "Loft Floor - Insulation",
+        "usage_count": 3,
+        "build_up": [
+          {
+            "material_id": "plasterboard",
+            "thickness": 0.0125
+          },
+          {
+            "material_id": "rockwool",
+            "thickness": 0.05
+          }
+        ]
+      }
+    }
+  },
+  "zones": [
+    {
+      "id": "id_7a538d23f564",
+      "name": "Lounge",
+      "level": 0,
+      "setpoint_temperature": 21,
+      "is_boiler_control": true,
+      "radiators": [
+        {
+          "radiator_id": "type_22",
+          "surface_area": 1.5,
+          "width": 1000,
+          "height": 600,
+          "trv_enabled": false
+        }
+      ],
+      "layout": {
+        "polygon": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 4.8,
+            "y": 0
+          },
+          {
+            "x": 4.8,
+            "y": 4.6
+          },
+          {
+            "x": 0,
+            "y": 4.6
+          }
+        ]
+      }
+    },
+    {
+      "id": "id_878112d2b104",
+      "name": "Kitchen Diner",
+      "level": 0,
+      "setpoint_temperature": 21,
+      "is_boiler_control": false,
+      "radiators": [
+        {
+          "radiator_id": "type_22",
+          "surface_area": 1.2,
+          "width": 800,
+          "height": 600,
+          "trv_enabled": false
+        }
+      ],
+      "ventilation_elements": [
+        {
+          "id": "vent_kitchen_extract",
+          "type": "extractor_kitchen",
+          "name": "Kitchen Diner Extractor Fan",
+          "flow_m3_h": 60,
+          "enabled": true
+        }
+      ],
+      "layout": {
+        "polygon": [
+          {
+            "x": 0,
+            "y": 4.6
+          },
+          {
+            "x": 4.8,
+            "y": 4.6
+          },
+          {
+            "x": 4.8,
+            "y": 8.8
+          },
+          {
+            "x": 0,
+            "y": 8.8
+          }
+        ]
+      }
+    },
+    {
+      "id": "id_cf4d374ca5ba",
+      "name": "Entrance Hall",
+      "level": 0,
+      "setpoint_temperature": 21,
+      "is_boiler_control": false,
+      "radiators": [
+        {
+          "radiator_id": "type_1",
+          "surface_area": 0.4,
+          "width": 400,
+          "height": 400,
+          "trv_enabled": false
+        }
+      ],
+      "layout": {
+        "polygon": [
+          {
+            "x": 4.8,
+            "y": 0
+          },
+          {
+            "x": 7.4,
+            "y": 0
+          },
+          {
+            "x": 7.4,
+            "y": 8.8
+          },
+          {
+            "x": 4.8,
+            "y": 8.8
+          }
+        ]
+      }
+    },
+    {
+      "id": "id_dff6504b35ba",
+      "name": "Main Bedroom",
+      "level": 1,
+      "setpoint_temperature": 18,
+      "is_boiler_control": false,
+      "radiators": [
+        {
+          "radiator_id": "type_11",
+          "surface_area": 1,
+          "width": 800,
+          "height": 500,
+          "trv_enabled": false
+        }
+      ],
+      "layout": {
+        "polygon": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 4.8,
+            "y": 0
+          },
+          {
+            "x": 4.8,
+            "y": 5.2
+          },
+          {
+            "x": 0,
+            "y": 5.2
+          }
+        ]
+      }
+    },
+    {
+      "id": "id_8d48a0ccfcb9",
+      "name": "Bathroom",
+      "level": 1,
+      "setpoint_temperature": 21,
+      "is_boiler_control": false,
+      "radiators": [
+        {
+          "radiator_id": "type_11",
+          "surface_area": 0.6,
+          "width": 600,
+          "height": 400,
+          "trv_enabled": false
+        }
+      ],
+      "ventilation_elements": [
+        {
+          "id": "vent_bath_extract",
+          "type": "extractor_bathroom",
+          "name": "Bathroom Extractor Fan",
+          "flow_m3_h": 30,
+          "enabled": true
+        },
+        {
+          "id": "vent_mvhr_bath",
+          "type": "heat_exchanger",
+          "name": "MVHR Supply",
+          "flow_m3_h": 20,
+          "heat_recovery_efficiency": 0.75,
+          "enabled": true
+        }
+      ],
+      "layout": {
+        "polygon": [
+          {
+            "x": 4.8,
+            "y": 0
+          },
+          {
+            "x": 7.4,
+            "y": 0
+          },
+          {
+            "x": 7.4,
+            "y": 3.2
+          },
+          {
+            "x": 4.8,
+            "y": 3.2
+          }
+        ]
+      }
+    },
+    {
+      "id": "id_d4a5f6543bd7",
+      "name": "Study",
+      "level": 1,
+      "setpoint_temperature": 20,
+      "is_boiler_control": false,
+      "radiators": [
+        {
+          "radiator_id": "type_1",
+          "surface_area": 0.4,
+          "trv_enabled": false
+        }
+      ],
+      "layout": {
+        "polygon": [
+          {
+            "x": 4.8,
+            "y": 3.2
+          },
+          {
+            "x": 7.4,
+            "y": 3.2
+          },
+          {
+            "x": 7.4,
+            "y": 5.2
+          },
+          {
+            "x": 4.8,
+            "y": 5.2
+          }
+        ]
+      }
+    },
+    {
+      "id": "id_a4d77187437b",
+      "name": "Loft",
+      "level": 2,
+      "is_unheated": true,
+      "layout": {
+        "polygon": [
+          {
+            "x": 0.4,
+            "y": 0
+          },
+          {
+            "x": 7,
+            "y": 0
+          },
+          {
+            "x": 7,
+            "y": 8
+          },
+          {
+            "x": 0.4,
+            "y": 8
+          }
+        ]
+      }
+    },
+    {
+      "id": "id_33568f084a87",
+      "name": "Outside",
+      "type": "boundary"
+    },
+    {
+      "id": "id_3c6adfd96341",
+      "name": "Ground",
+      "type": "boundary"
+    }
+  ],
+  "elements": [
+    {
+      "id": "el_liv_wall_ext",
+      "name": "Lounge - External Wall",
+      "type": "wall",
+      "nodes": [
+        "id_7a538d23f564",
+        "id_33568f084a87"
+      ],
+      "orientation": "south",
+      "x": 4.8,
+      "y": 2.4,
+      "windows": [
+        {
+          "id": "win_liv",
+          "name": "Lounge Window",
+          "glazing_id": "window_double_modern",
+          "area": 2
+        }
+      ],
+      "build_up_template_id": "buo_02"
+    },
+    {
+      "id": "el_liv_wall_1",
+      "name": "Lounge - Internal Wall A",
+      "type": "wall",
+      "nodes": [
+        "id_7a538d23f564",
+        "id_8d48a0ccfcb9"
+      ],
+      "orientation": "north",
+      "x": 4,
+      "y": 2.4,
+      "build_up_template_id": "buo_01"
+    },
+    {
+      "id": "el_liv_wall_2",
+      "name": "Lounge - Internal Wall B",
+      "type": "wall",
+      "nodes": [
+        "id_7a538d23f564",
+        "id_dff6504b35ba"
+      ],
+      "orientation": "east",
+      "x": 4,
+      "y": 2.4,
+      "build_up_template_id": "buo_01"
+    },
+    {
+      "id": "el_liv_wall_3",
+      "name": "Lounge - Internal Wall C",
+      "type": "wall",
+      "nodes": [
+        "id_7a538d23f564",
+        "id_d4a5f6543bd7"
+      ],
+      "orientation": "west",
+      "x": 4,
+      "y": 2.4,
+      "build_up_template_id": "buo_01"
+    },
+    {
+      "id": "el_kit_wall_ext",
+      "name": "Kitchen Diner - External Wall",
+      "type": "wall",
+      "nodes": [
+        "id_878112d2b104",
+        "id_33568f084a87"
+      ],
+      "orientation": "north",
+      "x": 4.8,
+      "y": 2.4,
+      "windows": [
+        {
+          "id": "win_kit",
+          "name": "Kitchen Diner Window",
+          "glazing_id": "window_double_old",
+          "area": 1.2,
+          "air_leakage_m3_h_m2": 2.4,
+          "has_trickle_vent": true,
+          "trickle_vent_flow_m3_h": 8
+        }
+      ],
+      "build_up_template_id": "buo_02"
+    },
+    {
+      "id": "el_kit_wall_1",
+      "name": "Kitchen Diner - Internal Wall A",
+      "type": "wall",
+      "nodes": [
+        "id_878112d2b104",
+        "id_dff6504b35ba"
+      ],
+      "orientation": "south",
+      "x": 4,
+      "y": 2.4,
+      "build_up_template_id": "buo_01"
+    },
+    {
+      "id": "el_kit_wall_2",
+      "name": "Kitchen Diner - Internal Wall B",
+      "type": "wall",
+      "nodes": [
+        "id_878112d2b104",
+        "id_d4a5f6543bd7"
+      ],
+      "orientation": "west",
+      "x": 3,
+      "y": 2.4,
+      "build_up_template_id": "buo_01"
+    },
+    {
+      "id": "el_kit_wall_3",
+      "name": "Kitchen Diner - Internal Wall C",
+      "type": "wall",
+      "nodes": [
+        "id_878112d2b104",
+        "id_8d48a0ccfcb9"
+      ],
+      "orientation": "east",
+      "x": 3,
+      "y": 2.4,
+      "build_up_template_id": "buo_01"
+    },
+    {
+      "id": "el_hg_wall_ext",
+      "name": "Entrance Hall - External Wall",
+      "type": "wall",
+      "nodes": [
+        "id_cf4d374ca5ba",
+        "id_33568f084a87"
+      ],
+      "orientation": "west",
+      "x": 8.8,
+      "y": 2.4,
+      "windows": [
+        {
+          "id": "win_hg",
+          "name": "Entrance Hall Window",
+          "glazing_id": "window_double_modern",
+          "area": 0.5
+        }
+      ],
+      "build_up_template_id": "buo_02"
+    },
+    {
+      "id": "el_hg_wall_1",
+      "name": "Entrance Hall - Internal Wall A",
+      "type": "wall",
+      "nodes": [
+        "id_cf4d374ca5ba",
+        "id_dff6504b35ba"
+      ],
+      "orientation": "east",
+      "x": 2,
+      "y": 2.4,
+      "build_up_template_id": "buo_01"
+    },
+    {
+      "id": "el_hg_wall_2",
+      "name": "Entrance Hall - Internal Wall B",
+      "type": "wall",
+      "nodes": [
+        "id_cf4d374ca5ba",
+        "id_8d48a0ccfcb9"
+      ],
+      "orientation": "north",
+      "x": 4,
+      "y": 2.4,
+      "build_up_template_id": "buo_01"
+    },
+    {
+      "id": "el_hg_wall_3",
+      "name": "Entrance Hall - Internal Wall C",
+      "type": "wall",
+      "nodes": [
+        "id_cf4d374ca5ba",
+        "id_d4a5f6543bd7"
+      ],
+      "orientation": "south",
+      "x": 4,
+      "y": 2.4,
+      "build_up_template_id": "buo_01"
+    },
+    {
+      "id": "el_bed_wall_ext",
+      "name": "Main Bedroom - External Wall",
+      "type": "wall",
+      "nodes": [
+        "id_dff6504b35ba",
+        "id_33568f084a87"
+      ],
+      "orientation": "east",
+      "x": 5.2,
+      "y": 2.4,
+      "windows": [
+        {
+          "id": "win_bed",
+          "name": "Main Bedroom Window",
+          "glazing_id": "window_double_modern",
+          "area": 1.4
+        }
+      ],
+      "build_up_template_id": "buo_02"
+    },
+    {
+      "id": "el_bath_wall_ext",
+      "name": "Bathroom - External Wall",
+      "type": "wall",
+      "nodes": [
+        "id_8d48a0ccfcb9",
+        "id_33568f084a87"
+      ],
+      "orientation": "north",
+      "x": 3,
+      "y": 2.4,
+      "windows": [
+        {
+          "id": "win_bath",
+          "name": "Bathroom Window",
+          "glazing_id": "window_single",
+          "area": 0.6,
+          "air_leakage_m3_h_m2": 3.2,
+          "has_trickle_vent": true,
+          "trickle_vent_flow_m3_h": 6
+        }
+      ],
+      "build_up_template_id": "buo_02"
+    },
+    {
+      "id": "el_hf_wall_ext",
+      "name": "Study - External Wall",
+      "type": "wall",
+      "nodes": [
+        "id_d4a5f6543bd7",
+        "id_33568f084a87"
+      ],
+      "orientation": "west",
+      "x": 2,
+      "y": 2.4,
+      "windows": [
+        {
+          "id": "win_hf",
+          "name": "Study Window",
+          "glazing_id": "window_double_modern",
+          "area": 0.5
+        }
+      ],
+      "build_up_template_id": "buo_02"
+    },
+    {
+      "id": "el_loft_wall_ext",
+      "name": "Loft - External Wall",
+      "type": "wall",
+      "nodes": [
+        "id_a4d77187437b",
+        "id_33568f084a87"
+      ],
+      "orientation": "south",
+      "x": 6,
+      "y": 2,
+      "windows": [
+        {
+          "id": "win_loft",
+          "name": "Loft Window",
+          "glazing_id": "window_double_modern",
+          "area": 1
+        }
+      ],
+      "build_up_template_id": "buo_03"
+    },
+    {
+      "id": "el_loft_wall_1",
+      "name": "Loft - External Wall B",
+      "type": "wall",
+      "nodes": [
+        "id_a4d77187437b",
+        "id_33568f084a87"
+      ],
+      "orientation": "north",
+      "x": 6,
+      "y": 2,
+      "build_up_template_id": "buo_03"
+    },
+    {
+      "id": "el_loft_wall_2",
+      "name": "Loft - External Wall C",
+      "type": "wall",
+      "nodes": [
+        "id_a4d77187437b",
+        "id_33568f084a87"
+      ],
+      "orientation": "east",
+      "x": 5,
+      "y": 2,
+      "build_up_template_id": "buo_03"
+    },
+    {
+      "id": "el_loft_wall_3",
+      "name": "Loft - External Wall D",
+      "type": "wall",
+      "nodes": [
+        "id_a4d77187437b",
+        "id_33568f084a87"
+      ],
+      "orientation": "west",
+      "x": 5,
+      "y": 2,
+      "build_up_template_id": "buo_03"
+    },
+    {
+      "id": "el_liv_floor",
+      "name": "Lounge - Ground Floor",
+      "type": "floor",
+      "nodes": [
+        "id_7a538d23f564",
+        "id_3c6adfd96341"
+      ],
+      "x": 4.8,
+      "y": 4.6,
+      "build_up_template_id": "buo_04"
+    },
+    {
+      "id": "el_kit_floor",
+      "name": "Kitchen Diner - Ground Floor",
+      "type": "floor",
+      "nodes": [
+        "id_878112d2b104",
+        "id_3c6adfd96341"
+      ],
+      "x": 4.8,
+      "y": 4.2,
+      "build_up_template_id": "buo_04"
+    },
+    {
+      "id": "el_hg_floor",
+      "name": "Entrance Hall - Ground Floor",
+      "type": "floor",
+      "nodes": [
+        "id_cf4d374ca5ba",
+        "id_3c6adfd96341"
+      ],
+      "x": 2.6,
+      "y": 8.8,
+      "build_up_template_id": "buo_04"
+    },
+    {
+      "id": "el_liv_bed_fc",
+      "name": "Lounge - Main Bedroom Floor/Ceiling",
+      "type": "floor_ceiling",
+      "nodes": [
+        "id_7a538d23f564",
+        "id_dff6504b35ba"
+      ],
+      "x": 4.8,
+      "y": 4.6,
+      "build_up_template_id": "buo_05"
+    },
+    {
+      "id": "el_kit_bath_fc",
+      "name": "Kitchen Diner - Bathroom Floor/Ceiling",
+      "type": "floor_ceiling",
+      "nodes": [
+        "id_878112d2b104",
+        "id_8d48a0ccfcb9"
+      ],
+      "x": 4.8,
+      "y": 0.6,
+      "build_up_template_id": "buo_05"
+    },
+    {
+      "id": "el_hg_hf_fc",
+      "name": "Entrance Hall - Study Floor/Ceiling",
+      "type": "floor_ceiling",
+      "nodes": [
+        "id_cf4d374ca5ba",
+        "id_d4a5f6543bd7"
+      ],
+      "x": 2.6,
+      "y": 2,
+      "build_up_template_id": "buo_05"
+    },
+    {
+      "id": "el_bed_ceiling",
+      "name": "Main Bedroom - Loft Floor/Ceiling",
+      "type": "floor_ceiling",
+      "nodes": [
+        "id_dff6504b35ba",
+        "id_a4d77187437b"
+      ],
+      "x": 4.8,
+      "y": 5.2,
+      "build_up_template_id": "buo_06"
+    },
+    {
+      "id": "el_bath_ceiling",
+      "name": "Bathroom - Loft Floor/Ceiling",
+      "type": "floor_ceiling",
+      "nodes": [
+        "id_8d48a0ccfcb9",
+        "id_a4d77187437b"
+      ],
+      "x": 3,
+      "y": 2,
+      "build_up_template_id": "buo_06"
+    },
+    {
+      "id": "el_hf_ceiling",
+      "name": "Study - Loft Floor/Ceiling",
+      "type": "floor_ceiling",
+      "nodes": [
+        "id_d4a5f6543bd7",
+        "id_a4d77187437b"
+      ],
+      "x": 2.6,
+      "y": 2,
+      "build_up_template_id": "buo_06"
+    },
+    {
+      "id": "el_loft_ceiling",
+      "name": "Loft - Ceiling To Outside",
+      "type": "ceiling",
+      "nodes": [
+        "id_a4d77187437b",
+        "id_33568f084a87"
+      ],
+      "x": 6.6,
+      "y": 8,
+      "build_up": [
+        {
+          "material_id": "roof_tile",
+          "thickness": 0.02
+        },
+        {
+          "material_id": "felt",
+          "thickness": 0.005
+        },
+        {
+          "material_id": "glass_wool",
+          "thickness": 0.2
+        }
+      ]
+    }
+  ]
+}

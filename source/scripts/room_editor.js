@@ -1938,7 +1938,7 @@ export function initRoomEditor(opts) {
       opening.area = Number(area.toFixed(3));
       opening.length_m = Number((wmm / 1000).toFixed(3));
       const leakValue = parseDecimalValue(leakageInput.value);
-      if (isFinite(leakValue) && leakValue >= 0) {
+      if (Number.isFinite(leakValue) && leakValue >= 0) {
         opening.air_leakage_m3_h_m2 = Number(leakValue.toFixed(3));
       }
       areaDisplay.textContent = `Area: ${opening.area}m²`;
@@ -2012,7 +2012,7 @@ export function initRoomEditor(opts) {
 
     leakageInput.addEventListener('input', () => {
       const leak = parseDecimalValue(leakageInput.value);
-      if (!isFinite(leak) || leak < 0) return;
+      if (!Number.isFinite(leak) || leak < 0) return;
       opening.air_leakage_m3_h_m2 = Number(leak.toFixed(3));
       queueFocusRestore();
       onDataChanged();

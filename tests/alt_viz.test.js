@@ -1,27 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
 import {
   applyWallLengthEditToPolygonMap,
   getWallStackRValue,
   hasOnlyAxisAlignedEdges,
   mapRValueToWallVisual,
 } from '../source/scripts/alt_viz.js';
-
-const demoHouse = JSON.parse(
-  readFileSync(new URL('../source/resources/demo_house.json', import.meta.url), 'utf8')
-);
-
-function buildPolygonMap(demo, level = null) {
-  const polygonMap = new Map();
-  for (const zone of demo.zones || []) {
-    if (zone?.type === 'boundary') continue;
-    if (level !== null && (zone?.level ?? 0) !== level) continue;
-    if (Array.isArray(zone?.layout?.polygon)) {
-      polygonMap.set(zone.id, zone.layout.polygon.map(pt => ({ x: Number(pt.x), y: Number(pt.y) })));
-    }
-  }
-  return polygonMap;
-}
 
 function applyChanges(baseMap, changedPolygons) {
   const merged = new Map();
@@ -30,10 +13,6 @@ function applyChanges(baseMap, changedPolygons) {
     merged.set(zoneId, next.map(pt => ({ x: pt.x, y: pt.y })));
   }
   return merged;
-}
-
-function getZoneByName(demo, name) {
-  return (demo.zones || []).find(zone => zone?.name === name);
 }
 
 function createRectangleMap(width = 4, height = 3) {
@@ -77,6 +56,46 @@ function createStackedMap() {
       { x: 4, y: 3 },
       { x: 4, y: 6 },
       { x: 0, y: 6 },
+    ]],
+  ]);
+}
+
+function createThreeRoomGroundFloorMap() {
+  return new Map([
+    ['front_room', [
+      { x: 0, y: 0 },
+      { x: 5, y: 0 },
+      { x: 5, y: 5 },
+      { x: 0, y: 5 },
+    ]],
+    ['rear_room', [
+      { x: 0, y: 5 },
+      { x: 5, y: 5 },
+      { x: 5, y: 9 },
+      { x: 0, y: 9 },
+    ]],
+    ['hall', [
+      { x: 5, y: 0 },
+      { x: 7, y: 0 },
+      { x: 7, y: 9 },
+      { x: 5, y: 9 },
+    ]],
+  ]);
+}
+
+function createTJunctionMap() {
+  return new Map([
+    ['main_room', [
+      { x: 0, y: 0 },
+      { x: 5, y: 0 },
+      { x: 5, y: 6 },
+      { x: 0, y: 6 },
+    ]],
+    ['stub_room', [
+      { x: 5, y: 1.5 },
+      { x: 7, y: 1.5 },
+      { x: 7, y: 4.5 },
+      { x: 5, y: 4.5 },
     ]],
   ]);
 }
@@ -299,10 +318,9 @@ describe('wall length text input geometry', () => {
   });
 
   it('never creates diagonal walls when editing a shared wall length near a T-junction', () => {
-    const polygonMap = buildPolygonMap(demoHouse, 1);
-    const bathroom = getZoneByName(demoHouse, 'Bathroom');
+    const polygonMap = createTJunctionMap();
 
-    const changed = applyWallLengthEditToPolygonMap(polygonMap, bathroom.id, 3, 4.5);
+    const changed = applyWallLengthEditToPolygonMap(polygonMap, 'stub_room', 3, 4.5);
     const merged = applyChanges(polygonMap, changed);
 
     expect(Object.keys(changed).length).toBeGreaterThan(0);
@@ -311,46 +329,41 @@ describe('wall length text input geometry', () => {
     }
   });
 
-  it('keeps level-0 rooms non-overlapping when shrinking Living Room top width to 2m', () => {
-    const polygonMap = buildPolygonMap(demoHouse, 0);
-    const living = getZoneByName(demoHouse, 'Living Room');
-    const hall = getZoneByName(demoHouse, 'Hall Ground');
+  it('keeps a simple three-room plan non-overlapping when shrinking the front room top width to 2m', () => {
+    const polygonMap = createThreeRoomGroundFloorMap();
 
-    const changed = applyWallLengthEditToPolygonMap(polygonMap, living.id, 0, 2);
+    const changed = applyWallLengthEditToPolygonMap(polygonMap, 'front_room', 0, 2);
     const merged = applyChanges(polygonMap, changed);
 
     assertNoOverlaps(merged);
 
-    const hallPoly = merged.get(hall.id);
+    const hallPoly = merged.get('hall');
     expect(hasOnlyAxisAlignedEdges(hallPoly)).toBe(true);
     expect(hallPoly.length).toBeGreaterThan(4);
   });
 
-  it('keeps level-0 rooms non-overlapping when growing Living Room top width to 6.5m', () => {
-    const polygonMap = buildPolygonMap(demoHouse, 0);
-    const living = getZoneByName(demoHouse, 'Living Room');
-    const hall = getZoneByName(demoHouse, 'Hall Ground');
+  it('keeps a simple three-room plan non-overlapping when growing the front room top width to 6.5m', () => {
+    const polygonMap = createThreeRoomGroundFloorMap();
 
-    const changed = applyWallLengthEditToPolygonMap(polygonMap, living.id, 0, 6.5);
+    const changed = applyWallLengthEditToPolygonMap(polygonMap, 'front_room', 0, 6.5);
     const merged = applyChanges(polygonMap, changed);
 
     assertNoOverlaps(merged);
 
-    const livingPoly = merged.get(living.id);
-    const hallPoly = merged.get(hall.id);
+    const livingPoly = merged.get('front_room');
+    const hallPoly = merged.get('hall');
     expect(hasOnlyAxisAlignedEdges(livingPoly)).toBe(true);
     expect(hasOnlyAxisAlignedEdges(hallPoly)).toBe(true);
     expect(Math.max(...livingPoly.map(pt => pt.x))).toBeCloseTo(6.5, 6);
     expect(hallPoly.length).toBeGreaterThan(4);
   });
 
-  it('keeps level-0 rooms non-overlapping across multiple Living Room top-width edits', () => {
+  it('keeps a simple three-room plan non-overlapping across multiple front-room top-width edits', () => {
     const targetLengths = [2, 3.5, 5, 6.5];
-    const living = getZoneByName(demoHouse, 'Living Room');
 
     for (const targetLength of targetLengths) {
-      const polygonMap = buildPolygonMap(demoHouse, 0);
-      const changed = applyWallLengthEditToPolygonMap(polygonMap, living.id, 0, targetLength);
+      const polygonMap = createThreeRoomGroundFloorMap();
+      const changed = applyWallLengthEditToPolygonMap(polygonMap, 'front_room', 0, targetLength);
       const merged = applyChanges(polygonMap, changed);
 
       assertNoOverlaps(merged);
@@ -360,49 +373,44 @@ describe('wall length text input geometry', () => {
     }
   });
 
-  it('keeps level-0 rooms non-overlapping when shrinking Living Room right height to 4m', () => {
-    const polygonMap = buildPolygonMap(demoHouse, 0);
-    const living = getZoneByName(demoHouse, 'Living Room');
-    const kitchen = getZoneByName(demoHouse, 'Kitchen');
+  it('keeps a simple three-room plan non-overlapping when shrinking the front room right height to 4m', () => {
+    const polygonMap = createThreeRoomGroundFloorMap();
 
-    const changed = applyWallLengthEditToPolygonMap(polygonMap, living.id, 1, 4);
+    const changed = applyWallLengthEditToPolygonMap(polygonMap, 'front_room', 1, 4);
     const merged = applyChanges(polygonMap, changed);
 
     assertNoOverlaps(merged);
 
-    const livingPoly = merged.get(living.id);
-    const kitchenPoly = merged.get(kitchen.id);
+    const livingPoly = merged.get('front_room');
+    const kitchenPoly = merged.get('rear_room');
     expect(hasOnlyAxisAlignedEdges(livingPoly)).toBe(true);
     expect(hasOnlyAxisAlignedEdges(kitchenPoly)).toBe(true);
     expect(Math.max(...livingPoly.map(pt => pt.y))).toBeCloseTo(4, 6);
     expect(Math.min(...kitchenPoly.map(pt => pt.y))).toBeCloseTo(4, 6);
   });
 
-  it('keeps level-0 rooms non-overlapping when growing Living Room right height to 6m', () => {
-    const polygonMap = buildPolygonMap(demoHouse, 0);
-    const living = getZoneByName(demoHouse, 'Living Room');
-    const kitchen = getZoneByName(demoHouse, 'Kitchen');
+  it('keeps a simple three-room plan non-overlapping when growing the front room right height to 6m', () => {
+    const polygonMap = createThreeRoomGroundFloorMap();
 
-    const changed = applyWallLengthEditToPolygonMap(polygonMap, living.id, 1, 6);
+    const changed = applyWallLengthEditToPolygonMap(polygonMap, 'front_room', 1, 6);
     const merged = applyChanges(polygonMap, changed);
 
     assertNoOverlaps(merged);
 
-    const livingPoly = merged.get(living.id);
-    const kitchenPoly = merged.get(kitchen.id);
+    const livingPoly = merged.get('front_room');
+    const kitchenPoly = merged.get('rear_room');
     expect(hasOnlyAxisAlignedEdges(livingPoly)).toBe(true);
     expect(hasOnlyAxisAlignedEdges(kitchenPoly)).toBe(true);
     expect(Math.max(...livingPoly.map(pt => pt.y))).toBeCloseTo(6, 6);
     expect(Math.min(...kitchenPoly.map(pt => pt.y))).toBeCloseTo(6, 6);
   });
 
-  it('keeps level-0 rooms non-overlapping across multiple Living Room right-height edits', () => {
+  it('keeps a simple three-room plan non-overlapping across multiple front-room right-height edits', () => {
     const targetLengths = [4, 5, 6];
-    const living = getZoneByName(demoHouse, 'Living Room');
 
     for (const targetLength of targetLengths) {
-      const polygonMap = buildPolygonMap(demoHouse, 0);
-      const changed = applyWallLengthEditToPolygonMap(polygonMap, living.id, 1, targetLength);
+      const polygonMap = createThreeRoomGroundFloorMap();
+      const changed = applyWallLengthEditToPolygonMap(polygonMap, 'front_room', 1, targetLength);
       const merged = applyChanges(polygonMap, changed);
 
       assertNoOverlaps(merged);

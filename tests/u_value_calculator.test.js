@@ -7,10 +7,6 @@ const materials = [
   { id: 'rockwool',       name: 'Rockwool',        thermal_conductivity: 0.04 },
   { id: 'double_glazing', name: 'Double Glazing',  u_value: 1.4               },
 ];
-
-const demoHouse = JSON.parse(
-  readFileSync(new URL('../source/resources/demo_house.json', import.meta.url), 'utf8')
-);
 const demoMaterials = JSON.parse(
   readFileSync(new URL('../source/resources/insulation.json', import.meta.url), 'utf8')
 ).materials;
@@ -270,14 +266,77 @@ describe('Total R-value resolution for stack-ups', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Demo Hoose validation
+// Simple model coverage
 // ---------------------------------------------------------------------------
-describe('Demo Hoose wall/floor/ceiling R-value coverage', () => {
-  it('resolves total R-value for all walls, floors and ceilings in demo_house', () => {
-    const templates = demoHouse.meta?.build_up_templates || {};
-    const candidates = (demoHouse.elements || []).filter(e =>
-      e && ['wall', 'floor', 'ceiling', 'floor_ceiling'].includes(e.type)
-    );
+describe('Simple model wall/floor/ceiling R-value coverage', () => {
+  it('resolves total R-value for all envelope element types in a simple house', () => {
+    const templates = {
+      wall_tpl: {
+        build_up: [
+          { material_id: 'plasterboard', thickness: 0.0125 },
+          { material_id: 'blockwork', thickness: 0.1 },
+          { material_id: 'pir', thickness: 0.05 },
+        ]
+      },
+      floor_tpl: {
+        build_up: [
+          { material_id: 'plywood', thickness: 0.018 },
+          {
+            type: 'composite',
+            thickness: 0.15,
+            paths: [
+              { material_id: 'joist_wood', fraction: 0.15 },
+              { material_id: 'rockwool', fraction: 0.85 },
+            ],
+          },
+          { material_id: 'xps', thickness: 0.1 },
+        ]
+      },
+      ceiling_tpl: {
+        build_up: [
+          { material_id: 'plasterboard', thickness: 0.0125 },
+          { material_id: 'glass_wool', thickness: 0.15 },
+          { material_id: 'plywood', thickness: 0.02 },
+        ]
+      },
+      loft_tpl: {
+        build_up: [
+          { material_id: 'plasterboard', thickness: 0.0125 },
+          { material_id: 'rockwool', thickness: 0.2 },
+        ]
+      }
+    };
+    const candidates = [
+      {
+        id: 'wall_1',
+        type: 'wall',
+        x: 4,
+        y: 2.4,
+        build_up_template_id: 'wall_tpl',
+        windows: [{ glazing_id: 'window_double_modern', area: 1.5 }],
+      },
+      {
+        id: 'floor_1',
+        type: 'floor',
+        x: 4,
+        y: 5,
+        build_up_template_id: 'floor_tpl',
+      },
+      {
+        id: 'ceiling_1',
+        type: 'ceiling',
+        x: 4,
+        y: 5,
+        build_up_template_id: 'loft_tpl',
+      },
+      {
+        id: 'floor_ceiling_1',
+        type: 'floor_ceiling',
+        x: 4,
+        y: 5,
+        build_up_template_id: 'ceiling_tpl',
+      }
+    ];
 
     expect(candidates.length).toBeGreaterThan(0);
 

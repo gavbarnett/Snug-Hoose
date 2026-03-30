@@ -1,14 +1,63 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { applyWallLengthEditToPolygonMap } from '../source/scripts/alt_viz.js';
 import { reconcileWallElementsFromPolygons } from '../source/scripts/solver.js';
 
-const demoHouse = JSON.parse(
-  readFileSync(new URL('../source/resources/demo_house.json', import.meta.url), 'utf8')
-);
-
-function cloneDemo() {
-  return JSON.parse(JSON.stringify(demoHouse));
+function createGroundFloorDemo() {
+  return {
+    zones: [
+      {
+        id: 'front_room',
+        name: 'Front Room',
+        level: 0,
+        layout: {
+          polygon: [
+            { x: 0, y: 0 },
+            { x: 5, y: 0 },
+            { x: 5, y: 5 },
+            { x: 0, y: 5 },
+          ]
+        }
+      },
+      {
+        id: 'rear_room',
+        name: 'Rear Room',
+        level: 0,
+        layout: {
+          polygon: [
+            { x: 0, y: 5 },
+            { x: 5, y: 5 },
+            { x: 5, y: 9 },
+            { x: 0, y: 9 },
+          ]
+        }
+      },
+      {
+        id: 'hall',
+        name: 'Hall',
+        level: 0,
+        layout: {
+          polygon: [
+            { x: 5, y: 0 },
+            { x: 7, y: 0 },
+            { x: 7, y: 9 },
+            { x: 5, y: 9 },
+          ]
+        }
+      },
+      { id: 'outside', name: 'Outside', type: 'boundary' },
+    ],
+    elements: [
+      {
+        id: 'stale_rear_external_wall',
+        type: 'wall',
+        nodes: ['rear_room', 'outside'],
+        orientation: 'east',
+        x: 4,
+        y: 2.4,
+        name: 'Rear Room - Outside Wall',
+      }
+    ],
+  };
 }
 
 function buildPolygonMap(demo, level = null) {
@@ -129,11 +178,11 @@ function assertSharedWallsUseOppositeOrientation(demo, level) {
 
 describe('floor-wide wall reconciliation', () => {
   it('keeps wall count and linkage aligned with polygon edges for all rooms on the edited level', () => {
-    const demo = cloneDemo();
-    const living = demo.zones.find(zone => zone?.name === 'Living Room');
-    const kitchen = demo.zones.find(zone => zone?.name === 'Kitchen');
+    const demo = createGroundFloorDemo();
+    const frontRoom = demo.zones.find(zone => zone?.id === 'front_room');
+    const rearRoom = demo.zones.find(zone => zone?.id === 'rear_room');
     const polygonMap = buildPolygonMap(demo, 0);
-    const changed = applyWallLengthEditToPolygonMap(polygonMap, living.id, 0, 2);
+    const changed = applyWallLengthEditToPolygonMap(polygonMap, frontRoom.id, 0, 2);
 
     for (const zone of demo.zones) {
       const polygon = changed[zone.id];
@@ -142,9 +191,9 @@ describe('floor-wide wall reconciliation', () => {
       zone.layout.polygon = polygon;
     }
 
-    const staleKitchenWall = demo.elements.find(element => element?.id === 'el_kit_wall_ext');
-    staleKitchenWall.nodes = [kitchen.id];
-    staleKitchenWall.orientation = 'south';
+    const staleRearWall = demo.elements.find(element => element?.id === 'stale_rear_external_wall');
+    staleRearWall.nodes = [rearRoom.id];
+    staleRearWall.orientation = 'south';
 
     reconcileWallElementsFromPolygons(demo, changed);
 
@@ -161,7 +210,7 @@ describe('floor-wide wall reconciliation', () => {
   });
 
   it('keeps wall count aligned with polygon edge count for every layout-backed room', () => {
-    const demo = cloneDemo();
+    const demo = createGroundFloorDemo();
     const polygonsByZoneId = {};
 
     for (const zone of demo.zones || []) {
