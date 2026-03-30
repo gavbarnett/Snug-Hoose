@@ -2990,6 +2990,17 @@ function addVentilationToZone(demo, ventilationData, zoneId, opts = {}) {
     : (Number.isFinite(preset?.default_heat_recovery_efficiency)
       ? Math.max(0, Math.min(1, preset.default_heat_recovery_efficiency))
       : 0);
+  const defaultType = String(opts.type || preset?.type || '').toLowerCase();
+  const trickleFlow = Number.isFinite(opts.trickle_flow_m3_h)
+    ? Math.max(0, opts.trickle_flow_m3_h)
+    : (Number.isFinite(preset?.default_trickle_flow_m3_h)
+      ? Math.max(0, preset.default_trickle_flow_m3_h)
+      : Math.max(0, flow * (defaultType.includes('heat_exchanger') ? 0.7 : 0.15)));
+  const boostHoursPerDay = Number.isFinite(opts.boost_hours_per_day)
+    ? Math.max(0, Math.min(24, opts.boost_hours_per_day))
+    : (Number.isFinite(preset?.default_boost_hours_per_day)
+      ? Math.max(0, Math.min(24, preset.default_boost_hours_per_day))
+      : 1);
 
   const ventType = opts.type || preset?.type || 'extractor_bathroom';
   const baseName = preset?.name || (ventType === 'heat_exchanger' ? 'Heat Exchanger' : 'Extractor Fan');
@@ -3000,6 +3011,8 @@ function addVentilationToZone(demo, ventilationData, zoneId, opts = {}) {
     type: ventType,
     name: baseName,
     flow_m3_h: Number(flow.toFixed(2)),
+    trickle_flow_m3_h: Number(trickleFlow.toFixed(2)),
+    boost_hours_per_day: Number(boostHoursPerDay.toFixed(2)),
     heat_recovery_efficiency: Number(recovery.toFixed(3)),
     enabled: true
   });
@@ -3353,6 +3366,8 @@ function handleAltVizMenuAction(action, item, context = {}) {
         ventilationId: payload.ventilationId,
         type: payload.type,
         flow_m3_h: Number(payload.flow_m3_h),
+        trickle_flow_m3_h: Number(payload.trickle_flow_m3_h),
+        boost_hours_per_day: Number(payload.boost_hours_per_day),
         heat_recovery_efficiency: Number(payload.heat_recovery_efficiency)
       })) {
         pushUndoSnapshot(before);
@@ -3564,6 +3579,8 @@ async function loadDefaultInputs() {
           name: 'Oven Hood Extractor',
           type: 'extractor_kitchen',
           default_flow_m3_h: 60,
+          default_trickle_flow_m3_h: 8,
+          default_boost_hours_per_day: 1,
           default_heat_recovery_efficiency: 0,
           enabled: true
         },
@@ -3572,6 +3589,8 @@ async function loadDefaultInputs() {
           name: 'Bathroom Vent',
           type: 'extractor_bathroom',
           default_flow_m3_h: 30,
+          default_trickle_flow_m3_h: 5,
+          default_boost_hours_per_day: 1,
           default_heat_recovery_efficiency: 0,
           enabled: true
         },
@@ -3579,7 +3598,9 @@ async function loadDefaultInputs() {
           id: 'heat_exchanger_mvhr',
           name: 'Heat Exchanger (MVHR)',
           type: 'heat_exchanger',
-          default_flow_m3_h: 35,
+          default_flow_m3_h: 55,
+          default_trickle_flow_m3_h: 35,
+          default_boost_hours_per_day: 1,
           default_heat_recovery_efficiency: 0.75,
           enabled: true
         }

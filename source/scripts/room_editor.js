@@ -423,21 +423,25 @@ export function initRoomEditor(opts) {
   function addVentilationElementFromPreset(presetId) {
     const preset = findVentilationPreset(presetId);
     if (!preset) {
-      if (presetId === 'extractor_oven_hood') addVentilationElement('extractor_oven_hood', 'extractor_kitchen', 60, 0, 'Oven Hood Extractor');
-      else if (presetId === 'extractor_bathroom') addVentilationElement('extractor_bathroom', 'extractor_bathroom', 30, 0, 'Bathroom Vent');
-      else addVentilationElement('heat_exchanger_mvhr', 'heat_exchanger', 35, 0.75, 'Heat Exchanger (MVHR)');
+      if (presetId === 'extractor_oven_hood') addVentilationElement('extractor_oven_hood', 'extractor_kitchen', 60, 8, 1, 0, 'Oven Hood Extractor');
+      else if (presetId === 'extractor_bathroom') addVentilationElement('extractor_bathroom', 'extractor_bathroom', 30, 5, 1, 0, 'Bathroom Vent');
+      else addVentilationElement('heat_exchanger_mvhr', 'heat_exchanger', 55, 35, 1, 0.75, 'Heat Exchanger (MVHR)');
       return;
     }
     addVentilationElement(
       preset.id,
       preset.type,
       Number.isFinite(preset.default_flow_m3_h) ? preset.default_flow_m3_h : 30,
+      Number.isFinite(preset.default_trickle_flow_m3_h)
+        ? preset.default_trickle_flow_m3_h
+        : (String(preset.type || '').toLowerCase().includes('heat_exchanger') ? 35 : 5),
+      Number.isFinite(preset.default_boost_hours_per_day) ? preset.default_boost_hours_per_day : 1,
       Number.isFinite(preset.default_heat_recovery_efficiency) ? preset.default_heat_recovery_efficiency : 0,
       preset.name || 'Ventilation'
     );
   }
 
-  function addVentilationElement(presetId, type, flowM3h, heatRecoveryEfficiency = 0, preferredName = '') {
+  function addVentilationElement(presetId, type, flowM3h, trickleFlowM3h = 0, boostHoursPerDay = 1, heatRecoveryEfficiency = 0, preferredName = '') {
     if (!selectedZoneId) return;
     const demo = getDemo();
     if (!demo || !Array.isArray(demo.zones)) return;
@@ -457,6 +461,8 @@ export function initRoomEditor(opts) {
       type,
       name: `${baseName} ${count}`,
       flow_m3_h: flowM3h,
+      trickle_flow_m3_h: Number((Math.max(0, trickleFlowM3h)).toFixed(2)),
+      boost_hours_per_day: Number((Math.max(0, Math.min(24, boostHoursPerDay))).toFixed(2)),
       heat_recovery_efficiency: heatRecoveryEfficiency,
       enabled: true
     });
@@ -531,6 +537,18 @@ export function initRoomEditor(opts) {
       row.style.alignItems = 'center';
       row.style.flexWrap = 'wrap';
 
+      const makeLabeledControl = (labelText, control) => {
+        const wrapper = document.createElement('label');
+        wrapper.style.display = 'flex';
+        wrapper.style.alignItems = 'center';
+        wrapper.style.gap = '0.35rem';
+        wrapper.style.fontSize = '0.8rem';
+        wrapper.style.color = 'var(--text-muted, #a0a0a0)';
+        wrapper.appendChild(document.createTextNode(labelText));
+        wrapper.appendChild(control);
+        return wrapper;
+      };
+
       const presetSelect = document.createElement('select');
       presetSelect.dataset.focusKey = `${focusBase}:preset`;
       presets.forEach(opt => {
@@ -553,11 +571,31 @@ export function initRoomEditor(opts) {
       configureDecimalInput(flowInput, 'Flow m3/h');
       flowInput.dataset.focusKey = `${focusBase}:flow`;
       flowInput.value = typeof vent.flow_m3_h === 'number' ? formatEditableDecimal(vent.flow_m3_h, 2) : '';
+      flowInput.style.width = '5.8rem';
 
       const recoveryInput = document.createElement('input');
       configureDecimalInput(recoveryInput, 'Recovery %');
       recoveryInput.dataset.focusKey = `${focusBase}:recovery`;
       recoveryInput.value = typeof vent.heat_recovery_efficiency === 'number' ? formatEditablePercent(vent.heat_recovery_efficiency) : '0';
+      recoveryInput.style.width = '4.8rem';
+
+      const trickleInput = document.createElement('input');
+      configureDecimalInput(trickleInput, 'Trickle/passive m3/h');
+      trickleInput.dataset.focusKey = `${focusBase}:trickle`;
+      trickleInput.value = typeof vent.trickle_flow_m3_h === 'number' ? formatEditableDecimal(vent.trickle_flow_m3_h, 2) : '';
+      trickleInput.style.width = '5.8rem';
+
+      const boostHoursInput = document.createElement('input');
+      configureDecimalInput(boostHoursInput, 'Boost hrs/day');
+      boostHoursInput.dataset.focusKey = `${focusBase}:boostHours`;
+      boostHoursInput.value = typeof vent.boost_hours_per_day === 'number' ? formatEditableDecimal(vent.boost_hours_per_day, 2) : '1';
+      boostHoursInput.style.width = '4.8rem';
+
+      const presetField = makeLabeledControl('Type', presetSelect);
+      const flowField = makeLabeledControl('Boost flow (m3/h)', flowInput);
+      const trickleField = makeLabeledControl('Trickle flow (m3/h)', trickleInput);
+      const boostField = makeLabeledControl('Boost time (h/day)', boostHoursInput);
+      const recoveryField = makeLabeledControl('Heat recovery (%)', recoveryInput);
 
       const enabledCheckbox = document.createElement('input');
       enabledCheckbox.type = 'checkbox';
@@ -580,8 +618,18 @@ export function initRoomEditor(opts) {
         vent.ventilation_id = selectedPreset.id;
         vent.type = selectedPreset.type;
         vent.flow_m3_h = Number((selectedPreset.default_flow_m3_h || 0).toFixed(2));
+        const defaultTrickle = Number.isFinite(selectedPreset.default_trickle_flow_m3_h)
+          ? selectedPreset.default_trickle_flow_m3_h
+          : (String(selectedPreset.type || '').toLowerCase().includes('heat_exchanger') ? 35 : 5);
+        const defaultBoostHours = Number.isFinite(selectedPreset.default_boost_hours_per_day)
+          ? selectedPreset.default_boost_hours_per_day
+          : 1;
+        vent.trickle_flow_m3_h = Number(Math.max(0, defaultTrickle).toFixed(2));
+        vent.boost_hours_per_day = Number(Math.max(0, Math.min(24, defaultBoostHours)).toFixed(2));
         vent.heat_recovery_efficiency = Number((selectedPreset.default_heat_recovery_efficiency || 0).toFixed(3));
         flowInput.value = formatEditableDecimal(vent.flow_m3_h, 2);
+        trickleInput.value = formatEditableDecimal(vent.trickle_flow_m3_h, 2);
+        boostHoursInput.value = formatEditableDecimal(vent.boost_hours_per_day, 2);
         recoveryInput.value = formatEditablePercent(vent.heat_recovery_efficiency);
         syncVentTypeUI();
         queueFocusRestore();
@@ -604,6 +652,22 @@ export function initRoomEditor(opts) {
         onDataChanged();
       });
 
+      trickleInput.addEventListener('input', () => {
+        const value = parseDecimalValue(trickleInput.value);
+        if (!isFinite(value) || value < 0) return;
+        vent.trickle_flow_m3_h = Number(value.toFixed(2));
+        queueFocusRestore();
+        onDataChanged();
+      });
+
+      boostHoursInput.addEventListener('input', () => {
+        const value = parseDecimalValue(boostHoursInput.value);
+        if (!isFinite(value)) return;
+        vent.boost_hours_per_day = Number(Math.max(0, Math.min(24, value)).toFixed(2));
+        queueFocusRestore();
+        onDataChanged();
+      });
+
       enabledCheckbox.addEventListener('change', () => {
         vent.enabled = enabledCheckbox.checked;
         queueFocusRestore();
@@ -617,9 +681,11 @@ export function initRoomEditor(opts) {
       enabledLabel.appendChild(enabledCheckbox);
       enabledLabel.appendChild(document.createTextNode('Enabled'));
 
-      row.appendChild(presetSelect);
-      row.appendChild(flowInput);
-      row.appendChild(recoveryInput);
+      row.appendChild(presetField);
+      row.appendChild(flowField);
+      row.appendChild(trickleField);
+      row.appendChild(boostField);
+      row.appendChild(recoveryField);
       row.appendChild(enabledLabel);
 
       syncVentTypeUI();

@@ -372,9 +372,11 @@ describe('ACH and mechanical ventilation', () => {
 
     expect(zone.room_volume_m3).toBeCloseTo(50, 3);
     expect(zone.infiltration_airflow_m3_h).toBeCloseTo(24, 3);
-    expect(zone.mechanical_ventilation_airflow_m3_h).toBeCloseTo(50, 3);
-    expect(zone.air_changes_per_hour).toBeCloseTo(1.48, 2);
-    // 0.33 * (24 + 30 + (20 * (1 - 0.5))) = 21.12 W/K
-    expect(zone.ventilation_conductance).toBeCloseTo(21.12, 2);
+    // Default behavior now assumes fan units run boost mode 1 hour/day,
+    // with the remaining time at trickle/passive flow.
+    expect(zone.mechanical_ventilation_airflow_m3_h).toBeCloseTo(19.813, 3);
+    expect(zone.air_changes_per_hour).toBeCloseTo(0.876, 2);
+    // 0.33 * (24 + 5.5625 + (14.25 * (1 - 0.5))) = 12.103125 W/K
+    expect(zone.ventilation_conductance).toBeCloseTo(12.103, 2);
   });
 });

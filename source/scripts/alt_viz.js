@@ -843,6 +843,8 @@ function buildAltVizMenuSpec(context = {}) {
         ventilationId: src.id,
         type: src.type,
         flow_m3_h: src.default_flow_m3_h,
+        trickle_flow_m3_h: src.default_trickle_flow_m3_h,
+        boost_hours_per_day: src.default_boost_hours_per_day,
         heat_recovery_efficiency: src.default_heat_recovery_efficiency
       }
     };

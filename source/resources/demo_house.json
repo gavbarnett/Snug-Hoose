@@ -203,6 +203,8 @@
 					"type": "extractor_kitchen",
 					"name": "Kitchen Extractor",
 					"flow_m3_h": 60,
+					"trickle_flow_m3_h": 8,
+					"boost_hours_per_day": 1,
 					"enabled": true
 				}
 			],
@@ -284,6 +286,8 @@
 					"type": "extractor_bathroom",
 					"name": "Bathroom Extractor",
 					"flow_m3_h": 30,
+					"trickle_flow_m3_h": 5,
+					"boost_hours_per_day": 1,
 					"enabled": true
 				}
 			],

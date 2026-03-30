@@ -244,19 +244,34 @@ export function computeRoomHeatRequirements(demo, radiators, opts) {
     if (Array.isArray(z?.ventilation_elements)) {
       for (const vent of z.ventilation_elements) {
         if (!vent || vent.enabled === false) continue;
-        const flow = Number(vent.flow_m3_h);
-        if (!isFinite(flow) || flow <= 0) continue;
+        const boostFlow = Number(vent.flow_m3_h);
+        if (!isFinite(boostFlow) || boostFlow <= 0) continue;
         const type = String(vent.type || '').toLowerCase();
+        const isHeatExchanger = type.includes('heat_exchanger') || type.includes('hrv') || type.includes('mvhr');
+        let trickleFlow = Number(vent.trickle_flow_m3_h);
+        if (!isFinite(trickleFlow) || trickleFlow < 0) {
+          trickleFlow = isHeatExchanger
+            ? (boostFlow * 0.7)
+            : (boostFlow * 0.15);
+        }
+        trickleFlow = Math.max(0, Math.min(boostFlow, trickleFlow));
+
+        let boostHoursPerDay = Number(vent.boost_hours_per_day);
+        if (!isFinite(boostHoursPerDay) || boostHoursPerDay < 0) boostHoursPerDay = 1;
+        boostHoursPerDay = Math.max(0, Math.min(24, boostHoursPerDay));
+        const duty = boostHoursPerDay / 24;
+        const effectiveFlow = trickleFlow + Math.max(0, boostFlow - trickleFlow) * duty;
+
         let recovery = Number(vent.heat_recovery_efficiency);
         if (!isFinite(recovery) || recovery < 0) recovery = 0;
         if (recovery > 1) recovery = 1;
-        if (!type.includes('heat_exchanger') && !type.includes('hrv') && !type.includes('mvhr')) {
+        if (!isHeatExchanger) {
           recovery = 0;
         }
 
-        mechanicalAirflow += flow;
-        recoveredAirflow += flow * recovery;
-        mechanicalConductance += 0.33 * flow * (1 - recovery);
+        mechanicalAirflow += effectiveFlow;
+        recoveredAirflow += effectiveFlow * recovery;
+        mechanicalConductance += 0.33 * effectiveFlow * (1 - recovery);
       }
     }
 
