@@ -1232,7 +1232,8 @@ function createEnvironmentControlStrip(demo, onMenuAction, getContext) {
   systemCopInput.min = String(copMin);
   systemCopInput.max = String(copMax);
   systemCopInput.step = String(copStep);
-  systemCopInput.value = copFixedValue.toFixed(copDec);
+  const displayedCopValue = copMode === 'auto' ? autoCopForSource : copFixedValue;
+  systemCopInput.value = displayedCopValue.toFixed(copDec);
   systemCopInput.disabled = isDirectElectric || copMode !== 'fixed';
   systemCopInput.setAttribute('aria-label', 'Fixed COP value');
   systemCopInput.addEventListener('change', () => {
