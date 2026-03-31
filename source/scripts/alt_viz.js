@@ -1,5 +1,5 @@
 // Alternative floor-plan view scaffold: level selector + thermal-colored polygons.
-import { formatZoneTemperatureText, getZoneAchText, getZoneCapacitySummary, getZoneSavingsText } from './zone_text.js';
+import { formatZoneTemperatureText, getZoneAchText, getZoneCapacitySummary } from './zone_text.js';
 import { getThermalColorClass, THERMAL_COLOR_BY_CLASS } from './zone_thermal.js';
 import { estimateHeatPumpCopFromFlowTemp, estimateBoilerCopFromFlowTemp } from './heating_performance.js';
 
@@ -3309,9 +3309,15 @@ export function renderAlternativeViz(demo, opts = {}) {
   iconTooltip.className = 'alt-object-tooltip';
   svgWrap.appendChild(iconTooltip);
 
+  const roomTooltip = document.createElement('div');
+  roomTooltip.className = 'alt-object-tooltip';
+  svgWrap.appendChild(roomTooltip);
+
   svg.addEventListener('mouseleave', () => {
     iconTooltip.classList.remove('is-visible');
     iconTooltip.textContent = '';
+    roomTooltip.classList.remove('is-visible');
+    roomTooltip.textContent = '';
   });
 
   svg.addEventListener('dblclick', (e) => {
@@ -3804,22 +3810,40 @@ export function renderAlternativeViz(demo, opts = {}) {
     });
     svg.appendChild(roomPoly);
 
-    const externalTemp = Number(demo?.meta?.externalTemp) || 3;
+    const externalTemp = Number.isFinite(Number(demo?.meta?.systemMinExternalTemp))
+      ? Number(demo.meta.systemMinExternalTemp)
+      : (Number(demo?.meta?.externalTemp) || 3);
     const tempText = formatZoneTemperatureText(zone, externalTemp);
     const achText = getZoneAchText(zone);
     const capacity = getZoneCapacitySummary(zone, externalTemp);
-    const savingsText = getZoneSavingsText(zone);
+    const epc = zone.is_unheated !== true ? computeZoneEpcEstimate(zone, demo) : null;
+    const epcValue = epc && epc.intensityKwhM2Yr !== null ? epc.intensityKwhM2Yr.toFixed(0) : 'n/a';
+
+    const tooltipParts = [];
+    if (achText) tooltipParts.push(achText);
+    if (capacity) tooltipParts.push(capacity.text);
+    if (epc) tooltipParts.push(`EPC ${epc.letter} (${epcValue})`);
 
     const infoLines = [];
     if (tempText) infoLines.push(tempText);
-    if (achText) infoLines.push(achText);
-    if (capacity) infoLines.push(capacity.text);
-    if (savingsText) infoLines.push(savingsText);
-    if (zone.is_unheated !== true) {
-      const epc = computeZoneEpcEstimate(zone, demo);
-      const epcValue = epc.intensityKwhM2Yr === null ? 'n/a' : epc.intensityKwhM2Yr.toFixed(0);
-      infoLines.push(`EPC ${epc.letter} (${epcValue})`);
-    }
+    const updateRoomTooltipPosition = (e) => {
+      if (!e) return;
+      roomTooltip.style.left = `${e.clientX + 12}px`;
+      roomTooltip.style.top = `${e.clientY + 12}px`;
+    };
+    const showRoomTooltip = (e) => {
+      if (tooltipParts.length === 0) return;
+      roomTooltip.textContent = `${zone.name || zone.id || 'Room'} | ${tooltipParts.join(' | ')}`;
+      updateRoomTooltipPosition(e);
+      roomTooltip.classList.add('is-visible');
+    };
+    const hideRoomTooltip = () => {
+      roomTooltip.classList.remove('is-visible');
+      roomTooltip.textContent = '';
+    };
+    roomPoly.addEventListener('mouseenter', showRoomTooltip);
+    roomPoly.addEventListener('mousemove', updateRoomTooltipPosition);
+    roomPoly.addEventListener('mouseleave', hideRoomTooltip);
 
     const nameY = centroid.y - (infoLines.length * 10);
 
@@ -3844,6 +3868,10 @@ export function renderAlternativeViz(demo, opts = {}) {
       });
     }
     svg.appendChild(nameText);
+
+    nameText.addEventListener('mouseenter', showRoomTooltip);
+    nameText.addEventListener('mousemove', updateRoomTooltipPosition);
+    nameText.addEventListener('mouseleave', hideRoomTooltip);
 
     if (onZoneEditorRequested) {
       const roomMaxX = projected.reduce((max, p) => Math.max(max, p.x), -Infinity);
@@ -3906,6 +3934,9 @@ export function renderAlternativeViz(demo, opts = {}) {
         infoText.appendChild(tspan);
       });
       svg.appendChild(infoText);
+      infoText.addEventListener('mouseenter', showRoomTooltip);
+      infoText.addEventListener('mousemove', updateRoomTooltipPosition);
+      infoText.addEventListener('mouseleave', hideRoomTooltip);
     }
     const radiatorElements = [];
     const radiatorLabelElements = [];
