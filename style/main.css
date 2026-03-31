@@ -479,13 +479,8 @@ a#download:hover {
 }
 
 .alt-env-strip {
-  border: 1px solid var(--input-border);
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.18);
-  margin-bottom: 0.7rem;
-  padding: 0.55rem;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 0.55rem;
 }
 
@@ -688,8 +683,13 @@ a#download:hover {
 }
 
 @media (max-width: 980px) {
-  .alt-env-strip {
-    grid-template-columns: 1fr;
+  .alt-viz-body {
+    flex-direction: column;
+  }
+
+  .alt-viz-side-panel {
+    width: 100%;
+    max-height: none;
   }
 
   .alt-viz-project-summary {
@@ -699,6 +699,29 @@ a#download:hover {
   .alt-viz-project-epc {
     width: 100%;
   }
+}
+
+.alt-viz-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  margin-bottom: 0.7rem;
+}
+
+.alt-viz-side-panel {
+  width: 230px;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  padding: 0.55rem;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.alt-viz-main-content {
+  flex: 1;
+  min-width: 0;
 }
 
 .alt-viz-toolbar {

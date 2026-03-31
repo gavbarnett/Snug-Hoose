@@ -2956,16 +2956,28 @@ export function renderAlternativeViz(demo, opts = {}) {
   }));
   root.appendChild(menuBar);
 
-  const mainViewHost = document.createElement('div');
-  mainViewHost.className = 'alt-viz-main-view';
-  root.appendChild(mainViewHost);
-
   const envStrip = createEnvironmentControlStrip(demo, onMenuAction, () => ({
     demo,
     selectedZoneId,
     selectedLevel
   }));
-  root.appendChild(envStrip);
+
+  const sidePanel = document.createElement('div');
+  sidePanel.className = 'alt-viz-side-panel';
+  sidePanel.appendChild(envStrip);
+
+  const mainContent = document.createElement('div');
+  mainContent.className = 'alt-viz-main-content';
+
+  const mainViewHost = document.createElement('div');
+  mainViewHost.className = 'alt-viz-main-view';
+  mainContent.appendChild(mainViewHost);
+
+  const bodyRow = document.createElement('div');
+  bodyRow.className = 'alt-viz-body';
+  bodyRow.appendChild(sidePanel);
+  bodyRow.appendChild(mainContent);
+  root.appendChild(bodyRow);
 
   const levels = rooms.length > 0
     ? [...new Set(rooms.map(z => (typeof z.level === 'number' ? z.level : 0)))].sort((a, b) => a - b)
@@ -3023,14 +3035,14 @@ export function renderAlternativeViz(demo, opts = {}) {
   });
   toolbar.appendChild(levelMiniViews);
 
-  root.appendChild(toolbar);
+  mainContent.insertBefore(toolbar, mainViewHost);
 
   const hint = document.createElement('div');
   hint.className = 'alt-viz-message';
   hint.textContent = 'Drag walls to reshape rooms, drag room bodies to move zones, and drag object handles to move windows, doors, and radiators. Use the room spanner icon to open that room in the editor.';
-  root.appendChild(hint);
+  mainContent.appendChild(hint);
 
-  renderLegend(root);
+  renderLegend(mainContent);
 
   const levelRooms = rooms.filter(z => (typeof z.level === 'number' ? z.level : 0) === selectedLevel);
   if (levelRooms.length === 0) {
