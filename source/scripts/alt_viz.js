@@ -660,81 +660,6 @@ function createLevelMiniViews(rooms, levels, activeLevel, onSelectLevel, extraOp
     clickZone.appendChild(meta);
     card.appendChild(clickZone);
 
-    // Per-room controls
-    if (levelRooms.length > 0 && typeof onSetpointChanged === 'function') {
-      const roomsSection = document.createElement('div');
-      roomsSection.className = 'alt-viz-level-mini-rooms';
-
-      levelRooms.forEach(zone => {
-        const row = document.createElement('div');
-        row.className = 'alt-viz-level-mini-room-row';
-
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'alt-viz-level-mini-room-name';
-        nameSpan.textContent = zone.name || zone.id;
-
-        const sliderWrap = document.createElement('div');
-        sliderWrap.className = 'alt-viz-level-mini-room-slider-wrap';
-
-        const slider = document.createElement('input');
-        slider.type = 'range';
-        slider.className = 'alt-env-slider';
-        slider.min = '16';
-        slider.max = '25';
-        slider.step = '1';
-        slider.value = String(typeof zone.setpoint_temperature === 'number' ? zone.setpoint_temperature : globalTargetTemp);
-        slider.disabled = zone.is_unheated === true;
-
-        const valueDisplay = document.createElement('span');
-        valueDisplay.className = 'alt-env-value';
-        valueDisplay.textContent = zone.is_unheated === true
-          ? 'Unheated'
-          : (typeof zone.setpoint_temperature === 'number'
-              ? `${zone.setpoint_temperature}°C`
-              : `${globalTargetTemp}°C`);
-
-        const unheatedToggle = document.createElement('label');
-        unheatedToggle.className = 'alt-viz-level-mini-room-toggle';
-
-        const unheatedCheckbox = document.createElement('input');
-        unheatedCheckbox.type = 'checkbox';
-        unheatedCheckbox.checked = zone.is_unheated === true;
-
-        const unheatedText = document.createElement('span');
-        unheatedText.textContent = 'Unheated';
-        unheatedToggle.appendChild(unheatedCheckbox);
-        unheatedToggle.appendChild(unheatedText);
-
-        slider.addEventListener('input', () => {
-          valueDisplay.textContent = `${slider.value}°C`;
-        });
-
-        slider.addEventListener('change', () => {
-          onSetpointChanged(zone, Number(slider.value));
-        });
-
-        unheatedCheckbox.addEventListener('change', () => {
-          const isUnheated = unheatedCheckbox.checked;
-          slider.disabled = isUnheated;
-          valueDisplay.textContent = isUnheated
-            ? 'Unheated'
-            : `${slider.value}°C`;
-          if (typeof onRoomHeatingChanged === 'function') {
-            onRoomHeatingChanged(zone, isUnheated);
-          }
-        });
-
-        sliderWrap.appendChild(slider);
-        sliderWrap.appendChild(valueDisplay);
-        row.appendChild(nameSpan);
-        row.appendChild(sliderWrap);
-        row.appendChild(unheatedToggle);
-        roomsSection.appendChild(row);
-      });
-
-      card.appendChild(roomsSection);
-    }
-
     wrap.appendChild(card);
   });
 
@@ -3313,6 +3238,143 @@ export function renderAlternativeViz(demo, opts = {}) {
   roomTooltip.className = 'alt-object-tooltip';
   svgWrap.appendChild(roomTooltip);
 
+  let roomContextMenu = null;
+  const closeRoomContextMenu = () => {
+    if (!roomContextMenu) return;
+    roomContextMenu.remove();
+    roomContextMenu = null;
+  };
+
+  const setZoneSetpoint = (zone, value) => {
+    if (typeof onMenuAction === 'function') {
+      onMenuAction('zones.setpoint', {
+        action: 'zones.setpoint',
+        payload: { zoneId: zone.id, value }
+      }, {
+        demo,
+        selectedZoneId,
+        selectedLevel
+      });
+      return;
+    }
+    zone.setpoint_temperature = value;
+    if (onDataChanged) onDataChanged({});
+    else renderAlternativeViz(demo, opts);
+  };
+
+  const setZoneUnheated = (zone, isUnheated) => {
+    if (typeof onMenuAction === 'function') {
+      onMenuAction('zones.heating', {
+        action: 'zones.heating',
+        payload: { zoneId: zone.id, isUnheated }
+      }, {
+        demo,
+        selectedZoneId,
+        selectedLevel
+      });
+      return;
+    }
+    if (isUnheated) {
+      zone.is_unheated = true;
+      delete zone.setpoint_temperature;
+      zone.is_boiler_control = false;
+    } else {
+      delete zone.is_unheated;
+    }
+    if (onDataChanged) onDataChanged({});
+    else renderAlternativeViz(demo, opts);
+  };
+
+  const openRoomContextMenu = (zone, mouseEvent) => {
+    closeRoomContextMenu();
+    selectedZoneId = zone.id;
+    if (onZoneSelected) onZoneSelected(zone.id);
+
+    const menu = document.createElement('div');
+    menu.className = 'alt-room-context-menu';
+    menu.style.left = `${mouseEvent.clientX + 10}px`;
+    menu.style.top = `${mouseEvent.clientY + 10}px`;
+
+    const title = document.createElement('div');
+    title.className = 'alt-room-context-title';
+    title.textContent = zone.name || zone.id || 'Room';
+    menu.appendChild(title);
+
+    const sliderWrap = document.createElement('div');
+    sliderWrap.className = 'alt-room-context-slider-wrap';
+
+    const sliderLabelRow = document.createElement('div');
+    sliderLabelRow.className = 'alt-room-context-slider-label-row';
+    const sliderLabel = document.createElement('span');
+    sliderLabel.textContent = 'Target Temperature';
+    const sliderValue = document.createElement('span');
+    const currentSetpoint = Number.isFinite(Number(zone?.setpoint_temperature))
+      ? Number(zone.setpoint_temperature)
+      : (Number.isFinite(Number(demo?.meta?.global_target_temperature))
+        ? Number(demo.meta.global_target_temperature)
+        : 21);
+    sliderValue.textContent = `${currentSetpoint.toFixed(1)}°C`;
+    sliderLabelRow.appendChild(sliderLabel);
+    sliderLabelRow.appendChild(sliderValue);
+    sliderWrap.appendChild(sliderLabelRow);
+
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.className = 'alt-room-context-slider';
+    slider.min = '14';
+    slider.max = '26';
+    slider.step = '0.5';
+    slider.value = String(currentSetpoint);
+    slider.disabled = zone.is_unheated === true;
+    slider.addEventListener('input', () => {
+      sliderValue.textContent = `${Number(slider.value).toFixed(1)}°C`;
+    });
+    slider.addEventListener('change', () => {
+      setZoneSetpoint(zone, Number(slider.value));
+    });
+    sliderWrap.appendChild(slider);
+    menu.appendChild(sliderWrap);
+
+    const unheatedLabel = document.createElement('label');
+    unheatedLabel.className = 'alt-room-context-unheated';
+    const unheatedCheckbox = document.createElement('input');
+    unheatedCheckbox.type = 'checkbox';
+    unheatedCheckbox.checked = zone.is_unheated === true;
+    const unheatedText = document.createTextNode(' Unheated');
+    unheatedLabel.appendChild(unheatedCheckbox);
+    unheatedLabel.appendChild(unheatedText);
+    unheatedCheckbox.addEventListener('change', () => {
+      const isUnheated = unheatedCheckbox.checked;
+      slider.disabled = isUnheated;
+      sliderValue.textContent = isUnheated ? '—' : `${Number(slider.value).toFixed(1)}°C`;
+      setZoneUnheated(zone, isUnheated);
+    });
+    menu.appendChild(unheatedLabel);
+
+    const actionRow = document.createElement('div');
+    actionRow.className = 'alt-room-context-actions';
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'alt-room-context-btn';
+    editBtn.textContent = 'Edit Room';
+    editBtn.disabled = typeof onZoneEditorRequested !== 'function';
+    editBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeRoomContextMenu();
+      if (typeof onZoneEditorRequested === 'function') {
+        onZoneEditorRequested(zone.id);
+      }
+    });
+    actionRow.appendChild(editBtn);
+    menu.appendChild(actionRow);
+
+    menu.addEventListener('mousedown', (e) => e.stopPropagation());
+    menu.addEventListener('click', (e) => e.stopPropagation());
+    svgWrap.appendChild(menu);
+    roomContextMenu = menu;
+  };
+
   svg.addEventListener('mouseleave', () => {
     iconTooltip.classList.remove('is-visible');
     iconTooltip.textContent = '';
@@ -3328,6 +3390,10 @@ export function renderAlternativeViz(demo, opts = {}) {
     const svgPt = getSVGPoint(svg, e);
     const worldPt = svgPointToWorld(svgPt, bounds, scale, pad);
     requestAddRoomAt(worldPt.x, worldPt.y, selectedLevel);
+  });
+
+  svgWrap.addEventListener('mousedown', () => {
+    closeRoomContextMenu();
   });
 
   let ghostGroup = null;
@@ -3808,6 +3874,12 @@ export function renderAlternativeViz(demo, opts = {}) {
       if (onZoneSelected) onZoneSelected(zone.id);
       renderAlternativeViz(demo, opts);
     });
+    roomPoly.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (dragState || roomDragState) return;
+      openRoomContextMenu(zone, e);
+    });
     svg.appendChild(roomPoly);
 
     const externalTemp = Number.isFinite(Number(demo?.meta?.systemMinExternalTemp))
@@ -3872,49 +3944,12 @@ export function renderAlternativeViz(demo, opts = {}) {
     nameText.addEventListener('mouseenter', showRoomTooltip);
     nameText.addEventListener('mousemove', updateRoomTooltipPosition);
     nameText.addEventListener('mouseleave', hideRoomTooltip);
-
-    if (onZoneEditorRequested) {
-      const roomMaxX = projected.reduce((max, p) => Math.max(max, p.x), -Infinity);
-      const roomMinY = projected.reduce((min, p) => Math.min(min, p.y), Infinity);
-      const editorX = roomMaxX - 16;
-      const editorY = roomMinY + 16;
-
-      const editorButton = document.createElementNS(ns, 'g');
-      editorButton.setAttribute('class', 'alt-room-editor-button');
-      editorButton.setAttribute('transform', `translate(${editorX.toFixed(1)}, ${editorY.toFixed(1)})`);
-      editorButton.style.cursor = 'pointer';
-
-      const editorHit = document.createElementNS(ns, 'circle');
-      editorHit.setAttribute('cx', '0');
-      editorHit.setAttribute('cy', '0');
-      editorHit.setAttribute('r', '11');
-      editorHit.setAttribute('class', 'alt-room-editor-hit');
-      editorButton.appendChild(editorHit);
-
-      const editorBg = document.createElementNS(ns, 'circle');
-      editorBg.setAttribute('cx', '0');
-      editorBg.setAttribute('cy', '0');
-      editorBg.setAttribute('r', '9');
-      editorBg.setAttribute('class', 'alt-room-editor-bg');
-      editorButton.appendChild(editorBg);
-
-      const emoji = document.createElementNS(ns, 'text');
-      emoji.setAttribute('x', '0');
-      emoji.setAttribute('y', '0');
-      emoji.setAttribute('class', 'alt-room-editor-emoji');
-      emoji.textContent = '🔧';
-      editorButton.appendChild(emoji);
-
-      editorButton.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        selectedZoneId = zone.id;
-        onZoneEditorRequested(zone.id);
-        renderAlternativeViz(demo, opts);
-      });
-
-      svg.appendChild(editorButton);
-    }
+    nameText.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (dragState || roomDragState) return;
+      openRoomContextMenu(zone, e);
+    });
 
     let infoText = null;
     if (infoLines.length > 0) {
