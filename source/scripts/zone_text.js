@@ -5,6 +5,21 @@ export function zoneHasTrv(zone) {
   return zone.radiators.some(rad => rad && rad.trv_enabled === true);
 }
 
+export function zoneHasLocalHeatSource(zone) {
+  if (!zone) return false;
+
+  if (typeof zone.radiator_coefficient === 'number') {
+    return zone.radiator_coefficient > 0;
+  }
+
+  if (!Array.isArray(zone.radiators)) return false;
+  return zone.radiators.some(rad => {
+    if (!rad) return false;
+    if (typeof rad.surface_area === 'number' && rad.surface_area > 0) return true;
+    return typeof rad.radiator_id === 'string' && rad.radiator_id.length > 0;
+  });
+}
+
 export function getDisplayedZoneTemperature(zone, externalTemp) {
   if (!zone) return null;
 
@@ -14,6 +29,7 @@ export function getDisplayedZoneTemperature(zone, externalTemp) {
   const canReachSetpoint = zone.can_reach_setpoint !== false;
   const isControlRoom = zone.is_boiler_control === true;
   const hasTrv = zoneHasTrv(zone);
+  const hasLocalHeatSource = zoneHasLocalHeatSource(zone);
 
   if (zone.is_unheated === true) {
     return deliveredTemp ?? maxTemp ?? externalTemp;
@@ -25,6 +41,10 @@ export function getDisplayedZoneTemperature(zone, externalTemp) {
 
   if (hasTrv && canReachSetpoint) {
     return setpoint;
+  }
+
+  if (!hasLocalHeatSource) {
+    return deliveredTemp ?? maxTemp ?? setpoint;
   }
 
   return maxTemp ?? deliveredTemp ?? setpoint;

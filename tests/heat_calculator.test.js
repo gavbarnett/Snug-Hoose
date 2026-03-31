@@ -124,6 +124,157 @@ describe('Heated zone adjacent to unheated zone', () => {
   });
 });
 
+describe('Two-room simple house invariants', () => {
+  it('keeps a no-radiator room at or below the radiator room temperature', () => {
+    const scenarios = [
+      { cAOut: 10, cBOut: 8, cAB: 5, surfaceAreaA: 1.0 },
+      { cAOut: 14, cBOut: 6, cAB: 3, surfaceAreaA: 1.2 },
+      { cAOut: 9, cBOut: 11, cAB: 7, surfaceAreaA: 0.8 },
+    ];
+
+    for (const scenario of scenarios) {
+      const demo = {
+        zones: [
+          {
+            id: 'z_a', name: 'Radiator Room', is_unheated: false,
+            setpoint_temperature: 21,
+            radiators: [{ radiator_id: 'rad_std', surface_area: scenario.surfaceAreaA, trv_enabled: true }],
+          },
+          {
+            id: 'z_b', name: 'No Radiator Room', is_unheated: false,
+            setpoint_temperature: 21,
+            radiators: [],
+          },
+          outside,
+        ],
+        elements: [
+          {
+            id: 'el_a_out', type: 'wall',
+            nodes: ['z_a', 'z_outside'],
+            thermal_conductance: scenario.cAOut,
+          },
+          {
+            id: 'el_b_out', type: 'wall',
+            nodes: ['z_b', 'z_outside'],
+            thermal_conductance: scenario.cBOut,
+          },
+          {
+            id: 'el_ab', type: 'wall',
+            nodes: ['z_a', 'z_b'],
+            thermal_conductance: scenario.cAB,
+          },
+        ],
+      };
+
+      const result = computeRoomHeatRequirements(demo, radiators, OPTS);
+      const radRoom = result.rooms.find(r => r.zoneId === 'z_a');
+      const noRadRoom = result.rooms.find(r => r.zoneId === 'z_b');
+
+      expect(radRoom.radiator_coefficient).toBeGreaterThan(0);
+      expect(noRadRoom.radiator_coefficient).toBe(0);
+      expect(noRadRoom.delivered_indoor_temperature).toBeLessThanOrEqual(
+        Number(radRoom.delivered_indoor_temperature) + 1e-6
+      );
+    }
+  });
+
+  it('holds the same invariant when the no-radiator room is explicitly unheated', () => {
+    const demo = {
+      zones: [
+        {
+          id: 'z_a', name: 'Radiator Room', is_unheated: false,
+          setpoint_temperature: 21,
+          radiators: [{ radiator_id: 'rad_std', surface_area: 1.0, trv_enabled: true }],
+        },
+        {
+          id: 'z_b', name: 'No Radiator Unheated', is_unheated: true,
+          radiators: [],
+        },
+        outside,
+      ],
+      elements: [
+        {
+          id: 'el_a_out', type: 'wall',
+          nodes: ['z_a', 'z_outside'],
+          thermal_conductance: 11,
+        },
+        {
+          id: 'el_b_out', type: 'wall',
+          nodes: ['z_b', 'z_outside'],
+          thermal_conductance: 7,
+        },
+        {
+          id: 'el_ab', type: 'wall',
+          nodes: ['z_a', 'z_b'],
+          thermal_conductance: 4,
+        },
+      ],
+    };
+
+    const result = computeRoomHeatRequirements(demo, radiators, OPTS);
+    const radRoom = result.rooms.find(r => r.zoneId === 'z_a');
+    const noRadRoom = result.rooms.find(r => r.zoneId === 'z_b');
+
+    expect(noRadRoom.is_unheated).toBe(true);
+    expect(noRadRoom.radiator_coefficient).toBe(0);
+    expect(noRadRoom.delivered_heat).toBe(0);
+    expect(noRadRoom.delivered_indoor_temperature).toBeLessThanOrEqual(
+      Number(radRoom.delivered_indoor_temperature) + 1e-6
+    );
+  });
+
+  it('preserves the invariant across weather and flow temperature changes', () => {
+    const operatingPoints = [
+      { indoorTemp: 20, externalTemp: -2, flowTemp: 45 },
+      { indoorTemp: 21, externalTemp: 3, flowTemp: 55 },
+      { indoorTemp: 22, externalTemp: 8, flowTemp: 70 },
+    ];
+
+    for (const point of operatingPoints) {
+      const demo = {
+        zones: [
+          {
+            id: 'z_a', name: 'Radiator Room', is_unheated: false,
+            setpoint_temperature: point.indoorTemp,
+            radiators: [{ radiator_id: 'rad_std', surface_area: 0.7, trv_enabled: false }],
+          },
+          {
+            id: 'z_b', name: 'No Radiator Room', is_unheated: false,
+            setpoint_temperature: point.indoorTemp,
+            radiators: [],
+          },
+          outside,
+        ],
+        elements: [
+          {
+            id: 'el_a_out', type: 'wall',
+            nodes: ['z_a', 'z_outside'],
+            thermal_conductance: 9,
+          },
+          {
+            id: 'el_b_out', type: 'wall',
+            nodes: ['z_b', 'z_outside'],
+            thermal_conductance: 10,
+          },
+          {
+            id: 'el_ab', type: 'wall',
+            nodes: ['z_a', 'z_b'],
+            thermal_conductance: 6,
+          },
+        ],
+      };
+
+      const result = computeRoomHeatRequirements(demo, radiators, point);
+      const radRoom = result.rooms.find(r => r.zoneId === 'z_a');
+      const noRadRoom = result.rooms.find(r => r.zoneId === 'z_b');
+
+      expect(noRadRoom.delivered_indoor_temperature).toBeLessThanOrEqual(
+        Number(radRoom.delivered_indoor_temperature) + 1e-6
+      );
+    }
+  });
+});
+
 describe('Savings eligibility for rooms without radiators', () => {
   it('does not attribute TRV savings to heated rooms with no radiators', () => {
     const demo = {

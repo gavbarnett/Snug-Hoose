@@ -1,6 +1,6 @@
 // Shared thermal color classification and mapping for zone visualizations.
 
-import { zoneHasTrv } from './zone_text.js';
+import { zoneHasLocalHeatSource, zoneHasTrv } from './zone_text.js';
 
 export const THERMAL_COLOR_BY_CLASS = {
   'thermal-unheated': '#4c4c4c',
@@ -17,7 +17,11 @@ export function getThermalColorClass(zone) {
   if (!zone || zone.is_unheated === true) return 'thermal-unheated';
 
   const setpoint = typeof zone.setpoint_temperature === 'number' ? zone.setpoint_temperature : null;
-  const actual = typeof zone.max_achievable_temperature === 'number' ? zone.max_achievable_temperature : null;
+  const maxTemp = typeof zone.max_achievable_temperature === 'number' ? zone.max_achievable_temperature : null;
+  const deliveredTemp = typeof zone.delivered_indoor_temperature === 'number' ? zone.delivered_indoor_temperature : null;
+  const actual = zoneHasLocalHeatSource(zone)
+    ? (maxTemp ?? deliveredTemp)
+    : (deliveredTemp ?? maxTemp);
   if (setpoint === null || actual === null) return 'thermal-neutral';
 
   const hasTrv = zoneHasTrv(zone);
