@@ -1024,91 +1024,26 @@ function createEnvironmentControlStrip(demo, onMenuAction, getContext) {
     );
   };
 
-  const controls = [
-    {
-      label: 'Indoor Target',
-      action: 'environment.set.indoor',
-      value: Number.isFinite(demo?.meta?.indoorTemp) ? demo.meta.indoorTemp : 21,
-      min: 14,
-      max: 26,
-      step: 0.5,
-      unit: '°C'
-    },
-    {
-      label: 'System Min Outside',
-      action: 'environment.set.external',
-      value: Number.isFinite(Number(demo?.meta?.systemMinExternalTemp))
-        ? Number(demo.meta.systemMinExternalTemp)
-        : (Number.isFinite(Number(demo?.meta?.externalTemp)) ? Number(demo.meta.externalTemp) : 3),
-      min: -10,
-      max: 20,
-      step: 0.5,
-      unit: '°C',
-      helpText: 'Used for sizing and comfort checks at worst-case conditions.'
-    },
-    {
-      label: 'Seasonal Min Outside',
-      action: 'environment.set.seasonal_min',
-      value: Number.isFinite(Number(demo?.meta?.seasonalMinExternalTemp))
-        ? Number(demo.meta.seasonalMinExternalTemp)
-        : (Number.isFinite(Number(demo?.meta?.systemMinExternalTemp))
-          ? Number(demo.meta.systemMinExternalTemp)
-          : (Number.isFinite(Number(demo?.meta?.externalTemp)) ? Number(demo.meta.externalTemp) : 3)),
-      min: -20,
-      max: 25,
-      step: 0.5,
-      unit: '°C',
-      helpText: 'Used in monthly sinusoid for annual COP and bills.'
-    },
-    {
-      label: 'Seasonal Max Outside',
-      action: 'environment.set.seasonal_max',
-      value: Number.isFinite(Number(demo?.meta?.seasonalMaxExternalTemp))
-        ? Number(demo.meta.seasonalMaxExternalTemp)
-        : 16,
-      min: -5,
-      max: 35,
-      step: 0.5,
-      unit: '°C',
-      helpText: 'Used in monthly sinusoid for annual COP and bills.'
-    },
-    {
-      label: 'Max Flow Temp',
-      action: 'environment.set.flow',
-      value: Number.isFinite(demo?.meta?.flowTemp) ? demo.meta.flowTemp : 55,
-      min: 30,
-      max: 75,
-      step: 1,
-      unit: '°C',
-      helpText: (() => {
-        const eft = Number(demo?.meta?.effective_flow_temp);
-        const czn = demo?.meta?.control_zone_name;
-        if (!Number.isFinite(eft)) return null;
-        return czn
-          ? `Thermostat (${czn}) modulates to ${eft.toFixed(1)}°C`
-          : `No thermostat zone set \u2014 effective = max.`;
-      })()
-    }
-  ];
+  const addSection = (label) => {
+    const sec = document.createElement('div');
+    sec.className = 'alt-env-section-heading';
+    sec.textContent = label;
+    strip.appendChild(sec);
+  };
 
-  controls.forEach(control => {
+  const addSliderCard = (control) => {
     const card = document.createElement('div');
     card.className = 'alt-env-card';
-
     const labelRow = document.createElement('div');
     labelRow.className = 'alt-env-label-row';
-
     const label = document.createElement('span');
     label.className = 'alt-env-label';
     label.textContent = control.label;
-
     const value = document.createElement('span');
     value.className = 'alt-env-value';
     value.textContent = `${control.value}${control.unit}`;
-
     labelRow.appendChild(label);
     labelRow.appendChild(value);
-
     const slider = document.createElement('input');
     slider.type = 'range';
     slider.className = 'alt-env-slider';
@@ -1116,16 +1051,12 @@ function createEnvironmentControlStrip(demo, onMenuAction, getContext) {
     slider.max = String(control.max);
     slider.step = String(control.step);
     slider.value = String(control.value);
-
-    // Keep dragging smooth by updating text live and only committing on release.
     slider.addEventListener('input', () => {
       value.textContent = `${slider.value}${control.unit}`;
     });
-
     slider.addEventListener('change', () => {
       requestAction(control.action, { value: Number(slider.value) });
     });
-
     card.appendChild(labelRow);
     card.appendChild(slider);
     if (typeof control.helpText === 'string' && control.helpText.length > 0) {
@@ -1135,6 +1066,52 @@ function createEnvironmentControlStrip(demo, onMenuAction, getContext) {
       card.appendChild(helpDiv);
     }
     strip.appendChild(card);
+  };
+
+  const heatSourceValue = String(demo?.meta?.heatSourceType || 'gas_boiler');
+  const isGasSource = heatSourceValue === 'gas_boiler';
+  const isHeatPumpSource = heatSourceValue === 'heat_pump';
+  const isDirectElectric = heatSourceValue === 'direct_electric';
+  const isElectricSource = isHeatPumpSource || isDirectElectric;
+
+  // ── Seasonal ──────────────────────────────────────────────────────────────
+  addSection('Seasonal');
+  addSliderCard({
+    label: 'Seasonal Max Outside',
+    action: 'environment.set.seasonal_max',
+    value: Number.isFinite(Number(demo?.meta?.seasonalMaxExternalTemp))
+      ? Number(demo.meta.seasonalMaxExternalTemp) : 16,
+    min: -5, max: 35, step: 0.5, unit: '°C',
+    helpText: 'Used in monthly sinusoid for annual COP and bills.'
+  });
+  addSliderCard({
+    label: 'Seasonal Min Outside',
+    action: 'environment.set.seasonal_min',
+    value: Number.isFinite(Number(demo?.meta?.seasonalMinExternalTemp))
+      ? Number(demo.meta.seasonalMinExternalTemp)
+      : (Number.isFinite(Number(demo?.meta?.systemMinExternalTemp))
+        ? Number(demo.meta.systemMinExternalTemp)
+        : (Number.isFinite(Number(demo?.meta?.externalTemp)) ? Number(demo.meta.externalTemp) : 3)),
+    min: -20, max: 25, step: 0.5, unit: '°C',
+    helpText: 'Used in monthly sinusoid for annual COP and bills.'
+  });
+
+  // ── System ────────────────────────────────────────────────────────────────
+  addSection('System');
+  addSliderCard({
+    label: 'Indoor Target',
+    action: 'environment.set.indoor',
+    value: Number.isFinite(demo?.meta?.indoorTemp) ? demo.meta.indoorTemp : 21,
+    min: 14, max: 26, step: 0.5, unit: '°C'
+  });
+  addSliderCard({
+    label: 'Min Design Temp',
+    action: 'environment.set.external',
+    value: Number.isFinite(Number(demo?.meta?.systemMinExternalTemp))
+      ? Number(demo.meta.systemMinExternalTemp)
+      : (Number.isFinite(Number(demo?.meta?.externalTemp)) ? Number(demo.meta.externalTemp) : 3),
+    min: -10, max: 20, step: 0.5, unit: '°C',
+    helpText: 'Used for sizing and comfort checks at worst-case conditions.'
   });
 
   const heatSourceCard = document.createElement('div');
@@ -1146,11 +1123,6 @@ function createEnvironmentControlStrip(demo, onMenuAction, getContext) {
   const heatSourceSelect = document.createElement('select');
   heatSourceSelect.className = 'alt-env-select';
   heatSourceSelect.id = 'alt-env-heat-source';
-  const heatSourceValue = String(demo?.meta?.heatSourceType || 'gas_boiler');
-  const isGasSource = heatSourceValue === 'gas_boiler';
-  const isHeatPumpSource = heatSourceValue === 'heat_pump';
-  const isDirectElectric = heatSourceValue === 'direct_electric';
-  const isElectricSource = isHeatPumpSource || isDirectElectric; // used for electric tariff card
   [
     { value: 'gas_boiler', label: 'Gas Boiler' },
     { value: 'heat_pump', label: 'Heat Pump' },
@@ -1169,53 +1141,20 @@ function createEnvironmentControlStrip(demo, onMenuAction, getContext) {
   heatSourceCard.appendChild(heatSourceSelect);
   strip.appendChild(heatSourceCard);
 
-  const gasRateCard = document.createElement('div');
-  gasRateCard.className = 'alt-env-card';
-  const gasRateLabel = document.createElement('label');
-  gasRateLabel.className = 'alt-env-label';
-  gasRateLabel.textContent = 'Gas Tariff (£/kWh)';
-  gasRateLabel.setAttribute('for', 'alt-env-gas-rate');
-  const gasRateInput = document.createElement('input');
-  gasRateInput.type = 'number';
-  gasRateInput.id = 'alt-env-gas-rate';
-  gasRateInput.className = 'alt-env-input';
-  gasRateInput.min = '0.01';
-  gasRateInput.max = '2';
-  gasRateInput.step = '0.005';
-  gasRateInput.value = Number.isFinite(Number(demo?.meta?.gasUnitRate))
-    ? Number(demo.meta.gasUnitRate).toFixed(3)
-    : '0.070';
-  gasRateInput.disabled = !isGasSource;
-  gasRateInput.addEventListener('change', () => {
-    requestAction('environment.set.gas_rate', { value: Number(gasRateInput.value) });
+  addSliderCard({
+    label: 'Max Flow Temp',
+    action: 'environment.set.flow',
+    value: Number.isFinite(demo?.meta?.flowTemp) ? demo.meta.flowTemp : 55,
+    min: 30, max: 75, step: 1, unit: '°C',
+    helpText: (() => {
+      const eft = Number(demo?.meta?.effective_flow_temp);
+      const czn = demo?.meta?.control_zone_name;
+      if (!Number.isFinite(eft)) return null;
+      return czn
+        ? `Thermostat (${czn}) modulates to ${eft.toFixed(1)}°C`
+        : `No thermostat zone set \u2014 effective = max.`;
+    })()
   });
-  gasRateCard.appendChild(gasRateLabel);
-  gasRateCard.appendChild(gasRateInput);
-  strip.appendChild(gasRateCard);
-
-  const electricRateCard = document.createElement('div');
-  electricRateCard.className = 'alt-env-card';
-  const electricRateLabel = document.createElement('label');
-  electricRateLabel.className = 'alt-env-label';
-  electricRateLabel.textContent = 'Electric Tariff (£/kWh)';
-  electricRateLabel.setAttribute('for', 'alt-env-electric-rate');
-  const electricRateInput = document.createElement('input');
-  electricRateInput.type = 'number';
-  electricRateInput.id = 'alt-env-electric-rate';
-  electricRateInput.className = 'alt-env-input';
-  electricRateInput.min = '0.01';
-  electricRateInput.max = '2';
-  electricRateInput.step = '0.005';
-  electricRateInput.value = Number.isFinite(Number(demo?.meta?.electricUnitRate))
-    ? Number(demo.meta.electricUnitRate).toFixed(3)
-    : '0.240';
-  electricRateInput.disabled = !isElectricSource;
-  electricRateInput.addEventListener('change', () => {
-    requestAction('environment.set.electric_rate', { value: Number(electricRateInput.value) });
-  });
-  electricRateCard.appendChild(electricRateLabel);
-  electricRateCard.appendChild(electricRateInput);
-  strip.appendChild(electricRateCard);
 
   // --- Unified System COP card ---
   const currentFlowTemp = Number.isFinite(Number(demo?.meta?.flowTemp)) ? Number(demo.meta.flowTemp) : 55;
@@ -1321,6 +1260,55 @@ function createEnvironmentControlStrip(demo, onMenuAction, getContext) {
   systemCopCard.appendChild(systemCopInput);
   systemCopCard.appendChild(systemCopHelpText);
   strip.appendChild(systemCopCard);
+
+  // ── Tariffs ───────────────────────────────────────────────────────────────
+  addSection('Tariffs');
+
+  const gasRateCard = document.createElement('div');
+  gasRateCard.className = 'alt-env-card';
+  const gasRateLabel = document.createElement('label');
+  gasRateLabel.className = 'alt-env-label';
+  gasRateLabel.textContent = 'Gas Tariff (£/kWh)';
+  gasRateLabel.setAttribute('for', 'alt-env-gas-rate');
+  const gasRateInput = document.createElement('input');
+  gasRateInput.type = 'number';
+  gasRateInput.id = 'alt-env-gas-rate';
+  gasRateInput.className = 'alt-env-input';
+  gasRateInput.min = '0.01';
+  gasRateInput.max = '2';
+  gasRateInput.step = '0.005';
+  gasRateInput.value = Number.isFinite(Number(demo?.meta?.gasUnitRate))
+    ? Number(demo.meta.gasUnitRate).toFixed(3)
+    : '0.070';
+  gasRateInput.addEventListener('change', () => {
+    requestAction('environment.set.gas_rate', { value: Number(gasRateInput.value) });
+  });
+  gasRateCard.appendChild(gasRateLabel);
+  gasRateCard.appendChild(gasRateInput);
+  strip.appendChild(gasRateCard);
+
+  const electricRateCard = document.createElement('div');
+  electricRateCard.className = 'alt-env-card';
+  const electricRateLabel = document.createElement('label');
+  electricRateLabel.className = 'alt-env-label';
+  electricRateLabel.textContent = 'Electric Tariff (£/kWh)';
+  electricRateLabel.setAttribute('for', 'alt-env-electric-rate');
+  const electricRateInput = document.createElement('input');
+  electricRateInput.type = 'number';
+  electricRateInput.id = 'alt-env-electric-rate';
+  electricRateInput.className = 'alt-env-input';
+  electricRateInput.min = '0.01';
+  electricRateInput.max = '2';
+  electricRateInput.step = '0.005';
+  electricRateInput.value = Number.isFinite(Number(demo?.meta?.electricUnitRate))
+    ? Number(demo.meta.electricUnitRate).toFixed(3)
+    : '0.240';
+  electricRateInput.addEventListener('change', () => {
+    requestAction('environment.set.electric_rate', { value: Number(electricRateInput.value) });
+  });
+  electricRateCard.appendChild(electricRateLabel);
+  electricRateCard.appendChild(electricRateInput);
+  strip.appendChild(electricRateCard);
 
   return strip;
 }
