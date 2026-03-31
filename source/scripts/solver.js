@@ -420,13 +420,19 @@ function getComparisonMetricsForDemo(demoRaw) {
   }
 
   const indoorTemp = Number.isFinite(working?.meta?.indoorTemp) ? Number(working.meta.indoorTemp) : 21;
-  const externalTemp = Number.isFinite(working?.meta?.externalTemp) ? Number(working.meta.externalTemp) : 3;
+  const externalTemp = getSystemMinOutsideTemp(working?.meta);
   const flowTemp = Number.isFinite(working?.meta?.flowTemp) ? Number(working.meta.flowTemp) : 55;
   const heat = computeRoomHeatRequirements(working, radiators, { indoorTemp, externalTemp, flowTemp });
-  const annualDemand = Math.max(0, (Number(heat.total_delivered_heat || 0) * 24 * 365) / 1000);
+  const annualModel = computeSeasonalAnnualEnergyModel(working, radiators, getRecommendationCostModel());
+  const annualDemand = Number(annualModel.annualHeatDemandKwhYr || 0);
   const effectiveFlowTempForCop = Number.isFinite(heat.effectiveFlowTemp) ? heat.effectiveFlowTemp : flowTemp;
   const heatingInputs = getNormalizedHeatingInputs(working?.meta, effectiveFlowTempForCop, getRecommendationCostModel());
-  const runningCost = computeAnnualRunningCostFromDemand(annualDemand, heatingInputs);
+  const runningCost = {
+    annualInputEnergyKwh: annualModel.annualInputEnergyKwhYr,
+    annualCost: annualModel.annualRunningCost,
+    effectiveSystemEfficiency: annualModel.annualAverageCop,
+    effectiveScop: annualModel.annualAverageCop
+  };
   const roomCount = Array.isArray(heat.rooms) ? heat.rooms.length : 0;
   const unmetSetpointRoomCount = (Array.isArray(heat.rooms) ? heat.rooms : []).filter(room => room && room.can_reach_setpoint === false).length;
 
@@ -489,6 +495,91 @@ function getHeatingCostDefaults(costModel) {
     electricRate: resolveDefault(heating.electric_rate_per_kwh, 0.24, 0.01, 2),
     gasBoilerEfficiency: resolveDefault(heating.gas_boiler_efficiency, 0.9, 0.6, 0.99),
     heatPumpScop: resolveDefault(heating.heat_pump_scop, 3.2, 1.8, 6)
+  };
+}
+
+function getSystemMinOutsideTemp(meta) {
+  if (Number.isFinite(Number(meta?.systemMinExternalTemp))) {
+    return Number(meta.systemMinExternalTemp);
+  }
+  if (Number.isFinite(Number(meta?.externalTemp))) {
+    return Number(meta.externalTemp);
+  }
+  return 3;
+}
+
+function getSeasonalOutsideTempBounds(meta) {
+  const systemMin = getSystemMinOutsideTemp(meta);
+  const seasonalMinRaw = Number(meta?.seasonalMinExternalTemp);
+  const seasonalMaxRaw = Number(meta?.seasonalMaxExternalTemp);
+  const seasonalMin = Number.isFinite(seasonalMinRaw) ? seasonalMinRaw : systemMin;
+  const seasonalMax = Number.isFinite(seasonalMaxRaw) ? seasonalMaxRaw : 16;
+  return {
+    seasonalMin: Math.min(seasonalMin, seasonalMax),
+    seasonalMax: Math.max(seasonalMin, seasonalMax)
+  };
+}
+
+function getSeasonalOutsideTempForMonth(monthIndex, seasonalMin, seasonalMax) {
+  const offset = (seasonalMin + seasonalMax) / 2;
+  const amplitude = (seasonalMax - seasonalMin);
+  const monthNumber = monthIndex + 1;
+  const phase = ((2 * Math.PI) / 12) * monthNumber;
+  return offset + (amplitude * Math.sin(phase));
+}
+
+export function computeSeasonalAnnualEnergyModel(demo, radiators, costModel) {
+  const indoorTemp = Number.isFinite(Number(demo?.meta?.indoorTemp)) ? Number(demo.meta.indoorTemp) : 21;
+  const maxFlowTemp = Number.isFinite(Number(demo?.meta?.flowTemp)) ? Number(demo.meta.flowTemp) : 55;
+  const { seasonalMin, seasonalMax } = getSeasonalOutsideTempBounds(demo?.meta);
+  const monthDays = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const monthlyPointCache = new Map();
+
+  let annualHeatDemandKwhYr = 0;
+  let annualInputEnergyKwhYr = 0;
+  let annualRunningCost = 0;
+
+  for (let monthIndex = 0; monthIndex < 12; monthIndex += 1) {
+    const externalTemp = getSeasonalOutsideTempForMonth(monthIndex, seasonalMin, seasonalMax);
+    const monthHours = monthDays[monthIndex] * 24;
+    const monthKey = externalTemp.toFixed(6);
+    let monthPoint = monthlyPointCache.get(monthKey);
+    if (!monthPoint) {
+      const heat = computeRoomHeatRequirements(demo, radiators, {
+        indoorTemp,
+        externalTemp,
+        flowTemp: maxFlowTemp
+      });
+      const deliveredHeatW = Math.max(0, Number(heat?.total_delivered_heat || 0));
+      const effectiveFlowTemp = Number.isFinite(Number(heat?.effectiveFlowTemp))
+        ? Number(heat.effectiveFlowTemp)
+        : maxFlowTemp;
+      const heatingInputs = getNormalizedHeatingInputs(demo?.meta, effectiveFlowTemp, costModel);
+      const perHourCostModel = computeAnnualRunningCostFromDemand(deliveredHeatW / 1000, heatingInputs);
+      monthPoint = {
+        demandKwhPerHour: deliveredHeatW / 1000,
+        inputKwhPerHour: Number(perHourCostModel?.annualInputEnergyKwh || 0),
+        runningCostPerHour: Number(perHourCostModel?.annualCost || 0)
+      };
+      monthlyPointCache.set(monthKey, monthPoint);
+    }
+
+    annualHeatDemandKwhYr += monthPoint.demandKwhPerHour * monthHours;
+    annualInputEnergyKwhYr += monthPoint.inputKwhPerHour * monthHours;
+    annualRunningCost += monthPoint.runningCostPerHour * monthHours;
+  }
+
+  const annualAverageCop = annualInputEnergyKwhYr > 0
+    ? (annualHeatDemandKwhYr / annualInputEnergyKwhYr)
+    : null;
+
+  return {
+    annualHeatDemandKwhYr,
+    annualInputEnergyKwhYr,
+    annualRunningCost,
+    annualAverageCop,
+    seasonalMin,
+    seasonalMax
   };
 }
 
@@ -616,7 +707,7 @@ function getComfortSnapshotForDemo(demoRaw) {
   }
 
   const indoorTemp = Number.isFinite(working?.meta?.indoorTemp) ? Number(working.meta.indoorTemp) : 21;
-  const externalTemp = Number.isFinite(working?.meta?.externalTemp) ? Number(working.meta.externalTemp) : 3;
+  const externalTemp = getSystemMinOutsideTemp(working?.meta);
   const flowTemp = Number.isFinite(working?.meta?.flowTemp) ? Number(working.meta.flowTemp) : 55;
   const heat = computeRoomHeatRequirements(working, radiators, { indoorTemp, externalTemp, flowTemp });
   const rooms = Array.isArray(heat?.rooms) ? heat.rooms : [];
@@ -670,7 +761,7 @@ function getComfortDeficitRoomsForDemo(demoRaw) {
 
   const radiatorCatalog = currentRadiators ? (currentRadiators.radiators || []) : [];
   const indoorTemp = Number.isFinite(working?.meta?.indoorTemp) ? Number(working.meta.indoorTemp) : 21;
-  const externalTemp = Number.isFinite(working?.meta?.externalTemp) ? Number(working.meta.externalTemp) : 3;
+  const externalTemp = getSystemMinOutsideTemp(working?.meta);
   const flowTemp = Number.isFinite(working?.meta?.flowTemp) ? Number(working.meta.flowTemp) : 55;
   const heat = computeRoomHeatRequirements(working, radiatorCatalog, { indoorTemp, externalTemp, flowTemp });
   const rooms = Array.isArray(heat?.rooms) ? heat.rooms : [];
@@ -1360,9 +1451,11 @@ function applyRadiatorComfortUpgrade(demo, options = {}) {
   const dominantTypeId = getHouseDominantRadiatorType(demo, sizing);
 
   const flowTempRaw = Number(demo?.meta?.flowTemp);
-  const externalTempRaw = Number(demo?.meta?.externalTemp);
+  const externalTempRaw = Number(demo?.meta?.systemMinExternalTemp);
   const flowTemp = isFinite(flowTempRaw) ? flowTempRaw : 55;
-  const externalTemp = isFinite(externalTempRaw) ? externalTempRaw : 3;
+  const externalTemp = isFinite(externalTempRaw)
+    ? externalTempRaw
+    : getSystemMinOutsideTemp(demo?.meta);
   const targetFlowTempRaw = Number(options?.targetFlowTemp);
   const targetFlowTemp = isFinite(targetFlowTempRaw) ? targetFlowTempRaw : flowTemp;
   const maxComfortFlowTempRaw = Number(options?.maxComfortFlowTemp);
@@ -1765,7 +1858,9 @@ function buildPerformanceRecommendations(demoRaw) {
   const results = [];
   const baselineFlowTemp = Number.isFinite(demoRaw?.meta?.flowTemp) ? Number(demoRaw.meta.flowTemp) : 55;
   const baselineHeatingInputs = getNormalizedHeatingInputs(demoRaw?.meta, baselineFlowTemp, costModel);
-  const baselineRunningCost = computeAnnualRunningCostFromDemand(baseline.annualDemandKwhYr, baselineHeatingInputs);
+  const baselineRunningCost = {
+    annualCost: Number(baseline.annualRunningCost || 0)
+  };
   const systemSwitchCfg = measures.heating_system_switch || {};
   const heatedRooms = (Array.isArray(demoRaw?.zones) ? demoRaw.zones : [])
     .filter(zone => zone && zone.type !== 'boundary' && zone.is_unheated !== true);
@@ -3481,6 +3576,9 @@ function createNewProjectBlank() {
     meta: {
       name: 'Blank Project',
       global_target_temperature: 21,
+      systemMinExternalTemp: 3,
+      seasonalMinExternalTemp: 3,
+      seasonalMaxExternalTemp: 16,
       externalTemp: 3,
       indoorTemp: 21,
       flowTemp: 55,
@@ -3546,7 +3644,28 @@ function handleAltVizMenuAction(action, item, context = {}) {
       const value = Number(payload.value);
       if (!Number.isFinite(value)) return;
       pushUndoSnapshot(deepClone(currentDemo));
+      currentDemo.meta.systemMinExternalTemp = value;
       currentDemo.meta.externalTemp = value;
+      triggerSolve();
+      return;
+    }
+    case 'environment.set.seasonal_min': {
+      if (!currentDemo) return;
+      currentDemo.meta = currentDemo.meta || {};
+      const value = Number(payload.value);
+      if (!Number.isFinite(value)) return;
+      pushUndoSnapshot(deepClone(currentDemo));
+      currentDemo.meta.seasonalMinExternalTemp = value;
+      triggerSolve();
+      return;
+    }
+    case 'environment.set.seasonal_max': {
+      if (!currentDemo) return;
+      currentDemo.meta = currentDemo.meta || {};
+      const value = Number(payload.value);
+      if (!Number.isFinite(value)) return;
+      pushUndoSnapshot(deepClone(currentDemo));
+      currentDemo.meta.seasonalMaxExternalTemp = value;
       triggerSolve();
       return;
     }
@@ -4249,7 +4368,7 @@ async function solveAndRender(demoRaw) {
       : (Number.isFinite(demoRaw?.meta?.indoorTemp) ? Number(demoRaw.meta.indoorTemp) : 21);
     const externalTemp = inputTemps && typeof inputTemps.externalTemp === 'number' && isFinite(inputTemps.externalTemp)
       ? inputTemps.externalTemp
-      : (Number.isFinite(demoRaw?.meta?.externalTemp) ? Number(demoRaw.meta.externalTemp) : 3);
+      : getSystemMinOutsideTemp(demoRaw?.meta);
     const flowTemp = inputTemps && typeof inputTemps.flowTemp === 'number' && isFinite(inputTemps.flowTemp)
       ? inputTemps.flowTemp
       : (Number.isFinite(demoRaw?.meta?.flowTemp) ? Number(demoRaw.meta.flowTemp) : 55);
@@ -4259,6 +4378,7 @@ async function solveAndRender(demoRaw) {
     // Annotate demo JSON with results
     demoRaw.meta = demoRaw.meta || {};
     demoRaw.meta.indoorTemp = indoorTemp;
+    demoRaw.meta.systemMinExternalTemp = externalTemp;
     demoRaw.meta.externalTemp = externalTemp;
     demoRaw.meta.flowTemp = flowTemp;
     demoRaw.meta.total_heat_loss = heatResults.total_heat_loss;
@@ -4279,13 +4399,16 @@ async function solveAndRender(demoRaw) {
     demoRaw.meta.max_flow_temp = heatResults.maxFlowTemp;
     demoRaw.meta.control_zone_id = heatResults.controlZoneId;
     demoRaw.meta.control_zone_name = heatResults.controlZoneName;
-    const annualHeatDemandKwhYr = Math.max(0, (Number(heatResults.total_delivered_heat || 0) * 24 * 365) / 1000);
+    const seasonalBounds = getSeasonalOutsideTempBounds(demoRaw.meta);
+    demoRaw.meta.seasonalMinExternalTemp = seasonalBounds.seasonalMin;
+    demoRaw.meta.seasonalMaxExternalTemp = seasonalBounds.seasonalMax;
+    const annualModel = computeSeasonalAnnualEnergyModel(demoRaw, radiators, getRecommendationCostModel());
+    const annualHeatDemandKwhYr = Number(annualModel.annualHeatDemandKwhYr || 0);
     // COP should be calculated at the modulated effective flow temp, not the user's max cap.
     const effectiveFlowTempForCop = Number.isFinite(heatResults.effectiveFlowTemp)
       ? heatResults.effectiveFlowTemp
       : flowTemp;
     const heatingInputs = getNormalizedHeatingInputs(demoRaw.meta, effectiveFlowTempForCop, getRecommendationCostModel());
-    const runningCost = computeAnnualRunningCostFromDemand(annualHeatDemandKwhYr, heatingInputs);
     demoRaw.meta.heatSourceType = heatingInputs.heatSourceType;
     demoRaw.meta.gasUnitRate = heatingInputs.gasRate;
     demoRaw.meta.electricUnitRate = heatingInputs.electricRate;
@@ -4298,9 +4421,10 @@ async function solveAndRender(demoRaw) {
     demoRaw.meta.effective_system_cop = heatingInputs.effectiveSystemCop;
     demoRaw.meta.effective_boiler_cop = heatingInputs.effectiveBoilerCop;
     demoRaw.meta.annual_heat_demand_kwh_yr = annualHeatDemandKwhYr;
-    demoRaw.meta.annual_input_energy_kwh_yr = runningCost.annualInputEnergyKwh;
-    demoRaw.meta.annual_running_cost = runningCost.annualCost;
-    demoRaw.meta.effective_system_efficiency = runningCost.effectiveSystemEfficiency;
+    demoRaw.meta.annual_input_energy_kwh_yr = annualModel.annualInputEnergyKwhYr;
+    demoRaw.meta.annual_running_cost = annualModel.annualRunningCost;
+    demoRaw.meta.annual_average_system_cop = annualModel.annualAverageCop;
+    demoRaw.meta.effective_system_efficiency = annualModel.annualAverageCop;
 
     // Merge room heat results into zones
     for (const zone of demoRaw.zones) {

@@ -197,7 +197,10 @@ function computeWholeHouseEpcEstimate(demo, rooms) {
     return sum + area;
   }, 0);
 
-  const annualHeatingDemand = Math.max(0, (totalDeliveredHeatW * 24 * 365) / 1000);
+  const annualDemandFromMeta = Number(demo?.meta?.annual_heat_demand_kwh_yr);
+  const annualHeatingDemand = isFinite(annualDemandFromMeta) && annualDemandFromMeta >= 0
+    ? annualDemandFromMeta
+    : Math.max(0, (totalDeliveredHeatW * 24 * 365) / 1000);
   const annualInputEnergyFromMeta = Number(demo?.meta?.annual_input_energy_kwh_yr);
   const annualInputEnergy = isFinite(annualInputEnergyFromMeta) && annualInputEnergyFromMeta >= 0
     ? annualInputEnergyFromMeta
@@ -1107,13 +1110,42 @@ function createEnvironmentControlStrip(demo, onMenuAction, getContext) {
       unit: '°C'
     },
     {
-      label: 'External Temp',
+      label: 'System Min Outside',
       action: 'environment.set.external',
-      value: Number.isFinite(demo?.meta?.externalTemp) ? demo.meta.externalTemp : 3,
+      value: Number.isFinite(Number(demo?.meta?.systemMinExternalTemp))
+        ? Number(demo.meta.systemMinExternalTemp)
+        : (Number.isFinite(Number(demo?.meta?.externalTemp)) ? Number(demo.meta.externalTemp) : 3),
       min: -10,
       max: 20,
       step: 0.5,
-      unit: '°C'
+      unit: '°C',
+      helpText: 'Used for sizing and comfort checks at worst-case conditions.'
+    },
+    {
+      label: 'Seasonal Min Outside',
+      action: 'environment.set.seasonal_min',
+      value: Number.isFinite(Number(demo?.meta?.seasonalMinExternalTemp))
+        ? Number(demo.meta.seasonalMinExternalTemp)
+        : (Number.isFinite(Number(demo?.meta?.systemMinExternalTemp))
+          ? Number(demo.meta.systemMinExternalTemp)
+          : (Number.isFinite(Number(demo?.meta?.externalTemp)) ? Number(demo.meta.externalTemp) : 3)),
+      min: -20,
+      max: 25,
+      step: 0.5,
+      unit: '°C',
+      helpText: 'Used in monthly sinusoid for annual COP and bills.'
+    },
+    {
+      label: 'Seasonal Max Outside',
+      action: 'environment.set.seasonal_max',
+      value: Number.isFinite(Number(demo?.meta?.seasonalMaxExternalTemp))
+        ? Number(demo.meta.seasonalMaxExternalTemp)
+        : 16,
+      min: -5,
+      max: 35,
+      step: 0.5,
+      unit: '°C',
+      helpText: 'Used in monthly sinusoid for annual COP and bills.'
     },
     {
       label: 'Max Flow Temp',
@@ -1353,9 +1385,11 @@ function createEnvironmentControlStrip(demo, onMenuAction, getContext) {
   const systemCopHelpText = document.createElement('div');
   systemCopHelpText.className = 'alt-env-help-text';
   const effectiveCopStr = Number.isFinite(effectiveSystemCop) ? effectiveSystemCop.toFixed(2) : 'n/a';
+  const annualAverageCop = Number(demo?.meta?.annual_average_system_cop);
+  const annualAverageCopStr = Number.isFinite(annualAverageCop) ? annualAverageCop.toFixed(2) : 'n/a';
   systemCopHelpText.textContent = isDirectElectric
     ? 'Direct electric: COP is always 1.0.'
-    : `Auto \u2248 ${autoCopForSource.toFixed(2)} at ${effectiveFlowForCop.toFixed(0)}\u00b0C effective flow. Effective (last solve): ${effectiveCopStr}.`;
+    : `Auto \u2248 ${autoCopForSource.toFixed(2)} at ${effectiveFlowForCop.toFixed(0)}\u00b0C effective flow. Effective (system-min solve): ${effectiveCopStr}. Annual avg COP: ${annualAverageCopStr}.`;
 
   systemCopCard.appendChild(systemCopHeader);
   systemCopCard.appendChild(systemCopToggleRow);
