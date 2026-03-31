@@ -557,6 +557,36 @@ a#download:hover {
   line-height: 1.25;
 }
 
+.alt-env-toggle {
+  display: flex;
+  gap: 0.2rem;
+  margin-top: 0.28rem;
+}
+
+.alt-env-toggle-btn {
+  flex: 1;
+  padding: 0.22rem 0;
+  font-size: 0.72rem;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  background: rgba(10, 18, 28, 0.75);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.alt-env-toggle-btn.active {
+  background: rgba(0, 212, 255, 0.18);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.alt-env-toggle-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .alt-env-select:disabled,
 .alt-env-input:disabled {
   opacity: 0.45;

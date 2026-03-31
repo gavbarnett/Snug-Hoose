@@ -5,6 +5,10 @@ import { computeRoomHeatRequirements } from './heat_calculator.js';
 import { renderAlternativeViz } from './alt_viz.js';
 import { initRoomEditor } from './room_editor.js';
 import { initAppUi } from './app_ui.js';
+import {
+  estimateBoilerCopFromFlowTemp,
+  estimateHeatPumpCopFromFlowTemp
+} from './heating_performance.js';
 
 let currentMaterials = null;
 let currentRadiators = null;
@@ -420,7 +424,8 @@ function getComparisonMetricsForDemo(demoRaw) {
   const flowTemp = Number.isFinite(working?.meta?.flowTemp) ? Number(working.meta.flowTemp) : 55;
   const heat = computeRoomHeatRequirements(working, radiators, { indoorTemp, externalTemp, flowTemp });
   const annualDemand = Math.max(0, (Number(heat.total_delivered_heat || 0) * 24 * 365) / 1000);
-  const heatingInputs = getNormalizedHeatingInputs(working?.meta, flowTemp, getRecommendationCostModel());
+  const effectiveFlowTempForCop = Number.isFinite(heat.effectiveFlowTemp) ? heat.effectiveFlowTemp : flowTemp;
+  const heatingInputs = getNormalizedHeatingInputs(working?.meta, effectiveFlowTempForCop, getRecommendationCostModel());
   const runningCost = computeAnnualRunningCostFromDemand(annualDemand, heatingInputs);
   const roomCount = Array.isArray(heat.rooms) ? heat.rooms.length : 0;
   const unmetSetpointRoomCount = (Array.isArray(heat.rooms) ? heat.rooms : []).filter(room => room && room.can_reach_setpoint === false).length;
@@ -471,12 +476,6 @@ function clampNumber(value, min, max) {
   return numeric;
 }
 
-function estimateHeatPumpScopFromFlowTemp(flowTemp) {
-  const flow = clampNumber(flowTemp, 30, 75);
-  const baseScop = 4.2 - ((flow - 35) * 0.06);
-  return clampNumber(baseScop, 1.8, 5.5);
-}
-
 function getHeatingCostDefaults(costModel) {
   const heating = costModel && typeof costModel === 'object' && costModel.heating && typeof costModel.heating === 'object'
     ? costModel.heating
@@ -504,17 +503,42 @@ function getNormalizedHeatingInputs(meta, flowTemp, costModel) {
   const electricRate = clampNumber(meta?.electricUnitRate, 0.01, 2);
   const gasBoilerEfficiency = clampNumber(meta?.gasBoilerEfficiency, 0.6, 0.99);
 
-  const scopModeRaw = String(meta?.heatPumpScopMode || '').trim().toLowerCase();
-  const heatPumpScopMode = scopModeRaw === 'fixed' ? 'fixed' : 'auto';
-  const fixedScop = clampNumber(meta?.heatPumpFixedScop, 1.8, 6);
-  const autoScop = estimateHeatPumpScopFromFlowTemp(flowTemp);
-  const activeScop = heatPumpScopMode === 'fixed' ? fixedScop : autoScop;
+  // Unified COP mode: new copMode field; fallback to legacy heatPumpScopMode for HP saves
+  const legacyScopModeRaw = String(meta?.heatPumpScopMode || '').trim().toLowerCase();
+  const unifiedCopModeRaw = String(meta?.copMode || '').trim().toLowerCase();
+  const resolvedCopModeRaw = unifiedCopModeRaw === 'fixed' || unifiedCopModeRaw === 'auto'
+    ? unifiedCopModeRaw
+    : legacyScopModeRaw;
+  const copMode = resolvedCopModeRaw === 'fixed' ? 'fixed' : 'auto';
+
+  const autoScop = estimateHeatPumpCopFromFlowTemp(flowTemp);
+  const boilerAutoCop = estimateBoilerCopFromFlowTemp(flowTemp, gasBoilerEfficiency);
 
   const effectiveGasRate = Number.isFinite(Number(meta?.gasUnitRate)) ? gasRate : defaults.gasRate;
   const effectiveElectricRate = Number.isFinite(Number(meta?.electricUnitRate)) ? electricRate : defaults.electricRate;
-  const effectiveGasEfficiency = Number.isFinite(Number(meta?.gasBoilerEfficiency)) ? gasBoilerEfficiency : defaults.gasBoilerEfficiency;
-  const effectiveFixedScop = Number.isFinite(Number(meta?.heatPumpFixedScop)) ? fixedScop : defaults.heatPumpScop;
-  const effectiveActiveScop = heatPumpScopMode === 'fixed' ? effectiveFixedScop : autoScop;
+  const effectiveBoilerCopAt55C = Number.isFinite(Number(meta?.gasBoilerEfficiency)) ? gasBoilerEfficiency : defaults.gasBoilerEfficiency;
+  const effectiveBoilerCop = estimateBoilerCopFromFlowTemp(flowTemp, effectiveBoilerCopAt55C);
+
+  // Unified fixed COP value: new copFixedValue field first; fallback to legacy HP field
+  const legacyFixedScop = Number.isFinite(Number(meta?.heatPumpFixedScop))
+    ? clampNumber(meta.heatPumpFixedScop, 1.8, 6)
+    : defaults.heatPumpScop;
+  const unifiedFixedCop = Number.isFinite(Number(meta?.copFixedValue)) ? Number(meta.copFixedValue) : null;
+  const rawFixedCop = unifiedFixedCop ?? (heatSourceType === 'heat_pump' ? legacyFixedScop : null);
+
+  // Clamp fixed COP to source-appropriate range
+  const clampedFixedCop = heatSourceType === 'heat_pump'
+    ? clampNumber(rawFixedCop, 1.8, 6)
+    : (heatSourceType === 'gas_boiler' ? clampNumber(rawFixedCop, 0.6, 0.99) : 1);
+
+  // Auto COP per source
+  const autoSystemCop = heatSourceType === 'heat_pump'
+    ? autoScop
+    : (heatSourceType === 'gas_boiler' ? effectiveBoilerCop : 1);
+
+  const effectiveSystemCop = heatSourceType === 'direct_electric'
+    ? 1
+    : (copMode === 'fixed' && rawFixedCop != null ? clampedFixedCop : autoSystemCop);
 
   return {
     heatSourceType,
@@ -523,11 +547,15 @@ function getNormalizedHeatingInputs(meta, flowTemp, costModel) {
       : (heatSourceType === 'direct_electric' ? 'Direct Electric' : 'Gas Boiler'),
     gasRate: effectiveGasRate,
     electricRate: effectiveElectricRate,
-    gasBoilerEfficiency: effectiveGasEfficiency,
-    heatPumpScopMode,
-    heatPumpFixedScop: effectiveFixedScop,
+    gasBoilerEfficiency: effectiveBoilerCopAt55C,
+    gasBoilerAutoCop: boilerAutoCop,
+    copMode,
+    heatPumpScopMode: copMode,       // backward compat alias
+    heatPumpFixedScop: rawFixedCop != null ? clampedFixedCop : defaults.heatPumpScop,
     heatPumpAutoScop: autoScop,
-    effectiveScop: effectiveActiveScop
+    effectiveBoilerCop,
+    effectiveScop: effectiveSystemCop,
+    effectiveSystemCop
   };
 }
 
@@ -535,13 +563,14 @@ function computeAnnualRunningCostFromDemand(annualHeatDemandKwhYr, heatingInputs
   const demand = Math.max(0, Number(annualHeatDemandKwhYr) || 0);
   const source = heatingInputs?.heatSourceType || 'gas_boiler';
   if (source === 'direct_electric') {
-    const annualInput = demand;
+    const directElectricCop = 1;
+    const annualInput = demand / directElectricCop;
     const annualCost = annualInput * Number(heatingInputs?.electricRate || 0);
     return {
       annualInputEnergyKwh: annualInput,
       annualCost,
-      effectiveSystemEfficiency: 1,
-      effectiveScop: null
+      effectiveSystemEfficiency: directElectricCop,
+      effectiveScop: directElectricCop
     };
   }
   if (source === 'heat_pump') {
@@ -555,14 +584,14 @@ function computeAnnualRunningCostFromDemand(annualHeatDemandKwhYr, heatingInputs
       effectiveScop: scop
     };
   }
-  const gasEfficiency = clampNumber(heatingInputs?.gasBoilerEfficiency, 0.6, 0.99);
-  const annualInput = demand / gasEfficiency;
+  const gasCop = clampNumber(heatingInputs?.effectiveScop, 0.6, 0.99);
+  const annualInput = demand / gasCop;
   const annualCost = annualInput * Number(heatingInputs?.gasRate || 0);
   return {
     annualInputEnergyKwh: annualInput,
     annualCost,
-    effectiveSystemEfficiency: gasEfficiency,
-    effectiveScop: null
+    effectiveSystemEfficiency: gasCop,
+    effectiveScop: gasCop
   };
 }
 
@@ -3592,6 +3621,30 @@ function handleAltVizMenuAction(action, item, context = {}) {
       triggerSolve();
       return;
     }
+    case 'environment.set.cop_mode': {
+      if (!currentDemo) return;
+      currentDemo.meta = currentDemo.meta || {};
+      const mode = String(payload.value || '').trim().toLowerCase() === 'fixed' ? 'fixed' : 'auto';
+      if (String(currentDemo.meta.copMode || 'auto') === mode) return;
+      pushUndoSnapshot(deepClone(currentDemo));
+      currentDemo.meta.copMode = mode;
+      triggerSolve();
+      return;
+    }
+    case 'environment.set.cop_fixed_value': {
+      if (!currentDemo) return;
+      currentDemo.meta = currentDemo.meta || {};
+      const value = Number(payload.value);
+      if (!Number.isFinite(value)) return;
+      const sourceType = String(currentDemo.meta.heatSourceType || 'gas_boiler').trim().toLowerCase();
+      const clamped = sourceType === 'heat_pump'
+        ? clampNumber(value, 1.8, 6)
+        : clampNumber(value, 0.6, 0.99);
+      pushUndoSnapshot(deepClone(currentDemo));
+      currentDemo.meta.copFixedValue = clamped;
+      triggerSolve();
+      return;
+    }
     case 'file.new.blank':
       createNewProjectBlank();
       return;
@@ -4227,16 +4280,23 @@ async function solveAndRender(demoRaw) {
     demoRaw.meta.control_zone_id = heatResults.controlZoneId;
     demoRaw.meta.control_zone_name = heatResults.controlZoneName;
     const annualHeatDemandKwhYr = Math.max(0, (Number(heatResults.total_delivered_heat || 0) * 24 * 365) / 1000);
-    const heatingInputs = getNormalizedHeatingInputs(demoRaw.meta, flowTemp, getRecommendationCostModel());
+    // COP should be calculated at the modulated effective flow temp, not the user's max cap.
+    const effectiveFlowTempForCop = Number.isFinite(heatResults.effectiveFlowTemp)
+      ? heatResults.effectiveFlowTemp
+      : flowTemp;
+    const heatingInputs = getNormalizedHeatingInputs(demoRaw.meta, effectiveFlowTempForCop, getRecommendationCostModel());
     const runningCost = computeAnnualRunningCostFromDemand(annualHeatDemandKwhYr, heatingInputs);
     demoRaw.meta.heatSourceType = heatingInputs.heatSourceType;
     demoRaw.meta.gasUnitRate = heatingInputs.gasRate;
     demoRaw.meta.electricUnitRate = heatingInputs.electricRate;
     demoRaw.meta.gasBoilerEfficiency = heatingInputs.gasBoilerEfficiency;
+    demoRaw.meta.gasBoilerAutoCop = heatingInputs.gasBoilerAutoCop;
     demoRaw.meta.heatPumpScopMode = heatingInputs.heatPumpScopMode;
     demoRaw.meta.heatPumpFixedScop = heatingInputs.heatPumpFixedScop;
     demoRaw.meta.heatPumpAutoScop = heatingInputs.heatPumpAutoScop;
     demoRaw.meta.effective_scop = heatingInputs.effectiveScop;
+    demoRaw.meta.effective_system_cop = heatingInputs.effectiveSystemCop;
+    demoRaw.meta.effective_boiler_cop = heatingInputs.effectiveBoilerCop;
     demoRaw.meta.annual_heat_demand_kwh_yr = annualHeatDemandKwhYr;
     demoRaw.meta.annual_input_energy_kwh_yr = runningCost.annualInputEnergyKwh;
     demoRaw.meta.annual_running_cost = runningCost.annualCost;

@@ -1,6 +1,7 @@
 // Alternative floor-plan view scaffold: level selector + thermal-colored polygons.
 import { formatZoneTemperatureText, getZoneAchText, getZoneCapacitySummary, getZoneSavingsText } from './zone_text.js';
 import { getThermalColorClass, THERMAL_COLOR_BY_CLASS } from './zone_thermal.js';
+import { estimateHeatPumpCopFromFlowTemp, estimateBoilerCopFromFlowTemp } from './heating_performance.js';
 
 let selectedLevel = null;
 let selectedZoneId = null;
@@ -1115,13 +1116,21 @@ function createEnvironmentControlStrip(demo, onMenuAction, getContext) {
       unit: '°C'
     },
     {
-      label: 'Flow Temp',
+      label: 'Max Flow Temp',
       action: 'environment.set.flow',
       value: Number.isFinite(demo?.meta?.flowTemp) ? demo.meta.flowTemp : 55,
       min: 30,
       max: 75,
       step: 1,
-      unit: '°C'
+      unit: '°C',
+      helpText: (() => {
+        const eft = Number(demo?.meta?.effective_flow_temp);
+        const czn = demo?.meta?.control_zone_name;
+        if (!Number.isFinite(eft)) return null;
+        return czn
+          ? `Thermostat (${czn}) modulates to ${eft.toFixed(1)}°C`
+          : `No thermostat zone set \u2014 effective = max.`;
+      })()
     }
   ];
 
@@ -1162,6 +1171,12 @@ function createEnvironmentControlStrip(demo, onMenuAction, getContext) {
 
     card.appendChild(labelRow);
     card.appendChild(slider);
+    if (typeof control.helpText === 'string' && control.helpText.length > 0) {
+      const helpDiv = document.createElement('div');
+      helpDiv.className = 'alt-env-help-text';
+      helpDiv.textContent = control.helpText;
+      card.appendChild(helpDiv);
+    }
     strip.appendChild(card);
   });
 
@@ -1177,7 +1192,8 @@ function createEnvironmentControlStrip(demo, onMenuAction, getContext) {
   const heatSourceValue = String(demo?.meta?.heatSourceType || 'gas_boiler');
   const isGasSource = heatSourceValue === 'gas_boiler';
   const isHeatPumpSource = heatSourceValue === 'heat_pump';
-  const isElectricSource = heatSourceValue === 'heat_pump' || heatSourceValue === 'direct_electric';
+  const isDirectElectric = heatSourceValue === 'direct_electric';
+  const isElectricSource = isHeatPumpSource || isDirectElectric; // used for electric tariff card
   [
     { value: 'gas_boiler', label: 'Gas Boiler' },
     { value: 'heat_pump', label: 'Heat Pump' },
@@ -1244,120 +1260,108 @@ function createEnvironmentControlStrip(demo, onMenuAction, getContext) {
   electricRateCard.appendChild(electricRateInput);
   strip.appendChild(electricRateCard);
 
-  const gasEfficiencyCard = document.createElement('div');
-  gasEfficiencyCard.className = 'alt-env-card';
-  const gasEfficiencyLabel = document.createElement('label');
-  gasEfficiencyLabel.className = 'alt-env-label';
-  gasEfficiencyLabel.textContent = 'Gas Boiler Efficiency';
-  gasEfficiencyLabel.setAttribute('for', 'alt-env-gas-eff');
-  const gasEfficiencyInput = document.createElement('input');
-  gasEfficiencyInput.type = 'number';
-  gasEfficiencyInput.id = 'alt-env-gas-eff';
-  gasEfficiencyInput.className = 'alt-env-input';
-  gasEfficiencyInput.min = '0.6';
-  gasEfficiencyInput.max = '0.99';
-  gasEfficiencyInput.step = '0.01';
-  gasEfficiencyInput.value = Number.isFinite(Number(demo?.meta?.gasBoilerEfficiency))
-    ? Number(demo.meta.gasBoilerEfficiency).toFixed(2)
-    : '0.90';
-  gasEfficiencyInput.disabled = !isGasSource;
-  gasEfficiencyInput.addEventListener('change', () => {
-    requestAction('environment.set.gas_efficiency', { value: Number(gasEfficiencyInput.value) });
-  });
-  gasEfficiencyCard.appendChild(gasEfficiencyLabel);
-  gasEfficiencyCard.appendChild(gasEfficiencyInput);
-  strip.appendChild(gasEfficiencyCard);
+  // --- Unified System COP card ---
+  const currentFlowTemp = Number.isFinite(Number(demo?.meta?.flowTemp)) ? Number(demo.meta.flowTemp) : 55;
+  // Use the thermostat-modulated effective flow temp for COP display; falls back to max if not yet solved
+  const effectiveFlowForCop = Number.isFinite(Number(demo?.meta?.effective_flow_temp))
+    ? Number(demo.meta.effective_flow_temp)
+    : currentFlowTemp;
+  const nominalBoilerCop55 = Number.isFinite(Number(demo?.meta?.gasBoilerEfficiency)) ? Number(demo.meta.gasBoilerEfficiency) : 0.9;
+  const autoCopForSource = isHeatPumpSource
+    ? estimateHeatPumpCopFromFlowTemp(effectiveFlowForCop)
+    : (isGasSource ? estimateBoilerCopFromFlowTemp(effectiveFlowForCop, nominalBoilerCop55) : 1.0);
+  const effectiveSystemCop = Number.isFinite(Number(demo?.meta?.effective_system_cop))
+    ? Number(demo.meta.effective_system_cop)
+    : (Number.isFinite(Number(demo?.meta?.effective_scop)) ? Number(demo.meta.effective_scop) : null);
 
-  const hpScopModeCard = document.createElement('div');
-  hpScopModeCard.className = 'alt-env-card';
-  const flowTempForScop = Number.isFinite(Number(demo?.meta?.flowTemp))
-    ? Number(demo.meta.flowTemp)
-    : 55;
-  const autoScopValue = Number.isFinite(Number(demo?.meta?.heatPumpAutoScop))
-    ? Number(demo.meta.heatPumpAutoScop)
-    : Math.max(1.8, Math.min(5.5, 4.2 - ((flowTempForScop - 35) * 0.06)));
-  const hpScopModeHeader = document.createElement('div');
-  hpScopModeHeader.className = 'alt-env-label-row';
-  const hpScopModeLabel = document.createElement('label');
-  hpScopModeLabel.className = 'alt-env-label';
-  hpScopModeLabel.textContent = 'Heat Pump SCOP Mode';
-  hpScopModeLabel.setAttribute('for', 'alt-env-hp-scop-mode');
-  const hpScopHelp = document.createElement('span');
-  hpScopHelp.className = 'alt-env-help-btn';
-  hpScopHelp.setAttribute('role', 'img');
-  hpScopHelp.setAttribute('aria-label', 'SCOP auto formula help');
-  hpScopHelp.title = `Auto SCOP uses flow temp: SCOP = clamp(4.2 - 0.06 x (Flow - 35), 1.8 to 5.5). At ${flowTempForScop.toFixed(0)}C flow, auto SCOP is ${autoScopValue.toFixed(2)}.`;
-  hpScopHelp.textContent = '?';
-  hpScopModeHeader.appendChild(hpScopModeLabel);
-  hpScopModeHeader.appendChild(hpScopHelp);
-  const hpScopModeSelect = document.createElement('select');
-  hpScopModeSelect.id = 'alt-env-hp-scop-mode';
-  hpScopModeSelect.className = 'alt-env-select';
-  const scopModeValue = String(demo?.meta?.heatPumpScopMode || 'auto').toLowerCase() === 'fixed'
-    ? 'fixed'
-    : 'auto';
-  [
-    { value: 'auto', label: 'Auto (from flow temp)' },
-    { value: 'fixed', label: 'Fixed SCOP' }
-  ].forEach(opt => {
-    const option = document.createElement('option');
-    option.value = opt.value;
-    option.textContent = opt.label;
-    if (opt.value === scopModeValue) option.selected = true;
-    hpScopModeSelect.appendChild(option);
-  });
-  hpScopModeSelect.addEventListener('change', () => {
-    requestAction('environment.set.hp_scop_mode', { value: hpScopModeSelect.value });
-  });
-  hpScopModeSelect.disabled = !isHeatPumpSource;
-  hpScopModeCard.appendChild(hpScopModeHeader);
-  hpScopModeCard.appendChild(hpScopModeSelect);
-  const hpScopModeHelpText = document.createElement('div');
-  hpScopModeHelpText.className = 'alt-env-help-text';
-  hpScopModeHelpText.textContent = `Auto mode currently maps ${flowTempForScop.toFixed(0)}C flow to SCOP ${autoScopValue.toFixed(2)}.`;
-  hpScopModeCard.appendChild(hpScopModeHelpText);
-  strip.appendChild(hpScopModeCard);
+  // Resolve current COP mode: unified copMode, fallback HP legacy
+  const legacyCopModeRaw = String(demo?.meta?.heatPumpScopMode || '').trim().toLowerCase();
+  const unifiedCopModeRaw = String(demo?.meta?.copMode || '').trim().toLowerCase();
+  const resolvedCopMode = (unifiedCopModeRaw === 'fixed' || unifiedCopModeRaw === 'auto')
+    ? unifiedCopModeRaw
+    : legacyCopModeRaw;
+  const copMode = resolvedCopMode === 'fixed' ? 'fixed' : 'auto';
 
-  const hpScopCard = document.createElement('div');
-  hpScopCard.className = 'alt-env-card';
-  const hpScopLabel = document.createElement('label');
-  hpScopLabel.className = 'alt-env-label';
-  hpScopLabel.textContent = 'Heat Pump Fixed SCOP';
-  hpScopLabel.setAttribute('for', 'alt-env-hp-scop-fixed');
-  const hpScopInput = document.createElement('input');
-  hpScopInput.type = 'number';
-  hpScopInput.id = 'alt-env-hp-scop-fixed';
-  hpScopInput.className = 'alt-env-input';
-  hpScopInput.min = '1.8';
-  hpScopInput.max = '6';
-  hpScopInput.step = '0.1';
-  hpScopInput.value = Number.isFinite(Number(demo?.meta?.heatPumpFixedScop))
-    ? Number(demo.meta.heatPumpFixedScop).toFixed(1)
-    : '3.2';
-  hpScopInput.disabled = !isHeatPumpSource || scopModeValue !== 'fixed';
-  hpScopInput.addEventListener('change', () => {
-    requestAction('environment.set.hp_scop_fixed', { value: Number(hpScopInput.value) });
-  });
-  hpScopCard.appendChild(hpScopLabel);
-  hpScopCard.appendChild(hpScopInput);
-  strip.appendChild(hpScopCard);
+  // Fixed COP value: unified first, then HP legacy
+  const legacyHpFixed = Number.isFinite(Number(demo?.meta?.heatPumpFixedScop)) ? Number(demo.meta.heatPumpFixedScop) : 3.2;
+  const unifiedFixed = Number.isFinite(Number(demo?.meta?.copFixedValue)) ? Number(demo.meta.copFixedValue) : null;
+  const copFixedValue = unifiedFixed ?? (isHeatPumpSource ? legacyHpFixed : (isGasSource ? nominalBoilerCop55 : 1.0));
 
-  const hpScopInfoCard = document.createElement('div');
-  hpScopInfoCard.className = 'alt-env-card';
-  const hpScopInfoLabel = document.createElement('div');
-  hpScopInfoLabel.className = 'alt-env-label';
-  hpScopInfoLabel.textContent = 'Effective SCOP';
-  const hpScopInfoValue = document.createElement('div');
-  hpScopInfoValue.className = 'alt-env-value';
-  hpScopInfoValue.textContent = Number.isFinite(Number(demo?.meta?.effective_scop))
-    ? Number(demo.meta.effective_scop).toFixed(2)
-    : 'n/a';
-  if (!isHeatPumpSource) {
-    hpScopInfoValue.textContent = 'n/a';
-  }
-  hpScopInfoCard.appendChild(hpScopInfoLabel);
-  hpScopInfoCard.appendChild(hpScopInfoValue);
-  strip.appendChild(hpScopInfoCard);
+  // Input bounds per source
+  const [copMin, copMax, copStep, copDec] = isHeatPumpSource
+    ? [1.8, 6.0, 0.1, 2]
+    : (isGasSource ? [0.60, 0.99, 0.01, 3] : [1.0, 1.0, 0.1, 2]);
+
+  const systemCopCard = document.createElement('div');
+  systemCopCard.className = 'alt-env-card';
+
+  const systemCopHeader = document.createElement('div');
+  systemCopHeader.className = 'alt-env-label-row';
+  const systemCopLabel = document.createElement('div');
+  systemCopLabel.className = 'alt-env-label';
+  systemCopLabel.textContent = 'System COP';
+  const systemCopHelp = document.createElement('span');
+  systemCopHelp.className = 'alt-env-help-btn';
+  systemCopHelp.setAttribute('role', 'img');
+  systemCopHelp.setAttribute('aria-label', 'System COP help');
+  const autoFormula = isHeatPumpSource
+    ? 'HP auto: 4.2 \u2212 0.06\u00d7(flow\u221235), clamped 1.8\u20135.5'
+    : (isGasSource
+      ? `Boiler auto: nominalCOP\u00b1(55\u2212flow)\u00d70.003, clamped 0.6\u20130.99. Nominal @55\u00b0C: ${nominalBoilerCop55.toFixed(2)}`
+      : 'Direct electric: always 1.0');
+  systemCopHelp.title = `${autoFormula}. Auto COP at effective ${effectiveFlowForCop.toFixed(0)}\u00b0C flow \u2248 ${autoCopForSource.toFixed(2)}.`;
+  systemCopHelp.textContent = '?';
+  systemCopHeader.appendChild(systemCopLabel);
+  systemCopHeader.appendChild(systemCopHelp);
+
+  const systemCopToggleRow = document.createElement('div');
+  systemCopToggleRow.className = 'alt-env-toggle';
+  const autoBtn = document.createElement('button');
+  autoBtn.type = 'button';
+  autoBtn.className = 'alt-env-toggle-btn' + (copMode === 'auto' ? ' active' : '');
+  autoBtn.textContent = 'Auto';
+  autoBtn.disabled = isDirectElectric;
+  const fixedBtn = document.createElement('button');
+  fixedBtn.type = 'button';
+  fixedBtn.className = 'alt-env-toggle-btn' + (copMode === 'fixed' ? ' active' : '');
+  fixedBtn.textContent = 'Fixed';
+  fixedBtn.disabled = isDirectElectric;
+  systemCopToggleRow.appendChild(autoBtn);
+  systemCopToggleRow.appendChild(fixedBtn);
+
+  const systemCopInput = document.createElement('input');
+  systemCopInput.type = 'number';
+  systemCopInput.id = 'alt-env-system-cop-value';
+  systemCopInput.className = 'alt-env-input';
+  systemCopInput.min = String(copMin);
+  systemCopInput.max = String(copMax);
+  systemCopInput.step = String(copStep);
+  systemCopInput.value = copFixedValue.toFixed(copDec);
+  systemCopInput.disabled = isDirectElectric || copMode !== 'fixed';
+  systemCopInput.setAttribute('aria-label', 'Fixed COP value');
+  systemCopInput.addEventListener('change', () => {
+    requestAction('environment.set.cop_fixed_value', { value: Number(systemCopInput.value) });
+  });
+
+  autoBtn.addEventListener('click', () => {
+    if (copMode !== 'auto') requestAction('environment.set.cop_mode', { value: 'auto' });
+  });
+  fixedBtn.addEventListener('click', () => {
+    if (copMode !== 'fixed') requestAction('environment.set.cop_mode', { value: 'fixed' });
+  });
+
+  const systemCopHelpText = document.createElement('div');
+  systemCopHelpText.className = 'alt-env-help-text';
+  const effectiveCopStr = Number.isFinite(effectiveSystemCop) ? effectiveSystemCop.toFixed(2) : 'n/a';
+  systemCopHelpText.textContent = isDirectElectric
+    ? 'Direct electric: COP is always 1.0.'
+    : `Auto \u2248 ${autoCopForSource.toFixed(2)} at ${effectiveFlowForCop.toFixed(0)}\u00b0C effective flow. Effective (last solve): ${effectiveCopStr}.`;
+
+  systemCopCard.appendChild(systemCopHeader);
+  systemCopCard.appendChild(systemCopToggleRow);
+  systemCopCard.appendChild(systemCopInput);
+  systemCopCard.appendChild(systemCopHelpText);
+  strip.appendChild(systemCopCard);
 
   return strip;
 }
