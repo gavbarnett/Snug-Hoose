@@ -21,7 +21,7 @@ describe('rooms with no local heat source', () => {
     expect(getThermalColorClass(zone)).toBe('thermal-extreme-cold');
   });
 
-  it('still uses max achievable temperature when local heat source exists', () => {
+  it('still uses max achievable temperature when local heat source exists without TRV', () => {
     const zone = {
       id: 'z_living',
       name: 'Living',
@@ -29,7 +29,7 @@ describe('rooms with no local heat source', () => {
       is_boiler_control: false,
       setpoint_temperature: 21,
       can_reach_setpoint: false,
-      radiators: [{ radiator_id: 'type_22', surface_area: 0.6 }],
+      radiators: [{ radiator_id: 'type_22', surface_area: 0.6, trv_enabled: false }],
       radiator_coefficient: 4.8,
       delivered_indoor_temperature: 20,
       max_achievable_temperature: 24
@@ -37,5 +37,23 @@ describe('rooms with no local heat source', () => {
 
     expect(getDisplayedZoneTemperature(zone, 8)).toBe(24);
     expect(getThermalColorClass(zone)).toBe('thermal-extreme-hot');
+  });
+
+  it('uses delivered temperature for TRV rooms below setpoint', () => {
+    const zone = {
+      id: 'z_study',
+      name: 'Study',
+      is_unheated: false,
+      is_boiler_control: false,
+      setpoint_temperature: 21,
+      can_reach_setpoint: false,
+      radiators: [{ radiator_id: 'type_22', surface_area: 0.6, trv_enabled: true }],
+      radiator_coefficient: 4.8,
+      delivered_indoor_temperature: 20,
+      max_achievable_temperature: 24
+    };
+
+    expect(getDisplayedZoneTemperature(zone, 8)).toBe(20);
+    expect(getThermalColorClass(zone)).toBe('thermal-cold');
   });
 });

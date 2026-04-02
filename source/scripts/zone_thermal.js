@@ -19,12 +19,12 @@ export function getThermalColorClass(zone) {
   const setpoint = typeof zone.setpoint_temperature === 'number' ? zone.setpoint_temperature : null;
   const maxTemp = typeof zone.max_achievable_temperature === 'number' ? zone.max_achievable_temperature : null;
   const deliveredTemp = typeof zone.delivered_indoor_temperature === 'number' ? zone.delivered_indoor_temperature : null;
+  const hasTrv = zoneHasTrv(zone);
   const actual = zoneHasLocalHeatSource(zone)
-    ? (maxTemp ?? deliveredTemp)
+    ? (hasTrv ? (deliveredTemp ?? maxTemp) : (maxTemp ?? deliveredTemp))
     : (deliveredTemp ?? maxTemp);
   if (setpoint === null || actual === null) return 'thermal-neutral';
 
-  const hasTrv = zoneHasTrv(zone);
   const isControlRoom = zone.is_boiler_control === true;
   const canReachSetpoint = zone.can_reach_setpoint !== false;
 

@@ -39,8 +39,11 @@ export function getDisplayedZoneTemperature(zone, externalTemp) {
     return canReachSetpoint ? setpoint : (deliveredTemp ?? maxTemp ?? setpoint);
   }
 
-  if (hasTrv && canReachSetpoint) {
-    return setpoint;
+  if (hasTrv) {
+    if (canReachSetpoint) {
+      return setpoint;
+    }
+    return deliveredTemp ?? setpoint ?? maxTemp;
   }
 
   if (!hasLocalHeatSource) {

@@ -1,5 +1,6 @@
 {
 	"currency": "GBP",
+	"handyman_callout": 150,
 	"measures": {
 		"radiator_upgrade": {
 			"cost_per_m2_surface_area": 45,
