@@ -855,6 +855,36 @@ function getElementAreaM2(element) {
   return x * y;
 }
 
+function getOpeningAreaFromSpecM2(opening) {
+  const directArea = Number(opening?.area ?? opening?.total_area);
+  if (isFinite(directArea) && directArea > 0) return directArea;
+
+  const width = Number(opening?.width ?? opening?.width_m ?? opening?.w);
+  const height = Number(opening?.height ?? opening?.height_m ?? opening?.h);
+  if (!isFinite(width) || !isFinite(height) || width <= 0 || height <= 0) return 0;
+
+  const widthM = width > 10 ? (width / 1000) : width;
+  const heightM = height > 10 ? (height / 1000) : height;
+  const area = widthM * heightM;
+  return isFinite(area) && area > 0 ? area : 0;
+}
+
+function getElementNetInsulationAreaM2(element) {
+  const grossArea = getElementAreaM2(element);
+  if (!isFinite(grossArea) || grossArea <= 0) return 0;
+
+  let openingsArea = Number(element?.openings_area);
+  if (!isFinite(openingsArea) || openingsArea < 0) {
+    openingsArea = 0;
+    const windows = Array.isArray(element?.windows) ? element.windows : [];
+    const doors = Array.isArray(element?.doors) ? element.doors : [];
+    windows.forEach(window => { openingsArea += getOpeningAreaFromSpecM2(window); });
+    doors.forEach(door => { openingsArea += getOpeningAreaFromSpecM2(door); });
+  }
+
+  return Math.max(0, grossArea - Math.min(grossArea, openingsArea));
+}
+
 function resolveElementBuildUpForEdit(element, templates) {
   if (Array.isArray(element?.build_up) && element.build_up.length > 0) {
     return deepClone(element.build_up);
@@ -2390,7 +2420,7 @@ function buildPerformanceRecommendations(demoRaw) {
       worst._internal_retrofit_applied = true;
       const wallName = resolveElementName(worst, 'Worst external wall');
       const layerMaterialName = getMaterialDisplayName(layerMaterialId);
-      const areaM2 = getElementAreaM2(worst) || 1;
+      const areaM2 = getElementNetInsulationAreaM2(worst) || getElementAreaM2(worst) || 1;
       const studCapMm = Math.round(Number(cfg.max_within_stud_thickness_m || 0.1) * 1000);
       const withinStudMm = Math.round(thicknessPlan.withinStudThickness * 1000);
       const serviceLayerMm = Math.round(thicknessPlan.serviceThickness * 1000);
@@ -2427,9 +2457,9 @@ function buildPerformanceRecommendations(demoRaw) {
       return {
         total: callout + materialCost + install,
         breakdown: [
-          { label: 'Insulation contractor callout', amount: callout },
-          { label: 'Insulation material', amount: materialCost },
-          { label: `Wall insulation labour (${change.areaM2.toFixed(1)} m2)`, amount: install }
+          { label: 'Internal wall retrofit callout', amount: callout },
+          { label: 'Insulation material (no blockwork replacement)', amount: materialCost },
+          { label: `Internal lining/insulation labour (${change.areaM2.toFixed(1)} m2)`, amount: install }
         ]
       };
     },
@@ -2763,7 +2793,7 @@ function buildPerformanceRecommendations(demoRaw) {
       delete candidateWall.build_up_template_id;
       candidateWall._internal_retrofit_applied = true;
       
-      const wallArea = getElementAreaM2(sourceWall) || 1;
+      const wallArea = getElementNetInsulationAreaM2(sourceWall) || getElementAreaM2(sourceWall) || 1;
       totalWallArea += wallArea;
       wallUpgradeCount += 1;
       
@@ -2772,57 +2802,6 @@ function buildPerformanceRecommendations(demoRaw) {
     });
     
     if (wallUpgradeCount === 0) return;
-    
-    // Optionally add floor insulation if this room has a ground floor
-    let floorUpgradeApplied = false;
-    const floorsInRoom = candidateElements
-      .filter(el => {
-        if (String(el?.type || '').toLowerCase() !== 'floor') return false;
-        const nodes = Array.isArray(el?.nodes) ? el.nodes : [];
-        if (!nodes.includes(groundId)) return false;
-        if (!nodes.includes(roomId)) return false;
-        return true;
-      });
-    
-    if (floorsInRoom.length > 0 && groundId) {
-      floorsInRoom.forEach(floorEl => {
-        const floorBuildUp = resolveElementBuildUpForEdit(floorEl, templates);
-        const floorMatId = String(floorCfg.insulation_material_id || 'rockwool');
-        const floorResult = applyFloorCavityInsulationRetrofit(floorEl, templates, floorCfg, floorMatId);
-        if (floorResult.changed) {
-          floorUpgradeApplied = true;
-        }
-      });
-    }
-    
-    // Optionally add loft insulation if this room has ceiling to loft
-    let loftUpgradeApplied = false;
-    const ceilingsInRoom = candidateElements
-      .filter(el => {
-        const type = String(el?.type || '').toLowerCase();
-        if (type !== 'ceiling' && type !== 'floor_ceiling') return false;
-        const nodes = Array.isArray(el?.nodes) ? el.nodes : [];
-        if (!nodes.includes(loftId)) return false;
-        if (!nodes.includes(roomId)) return false;
-        return true;
-      });
-    
-    if (ceilingsInRoom.length > 0 && loftId) {
-      ceilingsInRoom.forEach(ceilingEl => {
-        const beforeBuildUp = resolveElementBuildUpForEdit(ceilingEl, templates);
-        const loftPlan = getLoftInsulationThicknessFromBuildUp(beforeBuildUp, loftCfg);
-        const addedLoftThickness = loftPlan.totalAddedThickness;
-        const loftMatId = String(loftCfg.insulation_material_id || 'rockwool');
-        
-        beforeBuildUp.push({
-          material_id: loftMatId,
-          thickness: Number(addedLoftThickness.toFixed(3))
-        });
-        ceilingEl.build_up = beforeBuildUp;
-        delete ceilingEl.build_up_template_id;
-        loftUpgradeApplied = true;
-      });
-    }
     
     // Evaluate the change
     const metrics = getComparisonMetricsForDemo(candidateDemo);
@@ -2863,7 +2842,7 @@ function buildPerformanceRecommendations(demoRaw) {
       const buildUp = resolveElementBuildUpForEdit(sourceWall, templates);
       const thicknessPlan = getWallRetrofitThicknessFromBuildUp(buildUp, wallCfg);
       const addedThickness = thicknessPlan.totalAddedThickness;
-      const wArea = getElementAreaM2(sourceWall) || 1;
+      const wArea = getElementNetInsulationAreaM2(sourceWall) || getElementAreaM2(sourceWall) || 1;
       
       totalWallVolume += wArea * addedThickness;
       
@@ -2876,45 +2855,7 @@ function buildPerformanceRecommendations(demoRaw) {
       wallInstallValue += wArea * (Number(wallCfg.install_per_m2 || 0) * installMult);
     });
     
-    let totalFloorArea = 0;
-    let totalFloorVolume = 0;
-    let floorUpgradeCost = 0;
-    if (floorUpgradeApplied) {
-      floorsInRoom.forEach(floorEl => {
-        const fArea = getElementAreaM2(floorEl) || 0;
-        totalFloorArea += fArea;
-        totalFloorVolume += fArea * 0.15; // Approximate thickness for floor
-      });
-      const floorMatPerM3 = getInsulationMaterialCostPerM3(floorCfg.insulation_material_id);
-      floorUpgradeCost = floorMatPerM3 !== null
-        ? (totalFloorVolume * floorMatPerM3)
-        : (totalFloorArea * getInsulationMaterialCostPerM2(floorCfg.insulation_material_id, floorCfg.fallback_thickness_m, floorCfg.material_per_m2));
-    }
-    
-    let totalLoftArea = 0;
-    let totalLoftVolume = 0;
-    let loftUpgradeCost = 0;
-    if (loftUpgradeApplied) {
-      ceilingsInRoom.forEach(ceilingEl => {
-        const lArea = getElementAreaM2(ceilingEl) || 0;
-        totalLoftArea += lArea;
-        totalLoftVolume += lArea * 0.15; // Approximate thickness for loft
-      });
-      const loftMatPerM3 = getInsulationMaterialCostPerM3(loftCfg.insulation_material_id);
-      loftUpgradeCost = loftMatPerM3 !== null
-        ? (totalLoftVolume * loftMatPerM3)
-        : (totalLoftArea * getInsulationMaterialCostPerM2(loftCfg.insulation_material_id, loftCfg.fallback_thickness_m, loftCfg.material_per_m2));
-    }
-    
-    const floorInstallValue = totalFloorArea * Number(floorCfg.install_per_m2 || 0);
-    const loftInstallValue = totalLoftArea * Number(loftCfg.install_per_m2 || 0);
-    
-    const handymanCallout = Number(costModel.handyman_callout || 0);
-    
-    const totalCost = handymanCallout
-      + (Number(wallCfg.callout || 0) + wallMaterialCost + wallInstallValue)
-      + (floorUpgradeApplied ? (floorUpgradeCost + floorInstallValue) : 0)
-      + (loftUpgradeApplied ? (loftUpgradeCost + loftInstallValue) : 0);
+    const totalCost = Number(wallCfg.callout || 0) + wallMaterialCost + wallInstallValue;
     
     const paybackYears = annualCostSavings > 0 && totalCost > 0
       ? totalCost / annualCostSavings
@@ -2923,28 +2864,15 @@ function buildPerformanceRecommendations(demoRaw) {
     // Build proposal text
     const wallListText = wallUpgradeSummary.join('; ');
     const layerMaterialName = getMaterialDisplayName(layerMaterialId);
-    let proposalParts = [
+    const proposalParts = [
       `Insulate all external walls in ${roomName}: ${wallListText}.`,
-      `Wall improvement: add ${layerMaterialName} as internal retrofit (${wallUpgradeCount} walls, total ${totalWallArea.toFixed(1)} m²).`
+      `Wall improvement: add ${layerMaterialName} as internal retrofit (${wallUpgradeCount} walls, net insulatable area ${totalWallArea.toFixed(1)} m²).`,
+      'Cost scope excludes external blockwork rebuild and includes internal insulation plus lining works only.'
     ];
-    
-    if (floorUpgradeApplied) {
-      proposalParts.push(`Floor: add cavity insulation to ground floor in ${roomName} (${totalFloorArea.toFixed(1)} m²).`);
-    }
-    if (loftUpgradeApplied) {
-      proposalParts.push(`Ceiling: top up loft insulation in ${roomName} above this room (${totalLoftArea.toFixed(1)} m²).`);
-    }
     
     const costBreakdown = [
-      { label: 'Handyman/contractor callout', amount: handymanCallout },
       { label: `All external walls (${wallUpgradeCount} walls, ${totalWallArea.toFixed(1)} m²)`, amount: Number(wallCfg.callout || 0) + wallMaterialCost + wallInstallValue }
     ];
-    if (floorUpgradeApplied) {
-      costBreakdown.push({ label: `Floor cavity insulation (${totalFloorArea.toFixed(1)} m²)`, amount: floorUpgradeCost + floorInstallValue });
-    }
-    if (loftUpgradeApplied) {
-      costBreakdown.push({ label: `Loft top-up (${totalLoftArea.toFixed(1)} m²)`, amount: loftUpgradeCost + loftInstallValue });
-    }
     
     const normalizedCost = normalizeCostResult({ total: totalCost, breakdown: costBreakdown }, currency);
     
@@ -3198,18 +3126,13 @@ function applyRecommendationById(demoRaw, recommendationId) {
   // Handle room-based wall insulation recommendations
   if (recId.startsWith('wall_insulation_room_')) {
     const cfg = measures.wall_insulation_internal_retrofit || measures.external_wall_insulation || {};
-    const floorCfg = measures.floor_insulation || {};
-    const loftCfg = measures.loft_insulation || {};
     const layerMaterialId = String(cfg.insulation_material_id || 'pir');
-    const floorMatId = String(floorCfg.insulation_material_id || 'rockwool');
-    const loftMatId = String(loftCfg.insulation_material_id || 'rockwool');
     
     const zones = Array.isArray(demoRaw?.zones) ? demoRaw.zones : [];
     const elements = Array.isArray(demoRaw?.elements) ? demoRaw.elements : [];
     const templates = (demoRaw.meta && demoRaw.meta.build_up_templates) || {};
     const outsideBoundaryId = getBoundaryZoneId(demoRaw, 'outside');
-    const groundId = getBoundaryZoneId(demoRaw, 'ground');
-    const loftId = getBoundaryZoneId(demoRaw, 'loft');
+    
     
     // Try to find matching room (rec ID contains room ID hash last 8 chars)
     let targetRoom = null;
@@ -3256,50 +3179,6 @@ function applyRecommendationById(demoRaw, recommendationId) {
         wall.build_up = buildUp;
         delete wall.build_up_template_id;
         wall._internal_retrofit_applied = true;
-        changed = true;
-      });
-    }
-    
-    // Upgrade ground floors in this room
-    if (groundId) {
-      const floorsInRoom = elements
-        .filter(el => {
-          if (String(el?.type || '').toLowerCase() !== 'floor') return false;
-          const nodes = Array.isArray(el?.nodes) ? el.nodes : [];
-          if (!nodes.includes(groundId)) return false;
-          if (!nodes.includes(roomId)) return false;
-          return true;
-        });
-      
-      floorsInRoom.forEach(floorEl => {
-        const result = applyFloorCavityInsulationRetrofit(floorEl, templates, floorCfg, floorMatId);
-        if (result.changed) changed = true;
-      });
-    }
-    
-    // Upgrade loft ceilings in this room
-    if (loftId) {
-      const ceilingsInRoom = elements
-        .filter(el => {
-          const type = String(el?.type || '').toLowerCase();
-          if (type !== 'ceiling' && type !== 'floor_ceiling') return false;
-          const nodes = Array.isArray(el?.nodes) ? el.nodes : [];
-          if (!nodes.includes(loftId)) return false;
-          if (!nodes.includes(roomId)) return false;
-          return true;
-        });
-      
-      ceilingsInRoom.forEach(ceilingEl => {
-        const buildUp = resolveElementBuildUpForEdit(ceilingEl, templates);
-        const loftPlan = getLoftInsulationThicknessFromBuildUp(buildUp, loftCfg);
-        const addedThickness = loftPlan.totalAddedThickness;
-        
-        buildUp.push({
-          material_id: loftMatId,
-          thickness: Number(addedThickness.toFixed(3))
-        });
-        ceilingEl.build_up = buildUp;
-        delete ceilingEl.build_up_template_id;
         changed = true;
       });
     }
