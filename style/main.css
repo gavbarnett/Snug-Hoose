@@ -352,6 +352,56 @@ a#download:hover {
   margin-bottom: 0.3rem;
 }
 
+.alt-viz-recommendations-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.alt-viz-recommendations-toggle-btn {
+  width: 34px;
+  height: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  background: rgba(120, 132, 144, 0.55);
+  cursor: pointer;
+  position: relative;
+  padding: 0;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.alt-viz-recommendations-toggle-btn::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #f8fbff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: transform 0.18s ease;
+}
+
+.alt-viz-recommendations-toggle-btn.is-on {
+  background: rgba(60, 180, 120, 0.8);
+  border-color: rgba(145, 235, 190, 0.85);
+}
+
+.alt-viz-recommendations-toggle-btn.is-on::after {
+  transform: translateX(14px);
+}
+
+.alt-viz-recommendations-toggle-btn:hover {
+  border-color: rgba(230, 240, 255, 0.72);
+}
+
+.alt-viz-recommendations-toggle-btn:focus-visible {
+  outline: 2px solid rgba(180, 225, 255, 0.95);
+  outline-offset: 2px;
+}
+
 .alt-viz-recommendations-empty {
   font-size: 0.72rem;
   color: var(--text-muted);

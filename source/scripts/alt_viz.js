@@ -374,19 +374,54 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
   const recommendationsWrap = document.createElement('div');
   recommendationsWrap.className = 'alt-viz-recommendations';
 
+  const recommendationsHeader = document.createElement('div');
+  recommendationsHeader.className = 'alt-viz-recommendations-header';
+
   const recommendationsTitle = document.createElement('div');
   recommendationsTitle.className = 'alt-viz-recommendations-title';
   recommendationsTitle.textContent = 'Recommendations';
-  recommendationsWrap.appendChild(recommendationsTitle);
+  recommendationsHeader.appendChild(recommendationsTitle);
+
+  const recommendationsEnabled = demo?.recommendationsEnabled !== false;
+  const recommendationsToggleBtn = document.createElement('button');
+  recommendationsToggleBtn.type = 'button';
+  recommendationsToggleBtn.className = 'alt-viz-recommendations-toggle-btn';
+  if (recommendationsEnabled) recommendationsToggleBtn.classList.add('is-on');
+  recommendationsToggleBtn.setAttribute('role', 'switch');
+  recommendationsToggleBtn.setAttribute('aria-checked', recommendationsEnabled ? 'true' : 'false');
+  recommendationsToggleBtn.setAttribute('aria-label', recommendationsEnabled ? 'Recommendations enabled' : 'Recommendations disabled');
+  recommendationsToggleBtn.title = recommendationsEnabled
+    ? 'Disable recommendations processing'
+    : 'Enable recommendations processing';
+  recommendationsToggleBtn.addEventListener('click', () => {
+    requestAction('recommendations.toggle', { enabled: !recommendationsEnabled });
+  });
+  recommendationsHeader.appendChild(recommendationsToggleBtn);
+
+  recommendationsWrap.appendChild(recommendationsHeader);
 
   const recommendations = Array.isArray(demo?.recommendations) ? demo.recommendations : [];
   const recommendationsPending = demo?.recommendationsPending === true;
   const recommendationApplyPending = demo?.recommendationApplyPending === true;
   const recommendationApplyText = String(demo?.recommendationApplyText || 'Applying recommendation...');
   const recommendationApplyId = String(demo?.recommendationApplyId || '');
-  const recommendationsBusy = recommendationsPending || recommendationApplyPending;
+  const recommendationsBusy = recommendationsEnabled && (recommendationsPending || recommendationApplyPending);
   if (recommendationsBusy) {
     recommendationsWrap.classList.add('is-busy');
+  }
+  if (!recommendationsEnabled) {
+    const disabled = document.createElement('div');
+    disabled.className = 'alt-viz-recommendations-empty';
+    disabled.textContent = 'Recommendations are disabled for responsiveness.';
+    recommendationsWrap.appendChild(disabled);
+
+    epcWrap.appendChild(epcSummary);
+    epcWrap.appendChild(epcScale);
+    epcWrap.appendChild(variantWrap);
+    epcWrap.appendChild(recommendationsWrap);
+    summary.appendChild(name);
+    summary.appendChild(epcWrap);
+    return summary;
   }
   if ((recommendationsPending || recommendationApplyPending) && recommendations.length === 0) {
     const pending = document.createElement('div');

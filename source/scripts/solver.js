@@ -40,6 +40,7 @@ let recommendationsRefreshHandle = null;
 let recommendationApplyInProgress = false;
 let recommendationApplyText = '';
 let recommendationApplyId = '';
+let recommendationsEnabled = true;
 
 const MAX_HISTORY_STEPS = 100;
 
@@ -85,7 +86,8 @@ function renderCurrentAlternativeViz(demoPayload, variantMenuState, recommendati
     recommendationsPending: recommendationsPending === true,
     recommendationApplyPending: recommendationApplyInProgress,
     recommendationApplyText: recommendationApplyText,
-    recommendationApplyId: recommendationApplyId
+    recommendationApplyId: recommendationApplyId,
+    recommendationsEnabled: recommendationsEnabled
   }, {
     canUndo: undoStack.length > 0,
     canRedo: redoStack.length > 0,
@@ -190,6 +192,20 @@ function renderCurrentAlternativeViz(demoPayload, variantMenuState, recommendati
 }
 
 function scheduleRecommendationsRefresh(demoForRecommendations, solveRevision) {
+  if (!recommendationsEnabled) {
+    if (!latestRenderedVizDemo || !latestRenderedVariantMenuState) return;
+    recommendationApplyInProgress = false;
+    recommendationApplyText = '';
+    recommendationApplyId = '';
+    latestRenderedRecommendations = [];
+    renderCurrentAlternativeViz(
+      latestRenderedVizDemo,
+      latestRenderedVariantMenuState,
+      [],
+      false
+    );
+    return;
+  }
   cancelLowPriority(recommendationsRefreshHandle);
   recommendationsRefreshHandle = scheduleLowPriority(() => {
     recommendationsRefreshHandle = null;
@@ -2838,6 +2854,7 @@ function handleAltVizMenuAction(action, item, context = {}) {
     }
     case 'recommendations.apply': {
       if (!currentDemo) return;
+      if (!recommendationsEnabled) return;
       if (recommendationApplyInProgress) return;
       const recommendationId = String(payload.recommendationId || '');
       if (!recommendationId) return;
@@ -2877,6 +2894,39 @@ function handleAltVizMenuAction(action, item, context = {}) {
           );
         }
         appUiApi.setStatus(`Could not apply recommendation: ${recommendationId}`);
+      }
+      return;
+    }
+    case 'recommendations.toggle': {
+      const hasEnabledPayload = typeof payload.enabled === 'boolean';
+      const nextEnabled = hasEnabledPayload ? payload.enabled : !recommendationsEnabled;
+      if (nextEnabled === recommendationsEnabled) return;
+
+      recommendationsEnabled = nextEnabled;
+      recommendationApplyInProgress = false;
+      recommendationApplyText = '';
+      recommendationApplyId = '';
+
+      if (!recommendationsEnabled) {
+        cancelLowPriority(recommendationsRefreshHandle);
+        recommendationsRefreshHandle = null;
+        latestRenderedRecommendations = [];
+        if (latestRenderedVizDemo && latestRenderedVariantMenuState) {
+          renderCurrentAlternativeViz(
+            latestRenderedVizDemo,
+            latestRenderedVariantMenuState,
+            [],
+            false
+          );
+        }
+        if (appUiApi?.setStatus) {
+          appUiApi.setStatus('Recommendations disabled.');
+        }
+      } else {
+        if (appUiApi?.setStatus) {
+          appUiApi.setStatus('Recommendations enabled. Recalculating...');
+        }
+        triggerSolve();
       }
       return;
     }
@@ -3532,8 +3582,8 @@ async function solveAndRender(demoRaw) {
     renderCurrentAlternativeViz(
       demoRaw,
       variantMenuState,
-      latestRenderedRecommendations,
-      true
+      recommendationsEnabled ? latestRenderedRecommendations : [],
+      recommendationsEnabled
     );
     scheduleRecommendationsRefresh(deepClone(demoRaw), solveRevision);
     if (roomEditorApi && typeof roomEditorApi.refreshSelectedZone === 'function') {
