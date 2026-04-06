@@ -21,6 +21,23 @@ const OPENING_HANDLE_OFFSET_NORMAL_PX = 12;
 const RADIATOR_HANDLE_OFFSET_NORMAL_PX = 14;
 const WALL_LABEL_OFFSET_PX = 16;
 
+const ALT_VIZ_BUSY_TASKS = [
+  'Reticulating splines...',
+  'Calibrating radiator gnomes...',
+  'Negotiating with stubborn thermostats...',
+  'Untangling duct spaghetti...',
+  'Polishing U-values...',
+  'Counting extremely serious BTUs...'
+];
+
+function getRandomBusyTaskText() {
+  if (!Array.isArray(ALT_VIZ_BUSY_TASKS) || ALT_VIZ_BUSY_TASKS.length === 0) {
+    return 'Reticulating splines...';
+  }
+  const index = Math.floor(Math.random() * ALT_VIZ_BUSY_TASKS.length);
+  return String(ALT_VIZ_BUSY_TASKS[index] || 'Reticulating splines...');
+}
+
 function snapOffsetMeters(offset, step) {
   if (!isFinite(offset)) return 0;
   if (!isFinite(step) || step <= 0) return offset;
@@ -539,9 +556,10 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
 
       const overlayText = document.createElement('div');
       overlayText.className = 'alt-viz-recommendations-overlay-text';
-      overlayText.textContent = recommendationApplyPending
+      const busyHeadline = recommendationApplyPending
         ? recommendationApplyText
         : 'Refreshing recommendations...';
+      overlayText.textContent = `${busyHeadline}\n${getRandomBusyTaskText()}`;
       overlay.appendChild(overlayText);
 
       tableWrap.appendChild(overlay);

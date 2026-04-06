@@ -388,6 +388,8 @@ a#download:hover {
   font-size: 0.7rem;
   color: var(--text-light);
   letter-spacing: 0.01em;
+  white-space: pre-line;
+  text-align: center;
 }
 
 .alt-viz-recommendations-table {
