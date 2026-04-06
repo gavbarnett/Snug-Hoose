@@ -210,6 +210,13 @@ function scheduleRecommendationsRefresh(demoForRecommendations, solveRevision) {
   recommendationsRefreshHandle = scheduleLowPriority(() => {
     recommendationsRefreshHandle = null;
     const recommendations = buildPerformanceRecommendations(demoForRecommendations);
+    const applicableRecommendations = (Array.isArray(recommendations) ? recommendations : [])
+      .filter(item => {
+        const recommendationId = String(item?.recommendationId || '');
+        if (!recommendationId) return false;
+        const demoClone = deepClone(demoForRecommendations);
+        return applyRecommendationById(demoClone, recommendationId) === true;
+      });
     if (solveRevision !== latestSolveRevision) return;
     if (!latestRenderedVizDemo || !latestRenderedVariantMenuState) return;
     recommendationApplyInProgress = false;
@@ -218,7 +225,7 @@ function scheduleRecommendationsRefresh(demoForRecommendations, solveRevision) {
     renderCurrentAlternativeViz(
       latestRenderedVizDemo,
       latestRenderedVariantMenuState,
-      recommendations,
+      applicableRecommendations,
       false
     );
   });
@@ -2913,9 +2920,10 @@ function handleAltVizMenuAction(action, item, context = {}) {
             latestRenderedVizDemo,
             latestRenderedVariantMenuState,
             latestRenderedRecommendations,
-            false
+            true
           );
         }
+        scheduleRecommendationsRefresh(deepClone(currentDemo), latestSolveRevision);
         appUiApi.setStatus(`Could not apply recommendation: ${recommendationId}`);
       }
       return;
