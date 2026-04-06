@@ -2798,6 +2798,29 @@ function handleAltVizMenuAction(action, item, context = {}) {
     case 'file.load_project':
       loadProjectFromFile();
       return;
+    case 'project.rename': {
+      if (!currentDemo) return;
+      const nextName = String(payload.name || '').trim() || 'Unnamed Project';
+      const currentName = String(currentDemo?.meta?.name || '').trim() || 'Unnamed Project';
+      if (nextName === currentName) return;
+
+      currentDemo.meta = currentDemo.meta || {};
+      currentDemo.meta.name = nextName;
+      syncActiveVariantSnapshot();
+
+      if (latestRenderedVariantMenuState) {
+        const renderDemo = latestRenderedVizDemo || currentDemo;
+        renderDemo.meta = renderDemo.meta || {};
+        renderDemo.meta.name = nextName;
+        renderCurrentAlternativeViz(
+          renderDemo,
+          getVariantStateForMenu(),
+          latestRenderedRecommendations,
+          recommendationsEnabled && (recommendationApplyInProgress || recommendationsRefreshHandle !== null)
+        );
+      }
+      return;
+    }
     case 'file.variants.save_as':
     case 'file.variants.create': {
       if (!currentDemo) return;

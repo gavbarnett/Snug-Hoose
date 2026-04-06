@@ -224,16 +224,37 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
     onMenuAction(action, { action, payload }, getContext());
   };
 
-  const name = document.createElement('div');
-  name.className = 'alt-viz-project-name';
   const projectName = (demo?.meta?.name && String(demo.meta.name).trim())
     ? String(demo.meta.name)
     : 'Unnamed Project';
-  name.textContent = projectName;
 
   const epc = computeWholeHouseEpcEstimate(demo, rooms);
   const epcWrap = document.createElement('div');
   epcWrap.className = 'alt-viz-project-epc';
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.className = 'alt-viz-project-name-input';
+  nameInput.value = projectName;
+  nameInput.placeholder = 'Project name';
+  nameInput.setAttribute('aria-label', 'Project name');
+
+  const commitProjectName = () => {
+    const nextName = String(nameInput.value || '').trim();
+    const normalized = nextName || 'Unnamed Project';
+    if (normalized === projectName) {
+      nameInput.value = projectName;
+      return;
+    }
+    requestAction('project.rename', { name: normalized });
+  };
+
+  nameInput.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    nameInput.blur();
+  });
+  nameInput.addEventListener('blur', commitProjectName);
 
   const epcSummary = document.createElement('div');
   epcSummary.className = 'alt-viz-project-epc-summary';
@@ -415,11 +436,11 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
     disabled.textContent = 'Recommendations are disabled for responsiveness.';
     recommendationsWrap.appendChild(disabled);
 
+    epcWrap.appendChild(nameInput);
     epcWrap.appendChild(epcSummary);
     epcWrap.appendChild(epcScale);
     epcWrap.appendChild(variantWrap);
     epcWrap.appendChild(recommendationsWrap);
-    summary.appendChild(name);
     summary.appendChild(epcWrap);
     return summary;
   }
@@ -627,11 +648,11 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
     recommendationsWrap.appendChild(tableWrap);
   }
 
+  epcWrap.appendChild(nameInput);
   epcWrap.appendChild(epcSummary);
   epcWrap.appendChild(epcScale);
   epcWrap.appendChild(variantWrap);
   epcWrap.appendChild(recommendationsWrap);
-  summary.appendChild(name);
   summary.appendChild(epcWrap);
   return summary;
 }

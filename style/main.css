@@ -223,10 +223,22 @@ a#download:hover {
   flex-wrap: wrap;
 }
 
-.alt-viz-project-name {
-  font-size: 0.98rem;
+.alt-viz-project-name-input {
+  width: 100%;
+  max-width: 420px;
+  font-size: 0.96rem;
   font-weight: 700;
   color: var(--text-light);
+  background: rgba(15, 28, 40, 0.56);
+  border: 1px solid rgba(140, 205, 242, 0.55);
+  border-radius: 7px;
+  padding: 0.28rem 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.alt-viz-project-name-input:focus-visible {
+  outline: 2px solid rgba(160, 220, 255, 0.9);
+  outline-offset: 1px;
 }
 
 .alt-viz-project-epc {
