@@ -397,12 +397,36 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
     recommendationsWrap.appendChild(pending);
   }
   if (recommendations.length === 0) {
+    const emptyWrap = document.createElement('div');
+    emptyWrap.className = 'alt-viz-recommendations-empty-wrap';
+
     const empty = document.createElement('div');
     empty.className = 'alt-viz-recommendations-empty';
     empty.textContent = recommendationsPending
       ? 'Using previous recommendations while the latest options are recalculated.'
       : 'No cost-effective measures identified yet.';
-    recommendationsWrap.appendChild(empty);
+    emptyWrap.appendChild(empty);
+
+    if (recommendationsBusy) {
+      const overlay = document.createElement('div');
+      overlay.className = 'alt-viz-recommendations-overlay';
+
+      const spinner = document.createElement('div');
+      spinner.className = 'alt-viz-recommendations-spinner';
+      overlay.appendChild(spinner);
+
+      const overlayText = document.createElement('div');
+      overlayText.className = 'alt-viz-recommendations-overlay-text';
+      const busyHeadline = recommendationApplyPending
+        ? recommendationApplyText
+        : 'Refreshing recommendations...';
+      overlayText.textContent = `${busyHeadline}\n${getRandomBusyTaskText()}`;
+      overlay.appendChild(overlayText);
+
+      emptyWrap.appendChild(overlay);
+    }
+
+    recommendationsWrap.appendChild(emptyWrap);
   } else {
     const tableWrap = document.createElement('div');
     tableWrap.className = 'alt-viz-recommendations-table-wrap';

@@ -357,6 +357,13 @@ a#download:hover {
   color: var(--text-muted);
 }
 
+.alt-viz-recommendations-empty-wrap {
+  position: relative;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+}
+
 .alt-viz-recommendations-table-wrap {
   overflow-x: auto;
   position: relative;
