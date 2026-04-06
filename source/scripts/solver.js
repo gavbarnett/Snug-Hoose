@@ -1025,7 +1025,10 @@ function getMaterialDisplayName(materialId) {
 }
 
 function getWindowCatalogEntry(windowId) {
-  const options = Array.isArray(currentOpenings?.windows) ? currentOpenings.windows : [];
+  const options = [
+    ...(Array.isArray(currentOpenings?.windows) ? currentOpenings.windows : []),
+    ...(Array.isArray(currentOpenings?.air_bricks) ? currentOpenings.air_bricks : [])
+  ];
   if (!windowId) return null;
   return options.find(opt => String(opt?.id || '') === String(windowId)) || null;
 }
@@ -2365,9 +2368,12 @@ function addWindowToZoneWall(demo, openingsData, zoneId, opts = {}) {
   if (!wall) return false;
   if (!Array.isArray(wall.windows)) wall.windows = [];
 
-  const firstOption = Array.isArray(openingsData?.windows) && openingsData.windows.length > 0
-    ? openingsData.windows[0]
-    : { id: 'window_double_modern', air_leakage_m3_h_m2: 1.2, has_trickle_vent: false, trickle_vent_flow_m3_h: 0 };
+  const windowOptions = Array.isArray(openingsData?.windows) ? openingsData.windows : [];
+  const airBrickOptions = Array.isArray(openingsData?.air_bricks) ? openingsData.air_bricks : [];
+  const allOptions = [...windowOptions, ...airBrickOptions];
+  const fallbackOption = { id: 'window_double_modern', air_leakage_m3_h_m2: 1.2, has_trickle_vent: false, trickle_vent_flow_m3_h: 0 };
+  const firstOption = allOptions.length > 0 ? allOptions[0] : fallbackOption;
+  const selectedOption = allOptions.find(item => String(item?.id || '') === String(opts.glazingId || '')) || firstOption;
 
   const width = Number.isFinite(opts.width) ? opts.width : 1000;
   const height = Number.isFinite(opts.height) ? opts.height : 1200;
@@ -2375,18 +2381,28 @@ function addWindowToZoneWall(demo, openingsData, zoneId, opts = {}) {
   wall.windows.push({
     id: generateId('id'),
     name: `Window ${wall.windows.length + 1}`,
-    glazing_id: opts.glazingId || firstOption.id,
+    glazing_id: opts.glazingId || selectedOption.id,
     width,
     height,
     area: Number(((width / 1000) * (height / 1000)).toFixed(3)),
     length_m: Number((width / 1000).toFixed(3)),
     position_ratio: 0.5,
-    air_leakage_m3_h_m2: Number((firstOption.air_leakage_m3_h_m2 || 0).toFixed(3)),
-    has_trickle_vent: firstOption.has_trickle_vent === true,
-    trickle_vent_flow_m3_h: Number((firstOption.trickle_vent_flow_m3_h || 0).toFixed(2)),
+    air_leakage_m3_h_m2: Number((selectedOption.air_leakage_m3_h_m2 || 0).toFixed(3)),
+    has_trickle_vent: selectedOption.has_trickle_vent === true,
+    trickle_vent_flow_m3_h: Number((selectedOption.trickle_vent_flow_m3_h || 0).toFixed(2)),
     zone_id: zoneId
   });
   return true;
+}
+
+function addAirBrickToZoneWall(demo, openingsData, zoneId, opts = {}) {
+  const airBrickOptions = Array.isArray(openingsData?.air_bricks) ? openingsData.air_bricks : [];
+  const firstAirBrick = airBrickOptions[0] || null;
+  return addWindowToZoneWall(demo, openingsData, zoneId, {
+    width: Number.isFinite(opts.width) ? opts.width : 215,
+    height: Number.isFinite(opts.height) ? opts.height : 65,
+    glazingId: opts.glazingId || firstAirBrick?.id || 'window_air_brick'
+  });
 }
 
 function addDoorToZoneWall(demo, openingsData, zoneId, opts = {}) {
@@ -2953,6 +2969,22 @@ function handleAltVizMenuAction(action, item, context = {}) {
       }
       return;
     }
+    case 'openings.air_bricks.add':
+    case 'openings.air_bricks.types.standard_sizes': {
+      if (!currentDemo || !selectedZoneId) return;
+      const before = deepClone(currentDemo);
+      if (addAirBrickToZoneWall(currentDemo, currentOpenings, selectedZoneId, {
+        width: Number(payload.width),
+        height: Number(payload.height),
+        glazingId: payload.glazingId
+      })) {
+        pushUndoSnapshot(before);
+        lastFocusedZoneId = selectedZoneId;
+        triggerSolve();
+        if (roomEditorApi?.focusZone) roomEditorApi.focusZone(selectedZoneId);
+      }
+      return;
+    }
     case 'hvac.radiators.add':
     case 'hvac.radiators.standard_sizes.trv':
     case 'hvac.radiators.standard_sizes.no_trv': {
@@ -3251,6 +3283,7 @@ async function loadDefaultInputs() {
 function getOpeningMaterials(openings) {
   if (!openings) return [];
   const windows = Array.isArray(openings.windows) ? openings.windows : [];
+  const airBricks = Array.isArray(openings.air_bricks) ? openings.air_bricks : [];
   const doors = Array.isArray(openings.doors) ? openings.doors : [];
   const asMaterial = (item) => ({
     id: item.id,
@@ -3259,7 +3292,7 @@ function getOpeningMaterials(openings) {
     air_leakage_m3_h_m2: item.air_leakage_m3_h_m2,
     trickle_vent_flow_m3_h: item.trickle_vent_flow_m3_h
   });
-  return [...windows.map(asMaterial), ...doors.map(asMaterial)];
+  return [...windows.map(asMaterial), ...airBricks.map(asMaterial), ...doors.map(asMaterial)];
 }
 
 function clamp(value, min, max) {
@@ -3275,7 +3308,7 @@ function parseSyntheticIndex(id, prefix) {
 
 function findOpeningInWall(wall, openingKind, openingId) {
   if (!wall) return { list: null, index: -1, opening: null };
-  const listKey = openingKind === 'window' ? 'windows' : 'doors';
+  const listKey = (openingKind === 'window' || openingKind === 'air_brick') ? 'windows' : 'doors';
   if (!Array.isArray(wall[listKey])) wall[listKey] = [];
   const list = wall[listKey];
 
@@ -3322,7 +3355,7 @@ function moveOpeningAcrossWalls(payload) {
   }
 
   sourceMatch.list.splice(sourceMatch.index, 1);
-  const targetListKey = openingKind === 'window' ? 'windows' : 'doors';
+  const targetListKey = (openingKind === 'window' || openingKind === 'air_brick') ? 'windows' : 'doors';
   if (!Array.isArray(targetWall[targetListKey])) targetWall[targetListKey] = [];
   targetWall[targetListKey].push(opening);
   return true;

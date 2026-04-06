@@ -1205,6 +1205,12 @@ a#download:hover {
   stroke-width: 8;
 }
 
+.alt-opening-air-brick {
+  stroke: #b2ff8a;
+  stroke-width: 8;
+  stroke-dasharray: 3 3;
+}
+
 .alt-opening-door {
   stroke: #ffd38a;
   stroke-width: 9;
@@ -1252,6 +1258,10 @@ a#download:hover {
 
 .alt-window-handle {
   fill: #7edfff;
+}
+
+.alt-air-brick-handle {
+  fill: #9ae86a;
 }
 
 .alt-door-handle {
@@ -1408,6 +1418,11 @@ a#download:hover {
   background: var(--input-bg);
   border-radius: 4px;
   border: 1px solid var(--input-border);
+}
+
+.radiator-item.opening-item-air-brick {
+  border-left: 4px solid #9ae86a;
+  background: linear-gradient(90deg, rgba(154, 232, 106, 0.16), transparent 52%), var(--input-bg);
 }
 
 .element-item button, .radiator-item button {

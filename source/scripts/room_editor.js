@@ -1222,6 +1222,7 @@ export function initRoomEditor(opts) {
 
     details.appendChild(createBuildUpSection(element, cardKey, expandState));
     details.appendChild(createWindowsSection(element, cardKey, expandState));
+    details.appendChild(createAirBricksSection(element, cardKey, expandState));
     details.appendChild(createDoorsSection(element, cardKey, expandState));
 
     return details;
@@ -1887,7 +1888,8 @@ export function initRoomEditor(opts) {
     section.appendChild(summary);
 
     const list = document.createElement('div');
-    const windows = Array.isArray(element.windows) ? element.windows : [];
+    const windows = (Array.isArray(element.windows) ? element.windows : [])
+      .filter(win => !isAirBrickOpening(win));
     const options = getWindowOptions();
 
     if (windows.length === 0) {
@@ -1903,7 +1905,9 @@ export function initRoomEditor(opts) {
           options,
           focusBaseKey: `${parentKey}|window:${win.id || i}`,
           onRemove: () => {
-            element.windows.splice(i, 1);
+            const targetIndex = (Array.isArray(element.windows) ? element.windows : [])
+              .findIndex(candidate => String(candidate?.id || '') === String(win?.id || ''));
+            if (targetIndex >= 0) element.windows.splice(targetIndex, 1);
             redistributeWindowPositions(element.windows);
             onDataChanged();
             refreshSelectedZone();
@@ -1931,6 +1935,70 @@ export function initRoomEditor(opts) {
         air_leakage_m3_h_m2: Number((firstOption.air_leakage_m3_h_m2 || 0).toFixed(3))
       });
       redistributeWindowPositions(element.windows);
+      onDataChanged();
+      refreshSelectedZone();
+    });
+
+    section.appendChild(list);
+    section.appendChild(addBtn);
+    return section;
+  }
+
+  function createAirBricksSection(element, parentKey, expandState) {
+    const section = document.createElement('details');
+    section.className = 'wall-subsection';
+    restoreOpenState(section, `${parentKey}|sub:air_bricks`, false, expandState);
+
+    const summary = document.createElement('summary');
+    summary.textContent = 'Air Bricks';
+    section.appendChild(summary);
+
+    const list = document.createElement('div');
+    const airBricks = (Array.isArray(element.windows) ? element.windows : [])
+      .filter(win => isAirBrickOpening(win));
+    const options = getAirBrickOptions();
+
+    if (airBricks.length === 0) {
+      const empty = document.createElement('div');
+      empty.textContent = 'No air bricks';
+      list.appendChild(empty);
+    } else {
+      airBricks.forEach((airBrick, i) => {
+        list.appendChild(createOpeningEditor({
+          kind: 'air_brick',
+          opening: airBrick,
+          index: i,
+          options,
+          focusBaseKey: `${parentKey}|air_brick:${airBrick.id || i}`,
+          onRemove: () => {
+            const targetIndex = (Array.isArray(element.windows) ? element.windows : [])
+              .findIndex(candidate => String(candidate?.id || '') === String(airBrick?.id || ''));
+            if (targetIndex >= 0) element.windows.splice(targetIndex, 1);
+            onDataChanged();
+            refreshSelectedZone();
+          }
+        }));
+      });
+    }
+
+    const addBtn = document.createElement('button');
+    addBtn.textContent = 'Add Air Brick';
+    addBtn.addEventListener('click', () => {
+      if (!Array.isArray(element.windows)) element.windows = [];
+      const firstOption = options[0] || { id: 'window_air_brick', air_leakage_m3_h_m2: 120, has_trickle_vent: true, trickle_vent_flow_m3_h: 25 };
+      element.windows.push({
+        id: generateUniqueId(),
+        name: `Air Brick ${airBricks.length + 1}`,
+        glazing_id: firstOption.id,
+        width: 215,
+        height: 65,
+        area: Number(((215 / 1000) * (65 / 1000)).toFixed(3)),
+        length_m: Number((215 / 1000).toFixed(3)),
+        position_ratio: 0.5,
+        has_trickle_vent: firstOption.has_trickle_vent === true,
+        trickle_vent_flow_m3_h: Number((firstOption.trickle_vent_flow_m3_h || 0).toFixed(2)),
+        air_leakage_m3_h_m2: Number((firstOption.air_leakage_m3_h_m2 || 0).toFixed(3))
+      });
       onDataChanged();
       refreshSelectedZone();
     });
@@ -2010,6 +2078,7 @@ export function initRoomEditor(opts) {
 
     const wrap = document.createElement('div');
     wrap.className = 'radiator-item';
+    wrap.classList.add(`opening-item-${kind.replace(/_/g, '-')}`);
     wrap.dataset.openingKind = String(kind);
     wrap.dataset.openingId = String(opening.id || `opening_${index}`);
 
@@ -2024,7 +2093,7 @@ export function initRoomEditor(opts) {
     header.style.alignItems = 'center';
 
     const left = document.createElement('div');
-    const selectedValue = kind === 'window' ? opening.glazing_id : opening.material_id;
+    const selectedValue = kind === 'door' ? opening.material_id : opening.glazing_id;
     const openingUDisplay = formatOpeningUDisplay(kind, selectedValue);
     left.textContent = `${opening.id || `${kind}_${index + 1}`}${openingUDisplay ? ` [U: ${openingUDisplay}]` : ''} - `;
 
@@ -2123,7 +2192,7 @@ export function initRoomEditor(opts) {
       }
     };
 
-    if (kind === 'window') {
+    if (kind !== 'door') {
       materialSelect.addEventListener('change', () => {
         opening.glazing_id = materialSelect.value;
         const selected = options.find(opt => opt.id === materialSelect.value);
@@ -2201,7 +2270,7 @@ export function initRoomEditor(opts) {
     sizeRow.appendChild(document.createTextNode('Leakage:'));
     sizeRow.appendChild(leakageInput);
 
-    if (kind === 'window') {
+    if (kind !== 'door') {
       const ventRow = document.createElement('div');
       ventRow.style.display = 'flex';
       ventRow.style.gap = '0.5rem';
@@ -2305,7 +2374,28 @@ export function initRoomEditor(opts) {
   function getWindowOptions() {
     const openings = getOpeningsData ? getOpeningsData() : null;
     if (openings && Array.isArray(openings.windows) && openings.windows.length > 0) {
+      const airBrickIdSet = new Set((Array.isArray(openings.air_bricks) ? openings.air_bricks : []).map(item => String(item?.id || '')));
       return openings.windows.map(w => ({
+        id: w.id,
+        name: w.name || w.id,
+        label: formatOpeningOptionLabel(w.name || w.id, w.u_value),
+        air_leakage_m3_h_m2: w.air_leakage_m3_h_m2,
+        has_trickle_vent: w.has_trickle_vent,
+        trickle_vent_flow_m3_h: w.trickle_vent_flow_m3_h
+      })).filter(item => !airBrickIdSet.has(String(item?.id || '')));
+    }
+
+    const materialsData = getMaterialsData ? getMaterialsData() : null;
+    const materials = materialsData && Array.isArray(materialsData.materials) ? materialsData.materials : [];
+    return materials
+      .filter(m => String(m.id || '').startsWith('window_'))
+      .map(m => ({ id: m.id, name: m.name || m.id }));
+  }
+
+  function getAirBrickOptions() {
+    const openings = getOpeningsData ? getOpeningsData() : null;
+    if (openings && Array.isArray(openings.air_bricks) && openings.air_bricks.length > 0) {
+      return openings.air_bricks.map(w => ({
         id: w.id,
         name: w.name || w.id,
         label: formatOpeningOptionLabel(w.name || w.id, w.u_value),
@@ -2314,12 +2404,15 @@ export function initRoomEditor(opts) {
         trickle_vent_flow_m3_h: w.trickle_vent_flow_m3_h
       }));
     }
+    return [{ id: 'window_air_brick', name: 'Air Brick', label: 'Air Brick', air_leakage_m3_h_m2: 120, has_trickle_vent: true, trickle_vent_flow_m3_h: 25 }];
+  }
 
-    const materialsData = getMaterialsData ? getMaterialsData() : null;
-    const materials = materialsData && Array.isArray(materialsData.materials) ? materialsData.materials : [];
-    return materials
-      .filter(m => String(m.id || '').startsWith('window_'))
-      .map(m => ({ id: m.id, name: m.name || m.id }));
+  function isAirBrickOpening(opening) {
+    const glazingId = String(opening?.glazing_id || '');
+    if (!glazingId) return false;
+    const openings = getOpeningsData ? getOpeningsData() : null;
+    const airBricks = Array.isArray(openings?.air_bricks) ? openings.air_bricks : [];
+    return airBricks.some(item => String(item?.id || '') === glazingId);
   }
 
   function getDoorOptions() {
@@ -2350,7 +2443,9 @@ export function initRoomEditor(opts) {
   function formatOpeningUDisplay(kind, openingId) {
     const openings = getOpeningsData ? getOpeningsData() : null;
     if (!openings || !openingId) return null;
-    const list = kind === 'window' ? openings.windows : openings.doors;
+    const list = kind === 'door'
+      ? openings.doors
+      : (kind === 'air_brick' ? openings.air_bricks : openings.windows);
     if (!Array.isArray(list)) return null;
     const match = list.find(item => item.id === openingId);
     if (!match || typeof match.u_value !== 'number' || !isFinite(match.u_value) || match.u_value <= 0) return null;

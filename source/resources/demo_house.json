@@ -1314,6 +1314,38 @@
                 "x": 10.338,
                 "y": 0.5,
                 "build_up_template_id": "buo_02",
+                "windows": [
+                  {
+                    "id": "id_airbrick_subfloor_1",
+                    "name": "Air Brick 1",
+                    "glazing_id": "window_air_brick",
+                    "width": 215,
+                    "height": 65,
+                    "area": 0.014,
+                    "length_m": 0.215,
+                    "position_ratio": 0.33,
+                    "air_leakage_m3_h_m2": 120,
+                    "has_trickle_vent": true,
+                    "trickle_vent_flow_m3_h": 25,
+                    "zone_id": "id_119bcc1e33ba",
+                    "u": 5.8
+                  },
+                  {
+                    "id": "id_airbrick_subfloor_2",
+                    "name": "Air Brick 2",
+                    "glazing_id": "window_air_brick",
+                    "width": 225,
+                    "height": 75,
+                    "area": 0.017,
+                    "length_m": 0.225,
+                    "position_ratio": 0.67,
+                    "air_leakage_m3_h_m2": 120,
+                    "has_trickle_vent": true,
+                    "trickle_vent_flow_m3_h": 25,
+                    "zone_id": "id_119bcc1e33ba",
+                    "u": 5.8
+                  }
+                ],
                 "area": 5.169,
                 "u_fabric": 0.2374,
                 "u_overall": 1.6287,
@@ -1322,23 +1354,7 @@
                 "fabric_air_leakage_m3_h_m2": 0.25,
                 "fabric_air_leakage_flow_m3_h": 0.915,
                 "openings_air_leakage_flow_m3_h": 2.718,
-                "air_leakage_flow_m3_h": 3.633,
-                "doors": [
-                  {
-                    "id": "id_06af188248e8",
-                    "name": "Door 1",
-                    "material_id": "opening_internal_cased",
-                    "width": 762,
-                    "height": 1981,
-                    "area": 1.51,
-                    "length_m": 0.762,
-                    "position_ratio": 0.5,
-                    "hinge_side": "left",
-                    "air_leakage_m3_h_m2": 1.8,
-                    "zone_id": "id_119bcc1e33ba",
-                    "u": 5
-                  }
-                ]
+                "air_leakage_flow_m3_h": 3.633
               },
               {
                 "id": "el_cc1e33ba_wall_split_2",
@@ -1352,6 +1368,23 @@
                 "x": 5.35,
                 "y": 0.5,
                 "build_up_template_id": "buo_02",
+                "windows": [
+                  {
+                    "id": "id_airbrick_subfloor_3",
+                    "name": "Air Brick 3",
+                    "glazing_id": "window_air_brick",
+                    "width": 215,
+                    "height": 65,
+                    "area": 0.014,
+                    "length_m": 0.215,
+                    "position_ratio": 0.5,
+                    "air_leakage_m3_h_m2": 120,
+                    "has_trickle_vent": true,
+                    "trickle_vent_flow_m3_h": 25,
+                    "zone_id": "id_119bcc1e33ba",
+                    "u": 5.8
+                  }
+                ],
                 "area": 2.675,
                 "u_fabric": 0.2374,
                 "u_overall": 0.2374,
@@ -1374,6 +1407,23 @@
                 "x": 2.142,
                 "y": 0.5,
                 "build_up_template_id": "buo_02",
+                "windows": [
+                  {
+                    "id": "id_airbrick_subfloor_4",
+                    "name": "Air Brick 4",
+                    "glazing_id": "window_air_brick",
+                    "width": 215,
+                    "height": 65,
+                    "area": 0.014,
+                    "length_m": 0.215,
+                    "position_ratio": 0.5,
+                    "air_leakage_m3_h_m2": 120,
+                    "has_trickle_vent": true,
+                    "trickle_vent_flow_m3_h": 25,
+                    "zone_id": "id_119bcc1e33ba",
+                    "u": 5.8
+                  }
+                ],
                 "area": 0.651,
                 "u_fabric": 0.2374,
                 "u_overall": 0.2374,
@@ -1396,6 +1446,23 @@
                 "x": 7.1,
                 "y": 0.5,
                 "build_up_template_id": "buo_02",
+                "windows": [
+                  {
+                    "id": "id_airbrick_subfloor_5",
+                    "name": "Air Brick 5",
+                    "glazing_id": "window_air_brick",
+                    "width": 225,
+                    "height": 75,
+                    "area": 0.017,
+                    "length_m": 0.225,
+                    "position_ratio": 0.5,
+                    "air_leakage_m3_h_m2": 120,
+                    "has_trickle_vent": true,
+                    "trickle_vent_flow_m3_h": 25,
+                    "zone_id": "id_119bcc1e33ba",
+                    "u": 5.8
+                  }
+                ],
                 "area": 3.55,
                 "u_fabric": 0.2374,
                 "u_overall": 0.2374,

@@ -48,6 +48,16 @@
 				"width": 926,
 				"height": 2040
 			}
+		],
+		"air_bricks": [
+			{
+				"width": 215,
+				"height": 65
+			},
+			{
+				"width": 225,
+				"height": 75
+			}
 		]
 	},
 	"windows": [
@@ -120,6 +130,18 @@
 			"air_leakage_m3_h_m2": 1.7,
 			"has_trickle_vent": false,
 			"trickle_vent_flow_m3_h": 0
+		}
+	],
+	"air_bricks": [
+		{
+			"id": "window_air_brick",
+			"name": "Air Brick",
+			"u_value": 5.8,
+			"material_cost_per_m2_gbp": 140,
+			"frame": "masonry",
+			"air_leakage_m3_h_m2": 120,
+			"has_trickle_vent": true,
+			"trickle_vent_flow_m3_h": 25
 		}
 	],
 	"doors": [

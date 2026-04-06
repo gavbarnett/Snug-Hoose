@@ -659,6 +659,10 @@ function buildAltVizMenuSpec(context = {}) {
     { width: 915, height: 1981 },
     { width: 926, height: 2040 }
   ];
+  const defaultAirBrickSizes = [
+    { width: 215, height: 65 },
+    { width: 225, height: 75 }
+  ];
   const defaultRadiatorWidths = [400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000];
 
   const openingsLibrary = demo?.openings || {};
@@ -686,6 +690,11 @@ function buildAltVizMenuSpec(context = {}) {
     : defaultDoorSizes
   ).map(toSizeOption).filter(Boolean);
 
+  const airBrickSizes = (Array.isArray(standardSizes.air_bricks) && standardSizes.air_bricks.length > 0
+    ? standardSizes.air_bricks
+    : defaultAirBrickSizes
+  ).map(toSizeOption).filter(Boolean);
+
   const radiatorWidths = (Array.isArray(demo?.radiators?.standard_widths_mm) && demo.radiators.standard_widths_mm.length > 0
     ? demo.radiators.standard_widths_mm
     : defaultRadiatorWidths
@@ -705,6 +714,12 @@ function buildAltVizMenuSpec(context = {}) {
     payload: { width: size.width, height: size.height, materialId }
   }));
 
+  const mapAirBrickSizeItems = (glazingId) => airBrickSizes.map(size => ({
+    label: size.label,
+    action: 'openings.air_bricks.add',
+    payload: { width: size.width, height: size.height, glazingId }
+  }));
+
   const mapRadiatorSizeItems = (trvEnabled, radiatorId) => radiatorWidths.map(width => ({
     label: `${width} mm`,
     action: 'hvac.radiators.add',
@@ -716,6 +731,9 @@ function buildAltVizMenuSpec(context = {}) {
     : [];
   const doorLibrary = Array.isArray(openingsLibrary.doors)
     ? openingsLibrary.doors
+    : [];
+  const airBrickLibrary = Array.isArray(openingsLibrary.air_bricks)
+    ? openingsLibrary.air_bricks
     : [];
 
   const radiatorLibrary = Array.isArray(demo?.radiators?.radiators)
@@ -773,6 +791,12 @@ function buildAltVizMenuSpec(context = {}) {
     doorLibrary,
     (materialId) => mapDoorSizeItems(materialId),
     'No door types loaded'
+  );
+
+  const airBrickMenus = mapTypesToMenu(
+    airBrickLibrary,
+    (glazingId) => mapAirBrickSizeItems(glazingId),
+    'No air brick types loaded'
   );
 
   const ventilationMenus = mapTypesToMenu(
@@ -836,6 +860,10 @@ function buildAltVizMenuSpec(context = {}) {
         {
           label: 'Doors',
           items: doorMaterialMenus
+        },
+        {
+          label: 'Air Bricks',
+          items: airBrickMenus
         }
       ]
     },
@@ -2211,13 +2239,16 @@ function getWallOpeningsForRender(demo, wall) {
   const defaultOwnerZoneId = Array.isArray(wall.nodes) && wall.nodes.length > 0 ? wall.nodes[0] : null;
   const windows = Array.isArray(wall.windows) ? wall.windows : [];
   const doors = Array.isArray(wall.doors) ? wall.doors : [];
+  const airBrickIdSet = new Set((Array.isArray(demo?.openings?.air_bricks) ? demo.openings.air_bricks : []).map(item => String(item?.id || '')));
 
   const getOpeningLibrary = (kind) => kind === 'window'
     ? (Array.isArray(demo?.openings?.windows) ? demo.openings.windows : [])
-    : (Array.isArray(demo?.openings?.doors) ? demo.openings.doors : []);
+    : (kind === 'air_brick'
+      ? (Array.isArray(demo?.openings?.air_bricks) ? demo.openings.air_bricks : [])
+      : (Array.isArray(demo?.openings?.doors) ? demo.openings.doors : []));
 
   const findOpeningUValue = (kind, opening) => {
-    const openingId = kind === 'window' ? opening?.glazing_id : opening?.material_id;
+    const openingId = (kind === 'window' || kind === 'air_brick') ? opening?.glazing_id : opening?.material_id;
     const library = getOpeningLibrary(kind);
     const match = library.find(item => item?.id === openingId);
     const uValue = Number(match?.u_value);
@@ -2249,10 +2280,10 @@ function getWallOpeningsForRender(demo, wall) {
 
   return [
     ...windows.map(opening => ({
-      kind: 'window',
+      kind: airBrickIdSet.has(String(opening?.glazing_id || '')) ? 'air_brick' : 'window',
       opening,
       ownerZoneId: opening?.zone_id || defaultOwnerZoneId,
-      thickness: getOpeningThickness('window', opening)
+      thickness: getOpeningThickness(airBrickIdSet.has(String(opening?.glazing_id || '')) ? 'air_brick' : 'window', opening)
     })),
     ...doors.map(opening => ({
       kind: 'door',
@@ -3734,7 +3765,10 @@ export function renderAlternativeViz(demo, opts = {}) {
             openingLine.setAttribute('y1', String(segment.y1));
             openingLine.setAttribute('x2', String(segment.x2));
             openingLine.setAttribute('y2', String(segment.y2));
-            openingLine.setAttribute('class', 'alt-opening-line alt-opening-window');
+            const openingLineClass = kind === 'air_brick'
+              ? 'alt-opening-line alt-opening-air-brick'
+              : 'alt-opening-line alt-opening-window';
+            openingLine.setAttribute('class', openingLineClass);
             openingLine.setAttribute('stroke-width', String(thickness));
           }
           let openingArcs = [];
@@ -3774,7 +3808,12 @@ export function renderAlternativeViz(demo, opts = {}) {
             openingHandle.setAttribute('cx', String(handlePos.x));
             openingHandle.setAttribute('cy', String(handlePos.y));
             openingHandle.setAttribute('r', String(OBJECT_HANDLE_RADIUS_PX));
-            openingHandle.setAttribute('class', kind === 'door' ? 'alt-object-handle alt-door-handle' : 'alt-object-handle alt-window-handle');
+            const openingHandleClass = kind === 'door'
+              ? 'alt-object-handle alt-door-handle'
+              : (kind === 'air_brick'
+                ? 'alt-object-handle alt-air-brick-handle'
+                : 'alt-object-handle alt-window-handle');
+            openingHandle.setAttribute('class', openingHandleClass);
             openingHandle.style.cursor = 'grab';
 
             const openingId = getOpeningId(opening, openingIndex);
