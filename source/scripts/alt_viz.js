@@ -364,10 +364,19 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
 
   const recommendations = Array.isArray(demo?.recommendations) ? demo.recommendations : [];
   const recommendationsPending = demo?.recommendationsPending === true;
-  if (recommendationsPending) {
+  const recommendationApplyPending = demo?.recommendationApplyPending === true;
+  const recommendationApplyText = String(demo?.recommendationApplyText || 'Applying recommendation...');
+  const recommendationApplyId = String(demo?.recommendationApplyId || '');
+  const recommendationsBusy = recommendationsPending || recommendationApplyPending;
+  if (recommendationsBusy) {
+    recommendationsWrap.classList.add('is-busy');
+  }
+  if ((recommendationsPending || recommendationApplyPending) && recommendations.length === 0) {
     const pending = document.createElement('div');
     pending.className = 'alt-viz-recommendations-pending';
-    pending.textContent = 'Refreshing recommendations...';
+    pending.textContent = recommendationApplyPending
+      ? recommendationApplyText
+      : 'Refreshing recommendations...';
     recommendationsWrap.appendChild(pending);
   }
   if (recommendations.length === 0) {
@@ -396,6 +405,16 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
     recommendations.forEach(item => {
       const row = body.insertRow();
       row.className = 'alt-viz-rec-row';
+      const itemRecommendationId = String(item?.recommendationId || '');
+      const isApplyingRow = recommendationApplyPending
+        && recommendationApplyId
+        && itemRecommendationId === recommendationApplyId;
+      const isDimmedRow = recommendationApplyPending
+        && recommendationApplyId
+        && itemRecommendationId
+        && itemRecommendationId !== recommendationApplyId;
+      if (isApplyingRow) row.classList.add('is-applying');
+      if (isDimmedRow) row.classList.add('is-dimmed');
       const recommendation = document.createElement('td');
 
       const recommendationWrap = document.createElement('div');
@@ -437,6 +456,8 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
 
       const detailRow = body.insertRow();
       detailRow.className = 'alt-viz-rec-detail-row';
+      if (isApplyingRow) detailRow.classList.add('is-applying');
+      if (isDimmedRow) detailRow.classList.add('is-dimmed');
       detailRow.style.display = 'none';
       const detailCell = detailRow.insertCell();
       detailCell.colSpan = 6;
@@ -464,9 +485,12 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
       const applyBtn = document.createElement('button');
       applyBtn.type = 'button';
       applyBtn.className = 'alt-viz-rec-apply-btn';
-      applyBtn.textContent = 'Apply Recommendation';
-      if (!item?.recommendationId) applyBtn.disabled = true;
+      applyBtn.textContent = isApplyingRow
+        ? 'Applying...'
+        : 'Apply Recommendation';
+      if (!item?.recommendationId || recommendationApplyPending) applyBtn.disabled = true;
       applyBtn.addEventListener('click', () => {
+        if (recommendationApplyPending) return;
         if (!item?.recommendationId) return;
         requestAction('recommendations.apply', { recommendationId: item.recommendationId });
       });
@@ -504,6 +528,25 @@ function createProjectSummaryStrip(demo, rooms, opts = {}) {
     });
 
     tableWrap.appendChild(table);
+
+    if (recommendationsBusy) {
+      const overlay = document.createElement('div');
+      overlay.className = 'alt-viz-recommendations-overlay';
+
+      const spinner = document.createElement('div');
+      spinner.className = 'alt-viz-recommendations-spinner';
+      overlay.appendChild(spinner);
+
+      const overlayText = document.createElement('div');
+      overlayText.className = 'alt-viz-recommendations-overlay-text';
+      overlayText.textContent = recommendationApplyPending
+        ? recommendationApplyText
+        : 'Refreshing recommendations...';
+      overlay.appendChild(overlayText);
+
+      tableWrap.appendChild(overlay);
+    }
+
     recommendationsWrap.appendChild(tableWrap);
   }
 

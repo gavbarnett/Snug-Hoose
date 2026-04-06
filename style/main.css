@@ -359,6 +359,35 @@ a#download:hover {
 
 .alt-viz-recommendations-table-wrap {
   overflow-x: auto;
+  position: relative;
+}
+
+.alt-viz-recommendations-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: rgba(8, 14, 18, 0.72);
+  backdrop-filter: blur(1px);
+  z-index: 2;
+}
+
+.alt-viz-recommendations-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 212, 255, 0.28);
+  border-top-color: rgba(0, 212, 255, 0.95);
+  animation: alt-viz-spin 0.8s linear infinite;
+}
+
+.alt-viz-recommendations-overlay-text {
+  font-size: 0.7rem;
+  color: var(--text-light);
+  letter-spacing: 0.01em;
 }
 
 .alt-viz-recommendations-table {
@@ -384,6 +413,29 @@ a#download:hover {
 
 .alt-viz-recommendations-table tr:last-child td {
   border-bottom: none;
+}
+
+.alt-viz-recommendations.is-busy .alt-viz-rec-row.is-dimmed td,
+.alt-viz-recommendations.is-busy .alt-viz-rec-detail-row.is-dimmed td {
+  opacity: 0.4;
+  filter: grayscale(0.35);
+}
+
+.alt-viz-recommendations.is-busy .alt-viz-rec-row.is-dimmed .alt-viz-rec-expand-btn {
+  pointer-events: none;
+}
+
+.alt-viz-recommendations.is-busy .alt-viz-rec-row.is-applying td {
+  background: rgba(0, 212, 255, 0.08);
+}
+
+.alt-viz-recommendations.is-busy .alt-viz-rec-detail-row.is-applying .alt-viz-rec-detail-cell {
+  border: 1px solid rgba(0, 212, 255, 0.35);
+}
+
+@keyframes alt-viz-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .alt-viz-rec-name-wrap {

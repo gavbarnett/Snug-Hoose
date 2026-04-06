@@ -37,6 +37,9 @@ let latestRenderedVizDemo = null;
 let latestRenderedVariantMenuState = null;
 let latestRenderedRecommendations = [];
 let recommendationsRefreshHandle = null;
+let recommendationApplyInProgress = false;
+let recommendationApplyText = '';
+let recommendationApplyId = '';
 
 const MAX_HISTORY_STEPS = 100;
 
@@ -79,7 +82,10 @@ function renderCurrentAlternativeViz(demoPayload, variantMenuState, recommendati
     ventilation: currentVentilation,
     variant_state: variantMenuState,
     recommendations: latestRenderedRecommendations,
-    recommendationsPending: recommendationsPending === true
+    recommendationsPending: recommendationsPending === true,
+    recommendationApplyPending: recommendationApplyInProgress,
+    recommendationApplyText: recommendationApplyText,
+    recommendationApplyId: recommendationApplyId
   }, {
     canUndo: undoStack.length > 0,
     canRedo: redoStack.length > 0,
@@ -190,6 +196,9 @@ function scheduleRecommendationsRefresh(demoForRecommendations, solveRevision) {
     const recommendations = buildPerformanceRecommendations(demoForRecommendations);
     if (solveRevision !== latestSolveRevision) return;
     if (!latestRenderedVizDemo || !latestRenderedVariantMenuState) return;
+    recommendationApplyInProgress = false;
+    recommendationApplyText = '';
+    recommendationApplyId = '';
     renderCurrentAlternativeViz(
       latestRenderedVizDemo,
       latestRenderedVariantMenuState,
@@ -824,6 +833,55 @@ function moveBoilerControlThermostatToZone(demo, zoneId) {
   });
 
   return targetFound && moved;
+}
+
+function pickBoilerControlZoneByHeatRatio(demo, radiatorCatalog, externalTemp, nominalFlowTemp) {
+  if (!demo) return null;
+  const zones = Array.isArray(demo?.zones) ? demo.zones : [];
+  if (zones.length === 0) return null;
+
+  const zonesWithoutControl = zones.map(zone => {
+    if (!zone || zone.type === 'boundary') return zone;
+    return { ...zone, is_boiler_control: false };
+  });
+
+  refreshElementUFabricForDemo(demo);
+  const heat = computeRoomHeatRequirements(
+    { ...demo, zones: zonesWithoutControl },
+    radiatorCatalog,
+    {
+      indoorTemp: 21,
+      externalTemp,
+      flowTemp: nominalFlowTemp
+    }
+  );
+
+  const rooms = Array.isArray(heat?.rooms) ? heat.rooms : [];
+  let best = null;
+
+  rooms.forEach(room => {
+    if (!room || room.is_unheated === true) return;
+    const zoneId = String(room?.zoneId || '');
+    if (!zoneId) return;
+    const heatLoss = Number(room?.heat_loss || 0);
+    const heatOutput = Number(room?.radiator_output || room?.delivered_heat || 0);
+    if (!isFinite(heatLoss) || heatLoss <= 0) return;
+    if (!isFinite(heatOutput) || heatOutput < 0) return;
+
+    const ratio = heatOutput / heatLoss;
+    if (!isFinite(ratio)) return;
+
+    if (!best || ratio < best.ratio || (ratio === best.ratio && heatLoss > best.heatLoss)) {
+      best = {
+        zoneId,
+        zoneName: String(room?.zoneName || zoneId),
+        ratio,
+        heatLoss
+      };
+    }
+  });
+
+  return best;
 }
 
 function isHeatedExternalWallElement(element, demo, outsideBoundaryId) {
@@ -1527,19 +1585,15 @@ function applyRadiatorComfortUpgrade(demo, options = {}) {
     };
   };
 
+  let thermostatMoved = false;
+  let thermostatTargetZoneName = '';
+
   refreshElementUFabricForDemo(demo);
   const heatBefore = computeRoomHeatRequirements(demo, radiatorCatalog, {
     indoorTemp: 21,
     externalTemp,
     flowTemp
   });
-  const deficitsBefore = getComfortDeficitRoomsForDemo(demo);
-  const thermostatTargetRoom = Array.isArray(deficitsBefore?.rooms) ? deficitsBefore.rooms[0] : null;
-  const thermostatTargetZoneId = String(thermostatTargetRoom?.zoneId || '');
-  const thermostatTargetZoneName = String(thermostatTargetRoom?.zoneName || thermostatTargetZoneId || '');
-  const thermostatMoved = thermostatTargetZoneId
-    ? moveBoilerControlThermostatToZone(demo, thermostatTargetZoneId)
-    : false;
 
   const unmetRooms = Array.isArray(heatBefore?.rooms)
     ? heatBefore.rooms.filter(room => {
@@ -1701,6 +1755,18 @@ function applyRadiatorComfortUpgrade(demo, options = {}) {
       upgradedRooms: []
     };
   }
+
+  const thermostatTarget = pickBoilerControlZoneByHeatRatio(
+    demo,
+    radiatorCatalog,
+    externalTemp,
+    flowTemp
+  );
+  const thermostatTargetZoneId = String(thermostatTarget?.zoneId || '');
+  thermostatTargetZoneName = String(thermostatTarget?.zoneName || thermostatTargetZoneId || '');
+  thermostatMoved = thermostatTargetZoneId
+    ? moveBoilerControlThermostatToZone(demo, thermostatTargetZoneId)
+    : false;
 
   const baseComfortAfterUpgrade = evaluateComfortAtFlow(flowTemp);
   let workingFlowTemp = flowTemp;
@@ -2756,12 +2822,45 @@ function handleAltVizMenuAction(action, item, context = {}) {
     }
     case 'recommendations.apply': {
       if (!currentDemo) return;
+      if (recommendationApplyInProgress) return;
       const recommendationId = String(payload.recommendationId || '');
       if (!recommendationId) return;
+      const recommendationsBeforeApply = Array.isArray(latestRenderedRecommendations)
+        ? latestRenderedRecommendations.slice()
+        : [];
+      recommendationApplyInProgress = true;
+      recommendationApplyText = 'Applying recommendation and recalculating rooms...';
+      recommendationApplyId = recommendationId;
+      latestRenderedRecommendations = recommendationsBeforeApply.filter(item => String(item?.recommendationId || '') !== recommendationId);
+      if (latestRenderedVizDemo && latestRenderedVariantMenuState) {
+        renderCurrentAlternativeViz(
+          latestRenderedVizDemo,
+          latestRenderedVariantMenuState,
+          latestRenderedRecommendations,
+          true
+        );
+      }
+      if (appUiApi?.setStatus) {
+        appUiApi.setStatus('Applying recommendation and recalculating...');
+      }
       const before = deepClone(currentDemo);
       if (applyRecommendationById(currentDemo, recommendationId)) {
         pushUndoSnapshot(before);
         triggerSolve();
+      } else if (appUiApi?.setStatus) {
+        recommendationApplyInProgress = false;
+        recommendationApplyText = '';
+        recommendationApplyId = '';
+        latestRenderedRecommendations = recommendationsBeforeApply;
+        if (latestRenderedVizDemo && latestRenderedVariantMenuState) {
+          renderCurrentAlternativeViz(
+            latestRenderedVizDemo,
+            latestRenderedVariantMenuState,
+            latestRenderedRecommendations,
+            false
+          );
+        }
+        appUiApi.setStatus(`Could not apply recommendation: ${recommendationId}`);
       }
       return;
     }
@@ -3412,6 +3511,9 @@ async function solveAndRender(demoRaw) {
     const solved = JSON.stringify(demoRaw, null, 2);
     if (appUiApi) appUiApi.setSolvedOutput(solved);
   } catch (err) {
+    recommendationApplyInProgress = false;
+    recommendationApplyText = '';
+    recommendationApplyId = '';
     if (appUiApi) appUiApi.setStatus('Solver error: ' + String(err));
     console.error(err);
   }
