@@ -137,4 +137,46 @@ describe('inter-floor overlap reconciliation', () => {
 
     expect(upperLarge.delivered_indoor_temperature).toBeGreaterThan(upperSmall.delivered_indoor_temperature);
   });
+
+  it('removes stale ground-floor link for upper room covered from below', () => {
+    const demo = {
+      zones: [
+        {
+          id: 'z_lower',
+          name: 'Lower',
+          level: 0,
+          layout: { polygon: [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 4 }, { x: 0, y: 4 }] }
+        },
+        {
+          id: 'z_upper',
+          name: 'Upper',
+          level: 1,
+          layout: { polygon: [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 4 }, { x: 0, y: 4 }] }
+        },
+        { id: 'ground', type: 'boundary', name: 'Ground' },
+        outside,
+      ],
+      elements: [
+        {
+          id: 'el_upper_ground_wrong',
+          type: 'floor',
+          nodes: ['z_upper', 'ground'],
+          x: 16,
+          y: 1,
+        }
+      ],
+    };
+
+    reconcileInterlevelElementsFromPolygons(demo, {
+      z_lower: demo.zones[0].layout.polygon,
+      z_upper: demo.zones[1].layout.polygon,
+    });
+
+    const upperGroundLinks = demo.elements.filter(el => {
+      if (String(el?.type || '').toLowerCase() !== 'floor') return false;
+      const nodes = Array.isArray(el?.nodes) ? el.nodes : [];
+      return nodes.includes('z_upper') && nodes.includes('ground');
+    });
+    expect(upperGroundLinks.length).toBe(0);
+  });
 });

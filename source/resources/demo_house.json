@@ -140,7 +140,7 @@
           "id": "variant_baseline",
           "name": "Baseline",
           "created_at": "2026-03-31T11:27:08.633Z",
-          "updated_at": "2026-04-06T23:23:47.924Z",
+          "updated_at": "2026-04-06T23:27:05.383Z",
           "snapshot": {
             "meta": {
               "name": "Demo House",
@@ -1156,27 +1156,6 @@
             ],
             "elements": [
               {
-                "id": "el_4db57d518255",
-                "name": "Floor 1 Room 2 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_dcda158499d0",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
                 "id": "el_158499d0_wall_split_1",
                 "name": "Living Room - outside Wall (1)",
                 "type": "wall",
@@ -1247,8 +1226,8 @@
                   "id_119bcc1e33ba",
                   "ground"
                 ],
-                "x": 4,
-                "y": 4,
+                "x": 69.651,
+                "y": 1,
                 "build_up": [],
                 "area": 16,
                 "u_fabric": 0,
@@ -1258,7 +1237,8 @@
                 "fabric_air_leakage_m3_h_m2": 0,
                 "fabric_air_leakage_flow_m3_h": 0,
                 "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
+                "air_leakage_flow_m3_h": 0,
+                "_autoLayoutLink": true
               },
               {
                 "id": "el_cc1e33ba_wall_split_1",
@@ -1432,27 +1412,6 @@
                 "air_leakage_flow_m3_h": 0.887
               },
               {
-                "id": "el_9ab173261456",
-                "name": "Room 3 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_6cb0bd57ba57",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
                 "id": "el_bd57ba57_wall_split_1",
                 "name": "Dining Room - outside Wall",
                 "type": "wall",
@@ -1513,27 +1472,6 @@
                 "air_leakage_flow_m3_h": 12.361,
                 "build_up_template_id": "buo_04",
                 "_templateEditMode": "view"
-              },
-              {
-                "id": "el_7adbef4ab001",
-                "name": "Room 4 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_adc1373e0b36",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
               },
               {
                 "id": "el_cc1e33ba_fc_auto_2",
@@ -1611,27 +1549,6 @@
                 "fabric_air_leakage_flow_m3_h": 4.995,
                 "openings_air_leakage_flow_m3_h": 0,
                 "air_leakage_flow_m3_h": 4.995
-              },
-              {
-                "id": "el_5706b5d90bf0",
-                "name": "Room 5 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_7a2e17b46975",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
               },
               {
                 "id": "el_cc1e33ba_fc_auto_3",
@@ -1742,27 +1659,6 @@
                 ]
               },
               {
-                "id": "el_c27543f3a316",
-                "name": "Room 6 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_7a03d23ea52a",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
                 "id": "el_d23ea52a_wall_split_5",
                 "name": "Kitchen - Toilet Wall",
                 "type": "wall",
@@ -1822,27 +1718,6 @@
                     "zone_id": "id_adc1373e0b36"
                   }
                 ]
-              },
-              {
-                "id": "el_e54c540ee687",
-                "name": "Room 7 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_8bed4bc0c1ca",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
               },
               {
                 "id": "el_3abb7c3eb88d",
@@ -2122,27 +1997,6 @@
                 ]
               },
               {
-                "id": "el_e72a64f130b9",
-                "name": "Room 8 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_a97d9367dd05",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
                 "id": "el_3bd7ddfae1ad",
                 "name": "Room 8 - Ceiling",
                 "type": "ceiling",
@@ -2371,28 +2225,6 @@
                 "_templateEditMode": "view"
               },
               {
-                "id": "el_492a344b6bb1",
-                "name": "Floor 2 Room 9 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_3b47fa432a9b",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "area": 16,
-                "u_fabric": 0.2223,
-                "u_overall": 0.2223,
-                "thermal_conductance": 3.556,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0.9,
-                "fabric_air_leakage_flow_m3_h": 14.4,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 14.4,
-                "build_up_template_id": "buo_05",
-                "_templateEditMode": "view"
-              },
-              {
                 "id": "el_fa432a9b_wall_split_1",
                 "name": "Bedroom 2 - outside Wall (1)",
                 "type": "wall",
@@ -2465,27 +2297,6 @@
                 "_autoLayoutLink": true,
                 "build_up": [],
                 "area": 11.494,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
-                "id": "el_9e0f1f228b58",
-                "name": "Room 10 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_c4b0bddbfa18",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
                 "u_fabric": 0,
                 "u_overall": 0,
                 "thermal_conductance": 0,
@@ -2578,27 +2389,6 @@
                 "air_leakage_flow_m3_h": 0
               },
               {
-                "id": "el_067ae6c46d19",
-                "name": "Room 11 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_83b29d753906",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
                 "id": "el_9d753906_wall_split_2",
                 "name": "Office - outside Wall (1)",
                 "type": "wall",
@@ -2672,8 +2462,8 @@
                   "id_596285f720a8",
                   "ground"
                 ],
-                "x": 4,
-                "y": 4,
+                "x": 12.605,
+                "y": 1,
                 "build_up": [],
                 "area": 16,
                 "u_fabric": 0,
@@ -2683,7 +2473,8 @@
                 "fabric_air_leakage_m3_h_m2": 0,
                 "fabric_air_leakage_flow_m3_h": 0,
                 "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
+                "air_leakage_flow_m3_h": 0,
+                "_autoLayoutLink": true
               },
               {
                 "id": "el_85f720a8_wall_split_2",
@@ -2816,27 +2607,6 @@
                 "fabric_air_leakage_flow_m3_h": 1.26,
                 "openings_air_leakage_flow_m3_h": 0,
                 "air_leakage_flow_m3_h": 1.26
-              },
-              {
-                "id": "el_0925a25233c2",
-                "name": "Room 13 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_67ebe50eba84",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
               },
               {
                 "id": "el_5f730a7e6e0c",
@@ -3086,27 +2856,6 @@
                 "air_leakage_flow_m3_h": 1.129
               },
               {
-                "id": "el_aa1ec39945d8",
-                "name": "Room 14 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_2f6c01c464e0",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
                 "id": "el_9cc3ec43de27",
                 "name": "Room 14 - Ceiling",
                 "type": "ceiling",
@@ -3173,27 +2922,6 @@
                 "air_leakage_flow_m3_h": 8.184,
                 "_templateEditMode": "view",
                 "doors": []
-              },
-              {
-                "id": "el_ae7170594db0",
-                "name": "Room 15 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_879c26ea0dde",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
               },
               {
                 "id": "el_26ea0dde_wall_split_4",
@@ -3318,27 +3046,6 @@
                 "doors": []
               },
               {
-                "id": "el_97e923f682dd",
-                "name": "Room 16 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_ee603bc1c8a7",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
                 "id": "el_2c3da11a723a",
                 "name": "Room 16 - Ceiling",
                 "type": "ceiling",
@@ -3420,27 +3127,6 @@
                     "zone_id": "id_ee603bc1c8a7"
                   }
                 ]
-              },
-              {
-                "id": "el_558255f5fc74",
-                "name": "Room 17 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_7ec187fb2585",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
               },
               {
                 "id": "el_4e5505aeaea7",
@@ -3827,27 +3513,6 @@
                 "air_leakage_flow_m3_h": 0
               },
               {
-                "id": "el_c39c2eb8b21e",
-                "name": "Room 18 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_b619d38a4d9c",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
                 "id": "el_99354ce8aa70",
                 "name": "Room 18 - Ceiling",
                 "type": "ceiling",
@@ -3983,27 +3648,6 @@
                 "_templateEditMode": "view"
               },
               {
-                "id": "el_608000feb467",
-                "name": "Room 19 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_7ad0d13a8cc0",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 4.2,
-                "u_overall": 4.2,
-                "thermal_conductance": 67.2,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 1.1,
-                "fabric_air_leakage_flow_m3_h": 17.6,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 17.6
-              },
-              {
                 "id": "el_d13a8cc0_wall_split_1",
                 "name": "Stairs - outside Wall",
                 "type": "wall",
@@ -4093,27 +3737,6 @@
                 "openings_air_leakage_flow_m3_h": 0,
                 "air_leakage_flow_m3_h": 8.448,
                 "_templateEditMode": "view"
-              },
-              {
-                "id": "el_64205d094dbe",
-                "name": "Floor 3 Room 20 - Ground Floor",
-                "type": "floor",
-                "nodes": [
-                  "id_cd183ffb3324",
-                  "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
               },
               {
                 "id": "el_87de46a2e74f",
@@ -5571,27 +5194,6 @@
   ],
   "elements": [
     {
-      "id": "el_4db57d518255",
-      "name": "Floor 1 Room 2 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_dcda158499d0",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
       "id": "el_158499d0_wall_split_1",
       "name": "Living Room - outside Wall (1)",
       "type": "wall",
@@ -5662,8 +5264,8 @@
         "id_119bcc1e33ba",
         "ground"
       ],
-      "x": 4,
-      "y": 4,
+      "x": 69.651,
+      "y": 1,
       "build_up": [],
       "area": 16,
       "u_fabric": 0,
@@ -5673,7 +5275,8 @@
       "fabric_air_leakage_m3_h_m2": 0,
       "fabric_air_leakage_flow_m3_h": 0,
       "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
+      "air_leakage_flow_m3_h": 0,
+      "_autoLayoutLink": true
     },
     {
       "id": "el_cc1e33ba_wall_split_1",
@@ -5847,27 +5450,6 @@
       "air_leakage_flow_m3_h": 0.887
     },
     {
-      "id": "el_9ab173261456",
-      "name": "Room 3 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_6cb0bd57ba57",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
       "id": "el_bd57ba57_wall_split_1",
       "name": "Dining Room - outside Wall",
       "type": "wall",
@@ -5928,27 +5510,6 @@
       "air_leakage_flow_m3_h": 12.361,
       "build_up_template_id": "buo_04",
       "_templateEditMode": "view"
-    },
-    {
-      "id": "el_7adbef4ab001",
-      "name": "Room 4 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_adc1373e0b36",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
     },
     {
       "id": "el_cc1e33ba_fc_auto_2",
@@ -6026,27 +5587,6 @@
       "fabric_air_leakage_flow_m3_h": 4.995,
       "openings_air_leakage_flow_m3_h": 0,
       "air_leakage_flow_m3_h": 4.995
-    },
-    {
-      "id": "el_5706b5d90bf0",
-      "name": "Room 5 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_7a2e17b46975",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
     },
     {
       "id": "el_cc1e33ba_fc_auto_3",
@@ -6157,27 +5697,6 @@
       ]
     },
     {
-      "id": "el_c27543f3a316",
-      "name": "Room 6 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_7a03d23ea52a",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
       "id": "el_d23ea52a_wall_split_5",
       "name": "Kitchen - Toilet Wall",
       "type": "wall",
@@ -6237,27 +5756,6 @@
           "zone_id": "id_adc1373e0b36"
         }
       ]
-    },
-    {
-      "id": "el_e54c540ee687",
-      "name": "Room 7 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_8bed4bc0c1ca",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
     },
     {
       "id": "el_3abb7c3eb88d",
@@ -6537,27 +6035,6 @@
       ]
     },
     {
-      "id": "el_e72a64f130b9",
-      "name": "Room 8 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_a97d9367dd05",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
       "id": "el_3bd7ddfae1ad",
       "name": "Room 8 - Ceiling",
       "type": "ceiling",
@@ -6786,28 +6263,6 @@
       "_templateEditMode": "view"
     },
     {
-      "id": "el_492a344b6bb1",
-      "name": "Floor 2 Room 9 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_3b47fa432a9b",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "area": 16,
-      "u_fabric": 0.2223,
-      "u_overall": 0.2223,
-      "thermal_conductance": 3.556,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0.9,
-      "fabric_air_leakage_flow_m3_h": 14.4,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 14.4,
-      "build_up_template_id": "buo_05",
-      "_templateEditMode": "view"
-    },
-    {
       "id": "el_fa432a9b_wall_split_1",
       "name": "Bedroom 2 - outside Wall (1)",
       "type": "wall",
@@ -6880,27 +6335,6 @@
       "_autoLayoutLink": true,
       "build_up": [],
       "area": 11.494,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
-      "id": "el_9e0f1f228b58",
-      "name": "Room 10 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_c4b0bddbfa18",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
       "u_fabric": 0,
       "u_overall": 0,
       "thermal_conductance": 0,
@@ -6993,27 +6427,6 @@
       "air_leakage_flow_m3_h": 0
     },
     {
-      "id": "el_067ae6c46d19",
-      "name": "Room 11 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_83b29d753906",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
       "id": "el_9d753906_wall_split_2",
       "name": "Office - outside Wall (1)",
       "type": "wall",
@@ -7087,8 +6500,8 @@
         "id_596285f720a8",
         "ground"
       ],
-      "x": 4,
-      "y": 4,
+      "x": 12.605,
+      "y": 1,
       "build_up": [],
       "area": 16,
       "u_fabric": 0,
@@ -7098,7 +6511,8 @@
       "fabric_air_leakage_m3_h_m2": 0,
       "fabric_air_leakage_flow_m3_h": 0,
       "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
+      "air_leakage_flow_m3_h": 0,
+      "_autoLayoutLink": true
     },
     {
       "id": "el_85f720a8_wall_split_2",
@@ -7231,27 +6645,6 @@
       "fabric_air_leakage_flow_m3_h": 1.26,
       "openings_air_leakage_flow_m3_h": 0,
       "air_leakage_flow_m3_h": 1.26
-    },
-    {
-      "id": "el_0925a25233c2",
-      "name": "Room 13 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_67ebe50eba84",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
     },
     {
       "id": "el_5f730a7e6e0c",
@@ -7501,27 +6894,6 @@
       "air_leakage_flow_m3_h": 1.129
     },
     {
-      "id": "el_aa1ec39945d8",
-      "name": "Room 14 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_2f6c01c464e0",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
       "id": "el_9cc3ec43de27",
       "name": "Room 14 - Ceiling",
       "type": "ceiling",
@@ -7588,27 +6960,6 @@
       "air_leakage_flow_m3_h": 8.184,
       "_templateEditMode": "view",
       "doors": []
-    },
-    {
-      "id": "el_ae7170594db0",
-      "name": "Room 15 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_879c26ea0dde",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
     },
     {
       "id": "el_26ea0dde_wall_split_4",
@@ -7733,27 +7084,6 @@
       "doors": []
     },
     {
-      "id": "el_97e923f682dd",
-      "name": "Room 16 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_ee603bc1c8a7",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
       "id": "el_2c3da11a723a",
       "name": "Room 16 - Ceiling",
       "type": "ceiling",
@@ -7835,27 +7165,6 @@
           "zone_id": "id_ee603bc1c8a7"
         }
       ]
-    },
-    {
-      "id": "el_558255f5fc74",
-      "name": "Room 17 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_7ec187fb2585",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
     },
     {
       "id": "el_4e5505aeaea7",
@@ -8242,27 +7551,6 @@
       "air_leakage_flow_m3_h": 0
     },
     {
-      "id": "el_c39c2eb8b21e",
-      "name": "Room 18 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_b619d38a4d9c",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
       "id": "el_99354ce8aa70",
       "name": "Room 18 - Ceiling",
       "type": "ceiling",
@@ -8398,27 +7686,6 @@
       "_templateEditMode": "view"
     },
     {
-      "id": "el_608000feb467",
-      "name": "Room 19 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_7ad0d13a8cc0",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 4.2,
-      "u_overall": 4.2,
-      "thermal_conductance": 67.2,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 1.1,
-      "fabric_air_leakage_flow_m3_h": 17.6,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 17.6
-    },
-    {
       "id": "el_d13a8cc0_wall_split_1",
       "name": "Stairs - outside Wall",
       "type": "wall",
@@ -8508,27 +7775,6 @@
       "openings_air_leakage_flow_m3_h": 0,
       "air_leakage_flow_m3_h": 8.448,
       "_templateEditMode": "view"
-    },
-    {
-      "id": "el_64205d094dbe",
-      "name": "Floor 3 Room 20 - Ground Floor",
-      "type": "floor",
-      "nodes": [
-        "id_cd183ffb3324",
-        "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
     },
     {
       "id": "el_87de46a2e74f",
