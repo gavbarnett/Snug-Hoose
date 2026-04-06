@@ -991,7 +991,7 @@ export function buildPerformanceRecommendations(demoRaw, context = {}) {
       const impactedElements = [];
       elements.forEach(element => {
         const type = String(element?.type || '').toLowerCase();
-        if (type !== 'ceiling' && type !== 'floor_ceiling') return;
+        if (type !== 'ceiling') return;
         const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
         if (!nodes.includes(loftId)) return;
         const buildUp = resolveElementBuildUpForEdit(element, templates);
@@ -1188,6 +1188,10 @@ export function buildPerformanceRecommendations(demoRaw, context = {}) {
   const outsideBoundaryId = getBoundaryZoneId(demoRaw, 'outside');
   const resolveElementName = createUniqueElementNameResolver(elements, 'Wall');
   const wallCfg = measures.wall_insulation_internal_retrofit || measures.external_wall_insulation || {};
+  const floorCfg = measures.floor_insulation || {};
+  const loftCfg = measures.loft_insulation || {};
+  const groundBoundaryId = getBoundaryZoneId(demoRaw, 'ground');
+  const loftBoundaryId = getBoundaryZoneId(demoRaw, 'loft');
   const roomDeficits = getComfortDeficitRoomsForDemo(demoRaw);
   const deficitByZoneId = new Map((Array.isArray(roomDeficits?.rooms) ? roomDeficits.rooms : [])
     .map(item => [String(item.zoneId || ''), Number(item.shortfallC || 0)]));
@@ -1348,6 +1352,165 @@ export function buildPerformanceRecommendations(demoRaw, context = {}) {
         }
       );
     });
+  });
+
+  const roomsForFloorRoofUpgrade = zones.filter(z => z && z.type !== 'boundary' && z.is_unheated !== true);
+  const seenRoomRoofTargetKeys = new Set();
+  roomsForFloorRoofUpgrade.forEach(room => {
+    const roomId = String(room?.id || '');
+    const roomName = String(room?.name || room?.id || 'Unknown room');
+    const roomSuffix = String(roomId).slice(-8).toLowerCase().replace(/[^a-z0-9]/g, '_');
+
+    const baseRoomRoofElements = (Array.isArray(elements) ? elements : [])
+      .filter(el => {
+        const type = String(el?.type || '').toLowerCase();
+        if (type !== 'ceiling') return false;
+        const nodes = Array.isArray(el?.nodes) ? el.nodes : [];
+        return nodes.includes(roomId) && nodes.includes(loftBoundaryId);
+      });
+    const roomRoofTargetKey = baseRoomRoofElements
+      .map(el => String(el?.id || ''))
+      .filter(Boolean)
+      .sort()
+      .join('|');
+
+    addCandidate(
+      `Improve Floor Insulation in ${roomName}`,
+      (working) => {
+        if (!groundBoundaryId) return { changed: false };
+        const candidateElements = Array.isArray(working?.elements) ? working.elements : [];
+        const templatesWorking = (working.meta && working.meta.build_up_templates) || {};
+        const floors = candidateElements.filter(el => {
+          if (String(el?.type || '').toLowerCase() !== 'floor') return false;
+          const nodes = Array.isArray(el?.nodes) ? el.nodes : [];
+          return nodes.includes(roomId) && nodes.includes(groundBoundaryId);
+        });
+        if (floors.length === 0) return { changed: false };
+
+        let areaM2 = 0;
+        let materialVolumeM3 = 0;
+        const touched = [];
+        floors.forEach(floor => {
+          const result = applyFloorCavityInsulationRetrofit(
+            floor,
+            templatesWorking,
+            floorCfg,
+            String(floorCfg.insulation_material_id || 'rockwool')
+          );
+          if (!result.changed) return;
+          const area = getElementAreaM2(floor);
+          areaM2 += area;
+          materialVolumeM3 += area * Number(result.thicknessM || 0);
+          touched.push(resolveElementName(floor, 'Ground floor element'));
+        });
+
+        if (areaM2 <= 0) return { changed: false };
+        return {
+          changed: true,
+          areaM2,
+          materialVolumeM3,
+          recommendation: `Improve Floor Insulation in ${roomName}`,
+          proposal: [
+            `Floors impacted: ${touched.join('; ') || 'none'}.`,
+            `Scope: ${areaM2.toFixed(1)} m2 of room floor area to receive cavity insulation top-up.`
+          ].join('\n')
+        };
+      },
+      (change) => {
+        const materialId = String(floorCfg.insulation_material_id || 'rockwool');
+        const materialPerM3 = getInsulationMaterialCostPerM3(materialId);
+        const materialCost = materialPerM3 !== null
+          ? (Number(change.materialVolumeM3 || 0) * materialPerM3)
+          : (Number(change.areaM2 || 0) * getInsulationMaterialCostPerM2(materialId, floorCfg.fallback_thickness_m, floorCfg.material_per_m2));
+        const callout = Number(floorCfg.callout || 0);
+        const install = Number(change.areaM2 || 0) * Number(floorCfg.install_per_m2 || 0);
+        return {
+          total: callout + materialCost + install,
+          breakdown: [
+            { label: 'Floor retrofit callout', amount: callout },
+            { label: 'Insulation material', amount: materialCost },
+            { label: `Floor insulation labour (${Number(change.areaM2 || 0).toFixed(1)} m2)`, amount: install }
+          ]
+        };
+      },
+      {
+        id: `floor_insulation_room_${roomSuffix}`,
+        accept: ({ change }) => Number(change?.areaM2 || 0) > 0,
+        allowTempDropWhenCold: false
+      }
+    );
+
+    if (roomRoofTargetKey && !seenRoomRoofTargetKeys.has(roomRoofTargetKey)) {
+      seenRoomRoofTargetKeys.add(roomRoofTargetKey);
+      addCandidate(
+        `Improve Roof Insulation in ${roomName}`,
+        (working) => {
+        if (!loftBoundaryId) return { changed: false };
+        const candidateElements = Array.isArray(working?.elements) ? working.elements : [];
+        const templatesWorking = (working.meta && working.meta.build_up_templates) || {};
+        const roofs = candidateElements.filter(el => {
+          const type = String(el?.type || '').toLowerCase();
+          if (type !== 'ceiling') return false;
+          const nodes = Array.isArray(el?.nodes) ? el.nodes : [];
+          return nodes.includes(roomId) && nodes.includes(loftBoundaryId);
+        });
+        if (roofs.length === 0) return { changed: false };
+
+        let areaM2 = 0;
+        let materialVolumeM3 = 0;
+        const touched = [];
+        const materialId = String(loftCfg.insulation_material_id || 'rockwool');
+        roofs.forEach(roof => {
+          const buildUp = resolveElementBuildUpForEdit(roof, templatesWorking);
+          const loftPlan = getLoftInsulationThicknessFromBuildUp(buildUp, loftCfg);
+          const addedThickness = Number(loftPlan?.totalAddedThickness || 0);
+          if (!(addedThickness > 0)) return;
+          buildUp.push({ material_id: materialId, thickness: Number(addedThickness.toFixed(3)) });
+          roof.build_up = buildUp;
+          delete roof.build_up_template_id;
+
+          const area = getElementAreaM2(roof);
+          areaM2 += area;
+          materialVolumeM3 += area * addedThickness;
+          touched.push(resolveElementName(roof, 'Roof element'));
+        });
+
+        if (areaM2 <= 0) return { changed: false };
+          return {
+            changed: true,
+            areaM2,
+            materialVolumeM3,
+            recommendation: `Improve Roof Insulation in ${roomName}`,
+            proposal: [
+              `Roof/ceiling elements impacted: ${touched.join('; ') || 'none'}.`,
+              `Scope: ${areaM2.toFixed(1)} m2 loft-facing room ceiling area.`
+            ].join('\n')
+          };
+        },
+        (change) => {
+        const materialId = String(loftCfg.insulation_material_id || 'rockwool');
+        const materialPerM3 = getInsulationMaterialCostPerM3(materialId);
+        const materialCost = materialPerM3 !== null
+          ? (Number(change.materialVolumeM3 || 0) * materialPerM3)
+          : (Number(change.areaM2 || 0) * getInsulationMaterialCostPerM2(materialId, loftCfg.fallback_thickness_m, loftCfg.material_per_m2));
+        const callout = Number(loftCfg.callout || 0);
+        const install = Number(change.areaM2 || 0) * Number(loftCfg.install_per_m2 || 0);
+          return {
+            total: callout + materialCost + install,
+            breakdown: [
+              { label: 'Loft insulation callout', amount: callout },
+              { label: 'Insulation material', amount: materialCost },
+              { label: `Loft insulation labour (${Number(change.areaM2 || 0).toFixed(1)} m2)`, amount: install }
+            ]
+          };
+        },
+        {
+          id: `roof_insulation_room_${roomSuffix}`,
+          accept: ({ change }) => Number(change?.areaM2 || 0) > 0,
+          allowTempDropWhenCold: false
+        }
+      );
+    }
   });
 
   // Keep only the best ROI radiator type-upgrade option per source type.
@@ -1689,7 +1852,7 @@ export function applyRecommendationById(demoRaw, recommendationId, context = {})
     let changed = false;
     (Array.isArray(demoRaw.elements) ? demoRaw.elements : []).forEach(element => {
       const type = String(element?.type || '').toLowerCase();
-      if (type !== 'ceiling' && type !== 'floor_ceiling') return;
+      if (type !== 'ceiling') return;
       const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
       if (!nodes.includes(loftId)) return;
       const buildUp = resolveElementBuildUpForEdit(element, templates);
@@ -1722,7 +1885,7 @@ export function applyRecommendationById(demoRaw, recommendationId, context = {})
     for (const zone of zones) {
       if (!zone || zone.type === 'boundary' || zone.is_unheated === true) continue;
       const testId = `wall_insulation_room_${String(zone?.id || '').slice(-8).toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
-      if (testId === recId) {
+      if (recId === testId || recId.startsWith(`${testId}_`)) {
         targetRoom = zone;
         break;
       }
@@ -1763,6 +1926,77 @@ export function applyRecommendationById(demoRaw, recommendationId, context = {})
       });
     }
     
+    return changed;
+  }
+
+  if (recId.startsWith('floor_insulation_room_')) {
+    const cfg = measures.floor_insulation || {};
+    const layerMaterialId = String(cfg.insulation_material_id || 'rockwool');
+    const zones = Array.isArray(demoRaw?.zones) ? demoRaw.zones : [];
+    const elements = Array.isArray(demoRaw?.elements) ? demoRaw.elements : [];
+    const templates = (demoRaw.meta && demoRaw.meta.build_up_templates) || {};
+    const groundId = getBoundaryZoneId(demoRaw, 'ground');
+    if (!groundId) return false;
+
+    let targetRoom = null;
+    for (const zone of zones) {
+      if (!zone || zone.type === 'boundary' || zone.is_unheated === true) continue;
+      const testId = `floor_insulation_room_${String(zone?.id || '').slice(-8).toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+      if (recId === testId || recId.startsWith(`${testId}_`)) {
+        targetRoom = zone;
+        break;
+      }
+    }
+    if (!targetRoom) return false;
+
+    const roomId = String(targetRoom?.id || '');
+    let changed = false;
+    elements.forEach(element => {
+      if (String(element?.type || '').toLowerCase() !== 'floor') return;
+      const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
+      if (!nodes.includes(roomId) || !nodes.includes(groundId)) return;
+      const result = applyFloorCavityInsulationRetrofit(element, templates, cfg, layerMaterialId);
+      if (result.changed) changed = true;
+    });
+    return changed;
+  }
+
+  if (recId.startsWith('roof_insulation_room_')) {
+    const cfg = measures.loft_insulation || {};
+    const layerMaterialId = String(cfg.insulation_material_id || 'rockwool');
+    const zones = Array.isArray(demoRaw?.zones) ? demoRaw.zones : [];
+    const elements = Array.isArray(demoRaw?.elements) ? demoRaw.elements : [];
+    const templates = (demoRaw.meta && demoRaw.meta.build_up_templates) || {};
+    const loftId = getBoundaryZoneId(demoRaw, 'loft');
+    if (!loftId) return false;
+
+    let targetRoom = null;
+    for (const zone of zones) {
+      if (!zone || zone.type === 'boundary' || zone.is_unheated === true) continue;
+      const testId = `roof_insulation_room_${String(zone?.id || '').slice(-8).toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+      if (recId === testId || recId.startsWith(`${testId}_`)) {
+        targetRoom = zone;
+        break;
+      }
+    }
+    if (!targetRoom) return false;
+
+    const roomId = String(targetRoom?.id || '');
+    let changed = false;
+    elements.forEach(element => {
+      const type = String(element?.type || '').toLowerCase();
+      if (type !== 'ceiling') return;
+      const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
+      if (!nodes.includes(roomId) || !nodes.includes(loftId)) return;
+      const buildUp = resolveElementBuildUpForEdit(element, templates);
+      const loftPlan = getLoftInsulationThicknessFromBuildUp(buildUp, cfg);
+      const addedThickness = Number(loftPlan?.totalAddedThickness || 0);
+      if (!(addedThickness > 0)) return;
+      buildUp.push({ material_id: layerMaterialId, thickness: Number(addedThickness.toFixed(3)) });
+      element.build_up = buildUp;
+      delete element.build_up_template_id;
+      changed = true;
+    });
     return changed;
   }
 

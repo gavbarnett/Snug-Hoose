@@ -3910,6 +3910,18 @@ function makeFloorCeilingId(existingIds, lowerZoneId) {
   }
 }
 
+function makeCeilingId(existingIds, zoneId) {
+  let i = 1;
+  while (true) {
+    const id = `el_${String(zoneId).replace(/[^a-zA-Z0-9]/g, '').slice(-8)}_ceil_auto_${i}`;
+    if (!existingIds.has(id)) {
+      existingIds.add(id);
+      return id;
+    }
+    i += 1;
+  }
+}
+
 function canonicalizeInterlevelPair(demo, nodes) {
   if (!Array.isArray(nodes) || nodes.length < 2) return null;
   const zoneById = new Map((demo.zones || []).map(zone => [zone.id, zone]));
@@ -3967,6 +3979,7 @@ export function reconcileInterlevelElementsFromPolygons(demo, changedPolygonsByZ
   }
 
   const desiredByPair = new Map();
+  const overlapByLowerZone = new Map();
   const overlapThreshold = 0.02;
   for (const [level, lowerZoneIds] of zonesByLevel.entries()) {
     const upperZoneIds = zonesByLevel.get(level + 1) || [];
@@ -3980,6 +3993,10 @@ export function reconcileInterlevelElementsFromPolygons(demo, changedPolygonsByZ
         const overlapArea = polygonOverlapArea(lowerPoly, upperPoly);
         if (!isFinite(overlapArea) || overlapArea <= overlapThreshold) continue;
         desiredByPair.set(`${lowerZoneId}|${upperZoneId}`, overlapArea);
+        overlapByLowerZone.set(
+          lowerZoneId,
+          Number(overlapByLowerZone.get(lowerZoneId) || 0) + overlapArea
+        );
       }
     }
   }
@@ -4042,6 +4059,79 @@ export function reconcileInterlevelElementsFromPolygons(demo, changedPolygonsByZ
     elements.forEach(element => {
       if (element?._autoLayoutLink !== true) return;
       if (element?.id) removals.add(element.id);
+    });
+  }
+
+  const loftId = getBoundaryZoneId(demo, 'loft');
+  if (loftId) {
+    const ceilingByZoneId = new Map();
+    const candidateCeilings = demo.elements.filter(element => {
+      if (!element) return false;
+      const type = String(element?.type || '').toLowerCase();
+      if (type !== 'ceiling' && type !== 'floor_ceiling') return false;
+      const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
+      return nodes.includes(loftId);
+    });
+
+    candidateCeilings.forEach(element => {
+      const nodes = Array.isArray(element?.nodes) ? element.nodes : [];
+      const zoneId = nodes.find(nodeId => String(nodeId || '') !== String(loftId)) || null;
+      if (!zoneId) return;
+      const zone = zoneById.get(zoneId);
+      if (!zone || zone.type === 'boundary') return;
+      const zoneLevel = getZoneLevel(zone);
+      if (!levelsToProcess.has(zoneLevel)) return;
+      if (!ceilingByZoneId.has(zoneId)) ceilingByZoneId.set(zoneId, []);
+      ceilingByZoneId.get(zoneId).push(element);
+    });
+
+    const roomZoneIdsInScope = [...polygonsByZone.keys()].filter(zoneId => {
+      const zone = zoneById.get(zoneId);
+      if (!zone || zone.type === 'boundary') return false;
+      return levelsToProcess.has(getZoneLevel(zone));
+    });
+
+    roomZoneIdsInScope.forEach(zoneId => {
+      const zonePolygon = polygonsByZone.get(zoneId);
+      if (!zonePolygon) return;
+      const zoneArea = Math.max(0, polygonArea(zonePolygon));
+      if (zoneArea <= overlapThreshold) return;
+
+      const overlappedArea = Math.max(0, Number(overlapByLowerZone.get(zoneId) || 0));
+      const exposedArea = Math.max(0, zoneArea - Math.min(zoneArea, overlappedArea));
+      const exposedAreaRounded = Number(exposedArea.toFixed(3));
+      const existing = ceilingByZoneId.get(zoneId) || [];
+
+      if (exposedAreaRounded <= overlapThreshold) {
+        existing.forEach(element => {
+          if (element?.id) removals.add(element.id);
+        });
+        return;
+      }
+
+      if (existing.length > 0) {
+        const keeper = existing[0];
+        keeper.type = 'ceiling';
+        keeper.nodes = [zoneId, loftId];
+        keeper.x = exposedAreaRounded;
+        keeper.y = 1;
+        keeper._autoLayoutLink = true;
+        for (let i = 1; i < existing.length; i += 1) {
+          if (existing[i]?.id) removals.add(existing[i].id);
+        }
+        return;
+      }
+
+      const zone = zoneById.get(zoneId);
+      additions.push({
+        id: makeCeilingId(existingIds, zoneId),
+        name: `${zone?.name || zoneId} - Ceiling`,
+        type: 'ceiling',
+        nodes: [zoneId, loftId],
+        x: exposedAreaRounded,
+        y: 1,
+        _autoLayoutLink: true
+      });
     });
   }
 

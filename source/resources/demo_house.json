@@ -140,7 +140,7 @@
           "id": "variant_baseline",
           "name": "Baseline",
           "created_at": "2026-03-31T11:27:08.633Z",
-          "updated_at": "2026-03-31T19:16:56.044Z",
+          "updated_at": "2026-04-06T23:23:47.924Z",
           "snapshot": {
             "meta": {
               "name": "Demo House",
@@ -1177,27 +1177,6 @@
                 "air_leakage_flow_m3_h": 0
               },
               {
-                "id": "el_2a3337b3af90",
-                "name": "Floor 1 Room 2 - Ceiling",
-                "type": "ceiling",
-                "nodes": [
-                  "id_dcda158499d0",
-                  "loft"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
                 "id": "el_158499d0_wall_split_1",
                 "name": "Living Room - outside Wall (1)",
                 "type": "wall",
@@ -1267,27 +1246,6 @@
                 "nodes": [
                   "id_119bcc1e33ba",
                   "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
-                "id": "el_7f19684b9072",
-                "name": "Room 3 - Ceiling",
-                "type": "ceiling",
-                "nodes": [
-                  "id_119bcc1e33ba",
-                  "loft"
                 ],
                 "x": 4,
                 "y": 4,
@@ -1495,27 +1453,6 @@
                 "air_leakage_flow_m3_h": 0
               },
               {
-                "id": "el_298d89faeeb6",
-                "name": "Room 3 - Ceiling",
-                "type": "ceiling",
-                "nodes": [
-                  "id_6cb0bd57ba57",
-                  "loft"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
                 "id": "el_bd57ba57_wall_split_1",
                 "name": "Dining Room - outside Wall",
                 "type": "wall",
@@ -1584,27 +1521,6 @@
                 "nodes": [
                   "id_adc1373e0b36",
                   "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
-                "id": "el_2fbd8b454a94",
-                "name": "Room 4 - Ceiling",
-                "type": "ceiling",
-                "nodes": [
-                  "id_adc1373e0b36",
-                  "loft"
                 ],
                 "x": 4,
                 "y": 4,
@@ -1703,27 +1619,6 @@
                 "nodes": [
                   "id_7a2e17b46975",
                   "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
-                "id": "el_b1bd065238ce",
-                "name": "Room 5 - Ceiling",
-                "type": "ceiling",
-                "nodes": [
-                  "id_7a2e17b46975",
-                  "loft"
                 ],
                 "x": 4,
                 "y": 4,
@@ -1868,27 +1763,6 @@
                 "air_leakage_flow_m3_h": 0
               },
               {
-                "id": "el_af03ad3ce37f",
-                "name": "Room 6 - Ceiling",
-                "type": "ceiling",
-                "nodes": [
-                  "id_7a03d23ea52a",
-                  "loft"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
                 "id": "el_d23ea52a_wall_split_5",
                 "name": "Kitchen - Toilet Wall",
                 "type": "wall",
@@ -1978,8 +1852,8 @@
                   "id_8bed4bc0c1ca",
                   "loft"
                 ],
-                "x": 4,
-                "y": 4,
+                "x": 15.592,
+                "y": 1,
                 "build_up": [],
                 "area": 16,
                 "u_fabric": 0,
@@ -1989,7 +1863,8 @@
                 "fabric_air_leakage_m3_h_m2": 0,
                 "fabric_air_leakage_flow_m3_h": 0,
                 "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
+                "air_leakage_flow_m3_h": 0,
+                "_autoLayoutLink": true
               },
               {
                 "id": "el_4bc0c1ca_wall_split_1",
@@ -2275,8 +2150,8 @@
                   "id_a97d9367dd05",
                   "loft"
                 ],
-                "x": 4,
-                "y": 4,
+                "x": 1.68,
+                "y": 1,
                 "build_up": [],
                 "area": 16,
                 "u_fabric": 0,
@@ -2286,7 +2161,8 @@
                 "fabric_air_leakage_m3_h_m2": 0,
                 "fabric_air_leakage_flow_m3_h": 0,
                 "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
+                "air_leakage_flow_m3_h": 0,
+                "_autoLayoutLink": true
               },
               {
                 "id": "el_9367dd05_wall_split_2",
@@ -2517,27 +2393,6 @@
                 "_templateEditMode": "view"
               },
               {
-                "id": "el_fbd7addbed69",
-                "name": "Floor 2 Room 9 - Ceiling",
-                "type": "ceiling",
-                "nodes": [
-                  "id_3b47fa432a9b",
-                  "loft"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
                 "id": "el_fa432a9b_wall_split_1",
                 "name": "Bedroom 2 - outside Wall (1)",
                 "type": "wall",
@@ -2626,27 +2481,6 @@
                 "nodes": [
                   "id_c4b0bddbfa18",
                   "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
-                "id": "el_e3661b543097",
-                "name": "Room 10 - Ceiling",
-                "type": "ceiling",
-                "nodes": [
-                  "id_c4b0bddbfa18",
-                  "loft"
                 ],
                 "x": 4,
                 "y": 4,
@@ -2765,27 +2599,6 @@
                 "air_leakage_flow_m3_h": 0
               },
               {
-                "id": "el_644d6fc29a4f",
-                "name": "Room 11 - Ceiling",
-                "type": "ceiling",
-                "nodes": [
-                  "id_83b29d753906",
-                  "loft"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
                 "id": "el_9d753906_wall_split_2",
                 "name": "Office - outside Wall (1)",
                 "type": "wall",
@@ -2858,27 +2671,6 @@
                 "nodes": [
                   "id_596285f720a8",
                   "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
-                "id": "el_85647577ef6d",
-                "name": "Room 12 - Ceiling",
-                "type": "ceiling",
-                "nodes": [
-                  "id_596285f720a8",
-                  "loft"
                 ],
                 "x": 4,
                 "y": 4,
@@ -3054,8 +2846,8 @@
                   "id_67ebe50eba84",
                   "loft"
                 ],
-                "x": 4,
-                "y": 4,
+                "x": 13.651,
+                "y": 1,
                 "build_up": [],
                 "area": 16,
                 "u_fabric": 0,
@@ -3065,7 +2857,8 @@
                 "fabric_air_leakage_m3_h_m2": 0,
                 "fabric_air_leakage_flow_m3_h": 0,
                 "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
+                "air_leakage_flow_m3_h": 0,
+                "_autoLayoutLink": true
               },
               {
                 "id": "el_e50eba84_wall_split_3",
@@ -3321,8 +3114,8 @@
                   "id_2f6c01c464e0",
                   "loft"
                 ],
-                "x": 4,
-                "y": 4,
+                "x": 0.857,
+                "y": 1,
                 "build_up": [],
                 "area": 16,
                 "u_fabric": 0,
@@ -3332,7 +3125,8 @@
                 "fabric_air_leakage_m3_h_m2": 0,
                 "fabric_air_leakage_flow_m3_h": 0,
                 "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
+                "air_leakage_flow_m3_h": 0,
+                "_autoLayoutLink": true
               },
               {
                 "id": "el_17b46975_fc_auto_1",
@@ -3387,27 +3181,6 @@
                 "nodes": [
                   "id_879c26ea0dde",
                   "ground"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
-                "id": "el_7a35de97410b",
-                "name": "Room 15 - Ceiling",
-                "type": "ceiling",
-                "nodes": [
-                  "id_879c26ea0dde",
-                  "loft"
                 ],
                 "x": 4,
                 "y": 4,
@@ -3573,8 +3346,8 @@
                   "id_ee603bc1c8a7",
                   "loft"
                 ],
-                "x": 4,
-                "y": 4,
+                "x": 2.465,
+                "y": 1,
                 "build_up": [],
                 "area": 16,
                 "u_fabric": 0,
@@ -3584,7 +3357,8 @@
                 "fabric_air_leakage_m3_h_m2": 0,
                 "fabric_air_leakage_flow_m3_h": 0,
                 "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
+                "air_leakage_flow_m3_h": 0,
+                "_autoLayoutLink": true
               },
               {
                 "id": "el_3bc1c8a7_wall_split_2",
@@ -3676,8 +3450,8 @@
                   "id_7ec187fb2585",
                   "loft"
                 ],
-                "x": 4,
-                "y": 4,
+                "x": 3.292,
+                "y": 1,
                 "build_up": [],
                 "area": 16,
                 "u_fabric": 0,
@@ -3687,7 +3461,8 @@
                 "fabric_air_leakage_m3_h_m2": 0,
                 "fabric_air_leakage_flow_m3_h": 0,
                 "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
+                "air_leakage_flow_m3_h": 0,
+                "_autoLayoutLink": true
               },
               {
                 "id": "el_87fb2585_wall_split_2",
@@ -4080,8 +3855,8 @@
                   "id_b619d38a4d9c",
                   "loft"
                 ],
-                "x": 4,
-                "y": 4,
+                "x": 1.16,
+                "y": 1,
                 "build_up": [],
                 "area": 16,
                 "u_fabric": 0,
@@ -4091,7 +3866,8 @@
                 "fabric_air_leakage_m3_h_m2": 0,
                 "fabric_air_leakage_flow_m3_h": 0,
                 "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
+                "air_leakage_flow_m3_h": 0,
+                "_autoLayoutLink": true
               },
               {
                 "id": "el_d38a4d9c_wall_split_2",
@@ -4228,27 +4004,6 @@
                 "air_leakage_flow_m3_h": 17.6
               },
               {
-                "id": "el_28fd8a7f62a4",
-                "name": "Room 19 - Ceiling",
-                "type": "ceiling",
-                "nodes": [
-                  "id_7ad0d13a8cc0",
-                  "loft"
-                ],
-                "x": 4,
-                "y": 4,
-                "build_up": [],
-                "area": 16,
-                "u_fabric": 0,
-                "u_overall": 0,
-                "thermal_conductance": 0,
-                "openings_area": 0,
-                "fabric_air_leakage_m3_h_m2": 0,
-                "fabric_air_leakage_flow_m3_h": 0,
-                "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 0
-              },
-              {
                 "id": "el_d13a8cc0_wall_split_1",
                 "name": "Stairs - outside Wall",
                 "type": "wall",
@@ -4368,8 +4123,8 @@
                   "id_cd183ffb3324",
                   "loft"
                 ],
-                "x": 4,
-                "y": 4,
+                "x": 43.56,
+                "y": 1,
                 "build_up": [
                   {
                     "material_id": "felt",
@@ -4392,7 +4147,8 @@
                 "fabric_air_leakage_m3_h_m2": 0.55,
                 "fabric_air_leakage_flow_m3_h": 8.8,
                 "openings_air_leakage_flow_m3_h": 0,
-                "air_leakage_flow_m3_h": 8.8
+                "air_leakage_flow_m3_h": 8.8,
+                "_autoLayoutLink": true
               },
               {
                 "id": "el_3ffb3324_wall_split_1",
@@ -5836,27 +5592,6 @@
       "air_leakage_flow_m3_h": 0
     },
     {
-      "id": "el_2a3337b3af90",
-      "name": "Floor 1 Room 2 - Ceiling",
-      "type": "ceiling",
-      "nodes": [
-        "id_dcda158499d0",
-        "loft"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
       "id": "el_158499d0_wall_split_1",
       "name": "Living Room - outside Wall (1)",
       "type": "wall",
@@ -5941,27 +5676,6 @@
       "air_leakage_flow_m3_h": 0
     },
     {
-      "id": "el_7f19684b9072",
-      "name": "Room 3 - Ceiling",
-      "type": "ceiling",
-      "nodes": [
-        "id_119bcc1e33ba",
-        "loft"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
       "id": "el_cc1e33ba_wall_split_1",
       "name": "Subfloor - outside Wall (1)",
       "type": "wall",
@@ -5973,6 +5687,38 @@
       "x": 10.338,
       "y": 0.5,
       "build_up_template_id": "buo_02",
+      "windows": [
+        {
+          "id": "id_airbrick_subfloor_1",
+          "name": "Air Brick 1",
+          "glazing_id": "window_air_brick",
+          "width": 215,
+          "height": 65,
+          "area": 0.014,
+          "length_m": 0.215,
+          "position_ratio": 0.33,
+          "air_leakage_m3_h_m2": 120,
+          "has_trickle_vent": true,
+          "trickle_vent_flow_m3_h": 25,
+          "zone_id": "id_119bcc1e33ba",
+          "u": 5.8
+        },
+        {
+          "id": "id_airbrick_subfloor_2",
+          "name": "Air Brick 2",
+          "glazing_id": "window_air_brick",
+          "width": 225,
+          "height": 75,
+          "area": 0.017,
+          "length_m": 0.225,
+          "position_ratio": 0.67,
+          "air_leakage_m3_h_m2": 120,
+          "has_trickle_vent": true,
+          "trickle_vent_flow_m3_h": 25,
+          "zone_id": "id_119bcc1e33ba",
+          "u": 5.8
+        }
+      ],
       "area": 5.169,
       "u_fabric": 0.2374,
       "u_overall": 1.6287,
@@ -5981,23 +5727,7 @@
       "fabric_air_leakage_m3_h_m2": 0.25,
       "fabric_air_leakage_flow_m3_h": 0.915,
       "openings_air_leakage_flow_m3_h": 2.718,
-      "air_leakage_flow_m3_h": 3.633,
-      "doors": [
-        {
-          "id": "id_06af188248e8",
-          "name": "Door 1",
-          "material_id": "opening_internal_cased",
-          "width": 762,
-          "height": 1981,
-          "area": 1.51,
-          "length_m": 0.762,
-          "position_ratio": 0.5,
-          "hinge_side": "left",
-          "air_leakage_m3_h_m2": 1.8,
-          "zone_id": "id_119bcc1e33ba",
-          "u": 5
-        }
-      ]
+      "air_leakage_flow_m3_h": 3.633
     },
     {
       "id": "el_cc1e33ba_wall_split_2",
@@ -6011,6 +5741,23 @@
       "x": 5.35,
       "y": 0.5,
       "build_up_template_id": "buo_02",
+      "windows": [
+        {
+          "id": "id_airbrick_subfloor_3",
+          "name": "Air Brick 3",
+          "glazing_id": "window_air_brick",
+          "width": 215,
+          "height": 65,
+          "area": 0.014,
+          "length_m": 0.215,
+          "position_ratio": 0.5,
+          "air_leakage_m3_h_m2": 120,
+          "has_trickle_vent": true,
+          "trickle_vent_flow_m3_h": 25,
+          "zone_id": "id_119bcc1e33ba",
+          "u": 5.8
+        }
+      ],
       "area": 2.675,
       "u_fabric": 0.2374,
       "u_overall": 0.2374,
@@ -6033,6 +5780,23 @@
       "x": 2.142,
       "y": 0.5,
       "build_up_template_id": "buo_02",
+      "windows": [
+        {
+          "id": "id_airbrick_subfloor_4",
+          "name": "Air Brick 4",
+          "glazing_id": "window_air_brick",
+          "width": 215,
+          "height": 65,
+          "area": 0.014,
+          "length_m": 0.215,
+          "position_ratio": 0.5,
+          "air_leakage_m3_h_m2": 120,
+          "has_trickle_vent": true,
+          "trickle_vent_flow_m3_h": 25,
+          "zone_id": "id_119bcc1e33ba",
+          "u": 5.8
+        }
+      ],
       "area": 0.651,
       "u_fabric": 0.2374,
       "u_overall": 0.2374,
@@ -6055,6 +5819,23 @@
       "x": 7.1,
       "y": 0.5,
       "build_up_template_id": "buo_02",
+      "windows": [
+        {
+          "id": "id_airbrick_subfloor_5",
+          "name": "Air Brick 5",
+          "glazing_id": "window_air_brick",
+          "width": 225,
+          "height": 75,
+          "area": 0.017,
+          "length_m": 0.225,
+          "position_ratio": 0.5,
+          "air_leakage_m3_h_m2": 120,
+          "has_trickle_vent": true,
+          "trickle_vent_flow_m3_h": 25,
+          "zone_id": "id_119bcc1e33ba",
+          "u": 5.8
+        }
+      ],
       "area": 3.55,
       "u_fabric": 0.2374,
       "u_overall": 0.2374,
@@ -6072,27 +5853,6 @@
       "nodes": [
         "id_6cb0bd57ba57",
         "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
-      "id": "el_298d89faeeb6",
-      "name": "Room 3 - Ceiling",
-      "type": "ceiling",
-      "nodes": [
-        "id_6cb0bd57ba57",
-        "loft"
       ],
       "x": 4,
       "y": 4,
@@ -6191,27 +5951,6 @@
       "air_leakage_flow_m3_h": 0
     },
     {
-      "id": "el_2fbd8b454a94",
-      "name": "Room 4 - Ceiling",
-      "type": "ceiling",
-      "nodes": [
-        "id_adc1373e0b36",
-        "loft"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
       "id": "el_cc1e33ba_fc_auto_2",
       "name": "Subfloor - Room 4 Floor/Ceiling",
       "type": "floor_ceiling",
@@ -6295,27 +6034,6 @@
       "nodes": [
         "id_7a2e17b46975",
         "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
-      "id": "el_b1bd065238ce",
-      "name": "Room 5 - Ceiling",
-      "type": "ceiling",
-      "nodes": [
-        "id_7a2e17b46975",
-        "loft"
       ],
       "x": 4,
       "y": 4,
@@ -6460,27 +6178,6 @@
       "air_leakage_flow_m3_h": 0
     },
     {
-      "id": "el_af03ad3ce37f",
-      "name": "Room 6 - Ceiling",
-      "type": "ceiling",
-      "nodes": [
-        "id_7a03d23ea52a",
-        "loft"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
       "id": "el_d23ea52a_wall_split_5",
       "name": "Kitchen - Toilet Wall",
       "type": "wall",
@@ -6570,8 +6267,8 @@
         "id_8bed4bc0c1ca",
         "loft"
       ],
-      "x": 4,
-      "y": 4,
+      "x": 15.592,
+      "y": 1,
       "build_up": [],
       "area": 16,
       "u_fabric": 0,
@@ -6581,7 +6278,8 @@
       "fabric_air_leakage_m3_h_m2": 0,
       "fabric_air_leakage_flow_m3_h": 0,
       "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
+      "air_leakage_flow_m3_h": 0,
+      "_autoLayoutLink": true
     },
     {
       "id": "el_4bc0c1ca_wall_split_1",
@@ -6867,8 +6565,8 @@
         "id_a97d9367dd05",
         "loft"
       ],
-      "x": 4,
-      "y": 4,
+      "x": 1.68,
+      "y": 1,
       "build_up": [],
       "area": 16,
       "u_fabric": 0,
@@ -6878,7 +6576,8 @@
       "fabric_air_leakage_m3_h_m2": 0,
       "fabric_air_leakage_flow_m3_h": 0,
       "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
+      "air_leakage_flow_m3_h": 0,
+      "_autoLayoutLink": true
     },
     {
       "id": "el_9367dd05_wall_split_2",
@@ -7109,27 +6808,6 @@
       "_templateEditMode": "view"
     },
     {
-      "id": "el_fbd7addbed69",
-      "name": "Floor 2 Room 9 - Ceiling",
-      "type": "ceiling",
-      "nodes": [
-        "id_3b47fa432a9b",
-        "loft"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
       "id": "el_fa432a9b_wall_split_1",
       "name": "Bedroom 2 - outside Wall (1)",
       "type": "wall",
@@ -7218,27 +6896,6 @@
       "nodes": [
         "id_c4b0bddbfa18",
         "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
-      "id": "el_e3661b543097",
-      "name": "Room 10 - Ceiling",
-      "type": "ceiling",
-      "nodes": [
-        "id_c4b0bddbfa18",
-        "loft"
       ],
       "x": 4,
       "y": 4,
@@ -7357,27 +7014,6 @@
       "air_leakage_flow_m3_h": 0
     },
     {
-      "id": "el_644d6fc29a4f",
-      "name": "Room 11 - Ceiling",
-      "type": "ceiling",
-      "nodes": [
-        "id_83b29d753906",
-        "loft"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
       "id": "el_9d753906_wall_split_2",
       "name": "Office - outside Wall (1)",
       "type": "wall",
@@ -7450,27 +7086,6 @@
       "nodes": [
         "id_596285f720a8",
         "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
-      "id": "el_85647577ef6d",
-      "name": "Room 12 - Ceiling",
-      "type": "ceiling",
-      "nodes": [
-        "id_596285f720a8",
-        "loft"
       ],
       "x": 4,
       "y": 4,
@@ -7646,8 +7261,8 @@
         "id_67ebe50eba84",
         "loft"
       ],
-      "x": 4,
-      "y": 4,
+      "x": 13.651,
+      "y": 1,
       "build_up": [],
       "area": 16,
       "u_fabric": 0,
@@ -7657,7 +7272,8 @@
       "fabric_air_leakage_m3_h_m2": 0,
       "fabric_air_leakage_flow_m3_h": 0,
       "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
+      "air_leakage_flow_m3_h": 0,
+      "_autoLayoutLink": true
     },
     {
       "id": "el_e50eba84_wall_split_3",
@@ -7913,8 +7529,8 @@
         "id_2f6c01c464e0",
         "loft"
       ],
-      "x": 4,
-      "y": 4,
+      "x": 0.857,
+      "y": 1,
       "build_up": [],
       "area": 16,
       "u_fabric": 0,
@@ -7924,7 +7540,8 @@
       "fabric_air_leakage_m3_h_m2": 0,
       "fabric_air_leakage_flow_m3_h": 0,
       "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
+      "air_leakage_flow_m3_h": 0,
+      "_autoLayoutLink": true
     },
     {
       "id": "el_17b46975_fc_auto_1",
@@ -7979,27 +7596,6 @@
       "nodes": [
         "id_879c26ea0dde",
         "ground"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
-      "id": "el_7a35de97410b",
-      "name": "Room 15 - Ceiling",
-      "type": "ceiling",
-      "nodes": [
-        "id_879c26ea0dde",
-        "loft"
       ],
       "x": 4,
       "y": 4,
@@ -8165,8 +7761,8 @@
         "id_ee603bc1c8a7",
         "loft"
       ],
-      "x": 4,
-      "y": 4,
+      "x": 2.465,
+      "y": 1,
       "build_up": [],
       "area": 16,
       "u_fabric": 0,
@@ -8176,7 +7772,8 @@
       "fabric_air_leakage_m3_h_m2": 0,
       "fabric_air_leakage_flow_m3_h": 0,
       "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
+      "air_leakage_flow_m3_h": 0,
+      "_autoLayoutLink": true
     },
     {
       "id": "el_3bc1c8a7_wall_split_2",
@@ -8268,8 +7865,8 @@
         "id_7ec187fb2585",
         "loft"
       ],
-      "x": 4,
-      "y": 4,
+      "x": 3.292,
+      "y": 1,
       "build_up": [],
       "area": 16,
       "u_fabric": 0,
@@ -8279,7 +7876,8 @@
       "fabric_air_leakage_m3_h_m2": 0,
       "fabric_air_leakage_flow_m3_h": 0,
       "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
+      "air_leakage_flow_m3_h": 0,
+      "_autoLayoutLink": true
     },
     {
       "id": "el_87fb2585_wall_split_2",
@@ -8672,8 +8270,8 @@
         "id_b619d38a4d9c",
         "loft"
       ],
-      "x": 4,
-      "y": 4,
+      "x": 1.16,
+      "y": 1,
       "build_up": [],
       "area": 16,
       "u_fabric": 0,
@@ -8683,7 +8281,8 @@
       "fabric_air_leakage_m3_h_m2": 0,
       "fabric_air_leakage_flow_m3_h": 0,
       "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
+      "air_leakage_flow_m3_h": 0,
+      "_autoLayoutLink": true
     },
     {
       "id": "el_d38a4d9c_wall_split_2",
@@ -8820,27 +8419,6 @@
       "air_leakage_flow_m3_h": 17.6
     },
     {
-      "id": "el_28fd8a7f62a4",
-      "name": "Room 19 - Ceiling",
-      "type": "ceiling",
-      "nodes": [
-        "id_7ad0d13a8cc0",
-        "loft"
-      ],
-      "x": 4,
-      "y": 4,
-      "build_up": [],
-      "area": 16,
-      "u_fabric": 0,
-      "u_overall": 0,
-      "thermal_conductance": 0,
-      "openings_area": 0,
-      "fabric_air_leakage_m3_h_m2": 0,
-      "fabric_air_leakage_flow_m3_h": 0,
-      "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 0
-    },
-    {
       "id": "el_d13a8cc0_wall_split_1",
       "name": "Stairs - outside Wall",
       "type": "wall",
@@ -8960,8 +8538,8 @@
         "id_cd183ffb3324",
         "loft"
       ],
-      "x": 4,
-      "y": 4,
+      "x": 43.56,
+      "y": 1,
       "build_up": [
         {
           "material_id": "felt",
@@ -8984,7 +8562,8 @@
       "fabric_air_leakage_m3_h_m2": 0.55,
       "fabric_air_leakage_flow_m3_h": 8.8,
       "openings_air_leakage_flow_m3_h": 0,
-      "air_leakage_flow_m3_h": 8.8
+      "air_leakage_flow_m3_h": 8.8,
+      "_autoLayoutLink": true
     },
     {
       "id": "el_3ffb3324_wall_split_1",
